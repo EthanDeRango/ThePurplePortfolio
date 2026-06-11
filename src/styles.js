@@ -1015,6 +1015,22 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 }
 .pp-printonly { display: none; }
 
+/* ── Brand logo image ─────────────────────────────────────────────────────── */
+.pp-brand-logo {
+  width: 42px; height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,.18);
+}
+.pp-auth-modal-logo {
+  width: 72px; height: 72px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  margin-bottom: 2px;
+}
+
 /* ── Auth modal ────────────────────────────────────────────────────────────── */
 .pp-auth-backdrop {
   position: fixed; inset: 0;

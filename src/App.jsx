@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import STYLES from "./styles.js";
 import { PLAN_DEFAULTS, PLAN_STORAGE_KEY } from "./data/constants.js";
-import Mark from "./components/Mark.jsx";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import NewsletterPrompt from "./components/NewsletterPrompt.jsx";
@@ -48,7 +47,7 @@ function TopNav({ onReset, hasSaved, onSignIn }) {
     <nav className="pp-topnav" role="navigation" aria-label="Main navigation">
       <div className="pp-wrap pp-topnav-in">
         <button className="pp-brand pp-mark" onClick={() => navigate("/")} aria-label="Purple Portfolio home">
-          <Mark size={34} />
+          <img src="/logo.jpg" alt="The Purple Portfolio crest" className="pp-brand-logo" />
           <span className="pp-brand-name">Purple <b>Portfolio</b></span>
         </button>
 
@@ -97,7 +96,7 @@ function Footer() {
       <div className="pp-wrap pp-footer-cols">
         <div>
           <button className="pp-brand" onClick={() => navigate("/")} aria-label="Purple Portfolio home" style={{ marginBottom: 10 }}>
-            <Mark size={28} />
+            <img src="/logo.jpg" alt="The Purple Portfolio crest" className="pp-brand-logo" style={{ width: 36, height: 36 }} />
             <span className="pp-brand-name" style={{ fontSize: 16 }}>Purple <b>Portfolio</b></span>
           </button>
           <p style={{ fontSize: 13, color: "#8E7AA0", marginTop: 6 }}>Canadian investing education — not advice.</p>

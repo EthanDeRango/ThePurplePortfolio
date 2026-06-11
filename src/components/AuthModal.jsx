@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { X, Eye, EyeOff, Mail, Lock, Bell } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
-import Mark from "./Mark.jsx";
 
 export default function AuthModal({ onClose }) {
   const { signIn, signUp, signInWithGoogle } = useAuth();
@@ -70,7 +69,7 @@ export default function AuthModal({ onClose }) {
 
         {/* Header */}
         <div className="pp-auth-head">
-          <Mark size={30} />
+          <img src="/logo.jpg" alt="The Purple Portfolio" className="pp-auth-modal-logo" />
           <div id="auth-title" className="pp-auth-logo-name">Purple <b>Portfolio</b></div>
           <p className="pp-auth-tagline">Save your plan — access it from any device</p>
         </div>
