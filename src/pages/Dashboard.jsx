@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronRight, Shield, Sparkles,
   AlertTriangle, Wallet, Landmark, PiggyBank, Coins, Scale,
   Receipt, Calculator, CalendarClock, ListOrdered, Printer,
-  Info, Home as HomeIcon, Save,
+  Info, Home as HomeIcon,
 } from "lucide-react";
 import {
   n, fmtMoney, pct1, projectSeries, projectFinal, contributedSeries,
@@ -16,7 +16,7 @@ import {
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
 import { TAX_CONFIG, TAX_YEAR, RISK, MONTH_NAMES } from "../lib/tax-config.js";
-import { PLAN_STORAGE_KEY, LADDER } from "../data/constants.js";
+import { LADDER } from "../data/constants.js";
 import { GOALS } from "../data/goals.jsx";
 import PaycheckBreakdown from "../components/PaycheckBreakdown.jsx";
 import GrowthChart from "../components/GrowthChart.jsx";
@@ -59,15 +59,6 @@ export default function Dashboard({ plan, setPlan }) {
   const [inflation, setInflation] = useState(false);
   const [afterTax, setAfterTax] = useState(false);
 
-  // save to localStorage
-  const [saveMsg, setSaveMsg] = useState("");
-  const savePlan = () => {
-    try {
-      localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
-      setSaveMsg("Saved!");
-      setTimeout(() => setSaveMsg(""), 2500);
-    } catch { setSaveMsg("Save failed"); }
-  };
 
   const rrspLimit = n(plan.rrspLimitNOA) > 0 ? n(plan.rrspLimitNOA) : rrspEstimatedLimit(income);
   const [rrspPlan, setRrspPlan] = useState(() => Math.round(Math.min(6000, Math.max(0, rrspLimit))));
@@ -245,9 +236,6 @@ export default function Dashboard({ plan, setPlan }) {
     <div className="pp-wrap pp-section">
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <button className="pp-back pp-noprint" onClick={edit}><ArrowLeft size={16} /> Edit my numbers</button>
-        <button className="pp-btn pp-btn-ghost pp-btn-sm pp-noprint" onClick={savePlan} style={{ marginLeft: "auto" }}>
-          <Save size={15} /> {saveMsg || "Save plan"}
-        </button>
       </div>
 
       <div className="pp-printonly" style={{ marginBottom: 12 }}>

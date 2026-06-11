@@ -1,8 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import STYLES from "./styles.js";
-import { PLAN_DEFAULTS } from "./data/constants.js";
+import { PLAN_DEFAULTS, PLAN_STORAGE_KEY } from "./data/constants.js";
 import Mark from "./components/Mark.jsx";
+
+function loadSavedPlan() {
+  try {
+    const raw = localStorage.getItem(PLAN_STORAGE_KEY);
+    if (raw) return { ...PLAN_DEFAULTS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return PLAN_DEFAULTS;
+}
 
 import Home from "./pages/Home.jsx";
 import Planner from "./pages/Planner.jsx";
@@ -19,12 +27,17 @@ const NAV_LINKS = [
   { to: "/about", label: "About" },
 ];
 
-function TopNav({ onBrand }) {
+function TopNav({ onReset, hasSaved }) {
   const location = useLocation();
   const navigate = useNavigate();
-  // Mark a link active when the current path starts with its `to`
-  // (with a special case so "/" only matches exactly)
+  const [showCleared, setShowCleared] = useState(false);
   const isActive = (to) => to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
+
+  const handleReset = () => {
+    onReset();
+    setShowCleared(true);
+    setTimeout(() => setShowCleared(false), 2200);
+  };
 
   return (
     <nav className="pp-topnav" role="navigation" aria-label="Main navigation">
@@ -46,6 +59,18 @@ function TopNav({ onBrand }) {
             </Link>
           ))}
         </div>
+
+        {(hasSaved || showCleared) && (
+          <div className="pp-session">
+            <span className="pp-session-dot" style={showCleared ? { background: "var(--muted)" } : {}} />
+            <span className="pp-session-label">{showCleared ? "Cleared" : "Auto-saved"}</span>
+            {!showCleared && (
+              <button className="pp-session-clear" onClick={handleReset} title="Clear session and start over">
+                · Start fresh
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );
@@ -83,10 +108,10 @@ function Footer() {
   );
 }
 
-function AppShell({ plan, setPlan }) {
+function AppShell({ plan, setPlan, onReset, hasSaved }) {
   return (
     <>
-      <TopNav />
+      <TopNav onReset={onReset} hasSaved={hasSaved} />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -96,7 +121,6 @@ function AppShell({ plan, setPlan }) {
           <Route path="/library/:cat" element={<LibraryCategory />} />
           <Route path="/library/:cat/:topic" element={<Topic />} />
           <Route path="/about" element={<About />} />
-          {/* Catch-all → home */}
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
@@ -106,13 +130,31 @@ function AppShell({ plan, setPlan }) {
 }
 
 export default function App() {
-  const [plan, setPlan] = useState(PLAN_DEFAULTS);
+  const [plan, setPlan] = useState(loadSavedPlan);
+  const [hasSaved, setHasSaved] = useState(() => !!localStorage.getItem(PLAN_STORAGE_KEY));
+
+  // Auto-save on every plan change, debounced 400ms
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
+        setHasSaved(true);
+      } catch { /* storage quota exceeded — ignore */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [plan]);
+
+  const resetPlan = () => {
+    try { localStorage.removeItem(PLAN_STORAGE_KEY); } catch { /* ignore */ }
+    setHasSaved(false);
+    setPlan(PLAN_DEFAULTS);
+  };
 
   return (
     <BrowserRouter>
       <div className="pp">
         <style>{STYLES}</style>
-        <AppShell plan={plan} setPlan={setPlan} />
+        <AppShell plan={plan} setPlan={setPlan} onReset={resetPlan} hasSaved={hasSaved} />
       </div>
     </BrowserRouter>
   );

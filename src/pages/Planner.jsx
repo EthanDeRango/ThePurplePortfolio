@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Check, Info, Shield, Sparkles,
@@ -9,22 +9,11 @@ import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget } from "../lib
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
 import { GOALS } from "../data/goals.jsx";
-import { PLAN_STORAGE_KEY } from "../data/constants.js";
 
 export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
   const set = (k, v) => setPlan((p) => ({ ...p, [k]: v }));
 
-  // local storage opt-in banner
-  const [savedPlan, setSavedPlan] = useState(null);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PLAN_STORAGE_KEY);
-      if (raw) setSavedPlan(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, []);
-  const loadSaved = () => { if (savedPlan) { setPlan(savedPlan); setSavedPlan(null); } };
 
   const age = n(plan.age), retAge = n(plan.retAge), homeAge = n(plan.homeAge);
   const yrsRet = age > 0 && retAge > age ? retAge - age : null;
@@ -56,16 +45,6 @@ export default function Planner({ plan, setPlan }) {
           Enter your own estimates below — there are no wrong answers, and you can change anything later.
           We'll decode your paycheque, your room, and your projection.
         </p>
-
-        {/* restore saved plan banner */}
-        {savedPlan && !bannerDismissed && (
-          <div className="pp-savebanner">
-            <PiggyBank size={17} style={{ flex: "none", color: "var(--plum)" }} />
-            <span><b>You have a saved plan.</b> Want to load your previous numbers?</span>
-            <button className="pp-btn pp-btn-primary pp-btn-sm" onClick={loadSaved}>Load saved plan</button>
-            <button className="pp-btn pp-btn-ghost pp-btn-sm" onClick={() => { setSavedPlan(null); setBannerDismissed(true); }}>Start fresh</button>
-          </div>
-        )}
 
         {/* 1 — About you */}
         <div className="pp-fs">
@@ -347,6 +326,9 @@ export default function Planner({ plan, setPlan }) {
                 help={<>Sets your <b>cumulative TFSA room</b> since 2009 (room starts the year you turn 18).</>} />
               <CurrencyField id="f-tfsaused" label="TFSA contributed this year" placeholder="0" value={plan.tfsaUsed} onChange={(v) => set("tfsaUsed", v)} help={<>What you've put in during {TAX_YEAR}.</>} />
             </div>
+            <CurrencyField id="f-tfsaroom" label={<>Available TFSA room <span style={{ fontWeight: 500, color: "var(--muted)" }}>· from CRA My Account (optional)</span></>}
+              placeholder="e.g. 47,000" value={plan.tfsaAvailableRoom} onChange={(v) => set("tfsaAvailableRoom", v)}
+              help={<>Check <b>CRA My Account → TFSA</b> for your exact available room for {TAX_YEAR}. Overrides our estimate.</>} />
           </div>
 
           <div className="pp-acctgroup">

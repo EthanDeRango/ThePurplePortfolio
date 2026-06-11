@@ -5,6 +5,7 @@ export default function GrowthChart({
   series, scaleRef, contribSeries, years, startAge, startMonth,
   homeIdx, homeAge, fhsaIdx, color, inflation, inflRate = 0.02,
   afterTax, retMarginal, rrspShare,
+  milestones,  // [{year, label, color}] — goal markers drawn on the curve
 }) {
   const W = 720, H = 332, PL = 56, PR = 18, PT = 34, PB = 34;
   const plotW = W - PL - PR, plotH = H - PT - PB;
@@ -109,6 +110,29 @@ export default function GrowthChart({
           <polygon points={areaPts} fill="url(#ppArea)" />
           <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
           <circle cx={X(years)} cy={Y(vals[years])} r="4" fill={lineColor} />
+
+          {/* Goal milestones — dots on the curve with labels */}
+          {milestones?.filter((m) => m.year >= 0 && m.year <= years).map((m, mi, arr) => {
+            const vIdx = Math.min(m.year, vals.length - 1);
+            const cx = X(m.year), cy = Y(vals[vIdx]);
+            // Stagger label if close to another marker (home, fhsa, or another milestone)
+            const allX = [
+              ...(showHome ? [X(homeIdx)] : []),
+              ...(showFhsa ? [X(fhsaIdx)] : []),
+              ...arr.filter((_, oi) => oi !== mi).map((o) => X(o.year)),
+            ];
+            const tooClose = allX.some((ox) => Math.abs(ox - cx) < 72);
+            return (
+              <g key={mi}>
+                <circle cx={cx} cy={cy} r="9" fill={m.color} fillOpacity="0.15" />
+                <circle cx={cx} cy={cy} r="4.5" fill={m.color} />
+                <text x={cx} y={tooClose ? PT - 4 : PT - 18} textAnchor="middle" fontSize="10.5"
+                  fill={m.color} fontWeight="700" fontFamily="Hanken Grotesk">
+                  {m.label}
+                </text>
+              </g>
+            );
+          })}
 
           {hover != null && (
             <g>
