@@ -1014,6 +1014,189 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   a[href]:after { content: ""; }
 }
 .pp-printonly { display: none; }
+
+/* ── Auth modal ────────────────────────────────────────────────────────────── */
+.pp-auth-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(18,9,30,.72);
+  backdrop-filter: blur(8px) saturate(1.6);
+  -webkit-backdrop-filter: blur(8px) saturate(1.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: ppFadeIn .18s ease;
+}
+@keyframes ppFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.pp-auth-modal {
+  background: var(--paper-card);
+  border-radius: 22px;
+  box-shadow: 0 24px 72px rgba(18,9,30,.45), 0 4px 18px rgba(18,9,30,.2);
+  width: 100%;
+  max-width: 416px;
+  position: relative;
+  overflow: hidden;
+  animation: ppSlideUp .22s cubic-bezier(.34,1.2,.64,1);
+}
+@keyframes ppSlideUp { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+
+.pp-auth-x {
+  position: absolute; top: 14px; right: 14px;
+  background: rgba(255,255,255,.15); border: none; cursor: pointer;
+  color: rgba(255,255,255,.7); border-radius: 8px;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s; z-index: 5;
+}
+.pp-auth-x:hover { background: rgba(255,255,255,.25); color: #fff; }
+
+.pp-auth-head {
+  background: linear-gradient(138deg,#1E0C40 0%,#2C1458 40%,#3D2080 75%,#4E2D9E 100%);
+  padding: 26px 28px 22px;
+  text-align: center; color: #fff;
+}
+.pp-auth-logo-name {
+  font-family: var(--display); font-size: 19px;
+  color: #fff; margin-top: 8px; letter-spacing: -.3px;
+}
+.pp-auth-tagline {
+  font-size: 12.5px; color: rgba(220,205,240,.8); margin-top: 3px;
+}
+
+.pp-auth-tabs {
+  display: flex; border-bottom: 1.5px solid var(--border);
+}
+.pp-auth-tabs button {
+  flex: 1; padding: 13px 16px;
+  background: none; border: none; cursor: pointer;
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  color: var(--muted); border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px; transition: all .15s;
+}
+.pp-auth-tabs button.on {
+  color: var(--plum); border-bottom-color: var(--violet); font-weight: 700;
+}
+
+.pp-auth-form {
+  padding: 22px 24px;
+  display: flex; flex-direction: column; gap: 13px;
+}
+.pp-auth-field {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.pp-auth-field label {
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+}
+.pp-auth-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.pp-auth-ic {
+  position: absolute; left: 11px; color: var(--muted); pointer-events: none; flex-shrink: 0;
+}
+.pp-auth-wrap input {
+  width: 100%; padding: 10px 11px 10px 34px;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  font-family: var(--sans); font-size: 14px;
+  background: #fff; color: var(--ink);
+  outline: none; transition: border-color .15s;
+}
+.pp-auth-wrap input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(112,68,190,.1); }
+.pp-auth-eye {
+  position: absolute; right: 9px;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  padding: 5px; display: flex; align-items: center; border-radius: 6px;
+}
+.pp-auth-eye:hover { color: var(--ink); }
+
+.pp-auth-newsletter-check {
+  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  background: var(--violet-soft); border: 1.5px solid var(--violet-mid);
+  border-radius: 10px; padding: 11px 13px;
+  font-size: 13px; line-height: 1.5; color: var(--ink);
+}
+.pp-auth-newsletter-check input[type="checkbox"] {
+  margin-top: 2px; width: 15px; height: 15px;
+  accent-color: var(--violet); flex-shrink: 0; cursor: pointer;
+}
+
+.pp-auth-error {
+  background: #FEF2F2; border: 1px solid #FECACA;
+  color: #991B1B; border-radius: 8px; padding: 9px 12px; font-size: 13px;
+}
+.pp-auth-fullbtn { width: 100%; }
+
+.pp-auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 12px;
+}
+.pp-auth-divider::before, .pp-auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
+
+.pp-auth-google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; padding: 10px 16px;
+  background: #fff; border: 1.5px solid var(--border); border-radius: 10px;
+  font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--ink);
+  cursor: pointer; transition: border-color .15s, box-shadow .15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.pp-auth-google-btn:hover { border-color: #bbb; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+
+.pp-auth-swap {
+  text-align: center; font-size: 13px; color: var(--muted); margin: 0;
+}
+.pp-auth-swap button {
+  background: none; border: none; cursor: pointer;
+  color: var(--violet); font-weight: 600; padding: 0; font-family: var(--sans); font-size: 13px;
+}
+.pp-auth-swap button:hover { text-decoration: underline; }
+
+.pp-auth-success {
+  padding: 30px 24px; text-align: center;
+  font-size: 14px; line-height: 1.6; color: var(--ink);
+}
+.pp-auth-success-icon { font-size: 36px; margin-bottom: 10px; }
+
+/* ── Nav auth elements ────────────────────────────────────────────────────── */
+.pp-auth-signin-btn {
+  display: flex; align-items: center;
+  padding: 6px 15px; border-radius: 20px;
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+  background: rgba(112,68,190,.1); color: var(--violet);
+  border: 1.5px solid rgba(112,68,190,.3);
+}
+.pp-auth-signin-btn:hover { background: rgba(112,68,190,.18); border-color: var(--violet); }
+
+.pp-auth-user {
+  display: flex; align-items: center; gap: 8px;
+}
+.pp-auth-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg,var(--violet),#4E2D9E);
+  color: #fff; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.pp-auth-email {
+  font-size: 13px; color: var(--plum); font-weight: 500;
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pp-auth-signout-btn {
+  font-size: 12px; color: var(--muted); background: none; border: none;
+  cursor: pointer; padding: 0; text-decoration: underline; font-family: var(--sans);
+}
+.pp-auth-signout-btn:hover { color: var(--ink); }
+
+/* ── Newsletter prompt banner ─────────────────────────────────────────────── */
+.pp-newsletter-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--paper-card); border: 1.5px solid var(--violet-mid);
+  border-radius: 14px; padding: 12px 16px; margin-bottom: 4px;
+  box-shadow: var(--shadow-sm);
+}
 `;
 
 export default STYLES;

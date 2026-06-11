@@ -3,14 +3,10 @@ import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "re
 import STYLES from "./styles.js";
 import { PLAN_DEFAULTS, PLAN_STORAGE_KEY } from "./data/constants.js";
 import Mark from "./components/Mark.jsx";
-
-function loadSavedPlan() {
-  try {
-    const raw = localStorage.getItem(PLAN_STORAGE_KEY);
-    if (raw) return { ...PLAN_DEFAULTS, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return PLAN_DEFAULTS;
-}
+import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
+import AuthModal from "./components/AuthModal.jsx";
+import NewsletterPrompt from "./components/NewsletterPrompt.jsx";
+import { usePlanSync } from "./hooks/usePlanSync.js";
 
 import Home from "./pages/Home.jsx";
 import Planner from "./pages/Planner.jsx";
@@ -20,6 +16,14 @@ import LibraryCategory from "./pages/LibraryCategory.jsx";
 import Topic from "./pages/Topic.jsx";
 import About from "./pages/About.jsx";
 
+function loadSavedPlan() {
+  try {
+    const raw = localStorage.getItem(PLAN_STORAGE_KEY);
+    if (raw) return { ...PLAN_DEFAULTS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return PLAN_DEFAULTS;
+}
+
 const NAV_LINKS = [
   { to: "/", label: "Home" },
   { to: "/plan", label: "Planner" },
@@ -27,9 +31,10 @@ const NAV_LINKS = [
   { to: "/about", label: "About" },
 ];
 
-function TopNav({ onReset, hasSaved }) {
-  const location = useLocation();
-  const navigate = useNavigate();
+function TopNav({ onReset, hasSaved, onSignIn }) {
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const { user, signOut } = useAuth();
   const [showCleared, setShowCleared] = useState(false);
   const isActive = (to) => to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
 
@@ -49,28 +54,37 @@ function TopNav({ onReset, hasSaved }) {
 
         <div className="pp-navlinks">
           {NAV_LINKS.map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className={"pp-navlink" + (isActive(to) ? " active" : "")}
-              aria-current={isActive(to) ? "page" : undefined}
-            >
+            <Link key={to} to={to} className={"pp-navlink" + (isActive(to) ? " active" : "")} aria-current={isActive(to) ? "page" : undefined}>
               {label}
             </Link>
           ))}
         </div>
 
-        {(hasSaved || showCleared) && (
-          <div className="pp-session">
-            <span className="pp-session-dot" style={showCleared ? { background: "var(--muted)" } : {}} />
-            <span className="pp-session-label">{showCleared ? "Cleared" : "Auto-saved"}</span>
-            {!showCleared && (
-              <button className="pp-session-clear" onClick={handleReset} title="Clear session and start over">
-                · Start fresh
-              </button>
-            )}
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {(hasSaved || showCleared) && !user && (
+            <div className="pp-session">
+              <span className="pp-session-dot" style={showCleared ? { background: "var(--muted)" } : {}} />
+              <span className="pp-session-label">{showCleared ? "Cleared" : "Auto-saved"}</span>
+              {!showCleared && (
+                <button className="pp-session-clear" onClick={handleReset} title="Clear session and start over">
+                  · Start fresh
+                </button>
+              )}
+            </div>
+          )}
+
+          {user ? (
+            <div className="pp-auth-user">
+              <div className="pp-auth-avatar">{user.email[0].toUpperCase()}</div>
+              <span className="pp-auth-email">{user.email}</span>
+              <button className="pp-auth-signout-btn" onClick={() => signOut()}>Sign out</button>
+            </div>
+          ) : (
+            <button className="pp-auth-signin-btn" onClick={onSignIn}>
+              Sign in
+            </button>
+          )}
+        </div>
       </div>
     </nav>
   );
@@ -109,9 +123,19 @@ function Footer() {
 }
 
 function AppShell({ plan, setPlan, onReset, hasSaved }) {
+  const { user, showNewsletterPrompt } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
+
+  usePlanSync(user, plan, setPlan, PLAN_DEFAULTS);
+
   return (
     <>
-      <TopNav onReset={onReset} hasSaved={hasSaved} />
+      <TopNav onReset={onReset} hasSaved={hasSaved} onSignIn={() => setShowAuth(true)} />
+      {showNewsletterPrompt && (
+        <div className="pp-wrap" style={{ paddingTop: 10 }}>
+          <NewsletterPrompt />
+        </div>
+      )}
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -125,21 +149,21 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
         </Routes>
       </main>
       <Footer />
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </>
   );
 }
 
 export default function App() {
-  const [plan, setPlan] = useState(loadSavedPlan);
+  const [plan, setPlan]     = useState(loadSavedPlan);
   const [hasSaved, setHasSaved] = useState(() => !!localStorage.getItem(PLAN_STORAGE_KEY));
 
-  // Auto-save on every plan change, debounced 400ms
   useEffect(() => {
     const t = setTimeout(() => {
       try {
         localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
         setHasSaved(true);
-      } catch { /* storage quota exceeded — ignore */ }
+      } catch { /* storage quota exceeded */ }
     }, 400);
     return () => clearTimeout(t);
   }, [plan]);
@@ -152,10 +176,12 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="pp">
-        <style>{STYLES}</style>
-        <AppShell plan={plan} setPlan={setPlan} onReset={resetPlan} hasSaved={hasSaved} />
-      </div>
+      <AuthProvider>
+        <div className="pp">
+          <style>{STYLES}</style>
+          <AppShell plan={plan} setPlan={setPlan} onReset={resetPlan} hasSaved={hasSaved} />
+        </div>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
