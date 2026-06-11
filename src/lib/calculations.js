@@ -55,6 +55,33 @@ export function projectSeries(rate, years, startBal, monthly, monthsArr, startMo
   return out;
 }
 
+// projectSeries variant that deducts lump-sum withdrawals at specific years.
+// withdrawals: [{year, amount}] where year is 1-indexed (1 = first year from now).
+export function projectSeriesWithWithdrawals(rate, years, startBal, monthly, monthsArr, startMonth, withdrawals) {
+  if (!withdrawals || withdrawals.length === 0)
+    return projectSeries(rate, years, startBal, monthly, monthsArr, startMonth);
+  const i      = rate / 12;
+  const sm     = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
+  let bal      = startBal;
+  const out    = [bal];
+  const custom = monthsArr && monthsArr.length === 12;
+  const wMap   = {};
+  for (const w of withdrawals) {
+    if (w.year >= 1 && w.year <= years && w.amount > 0)
+      wMap[w.year] = (wMap[w.year] || 0) + w.amount;
+  }
+  for (let y = 0; y < years; y++) {
+    for (let mo = 0; mo < 12; mo++) {
+      if (y === 0 && mo < sm) continue;
+      bal = bal * (1 + i);
+      bal += (y === 0 && custom) ? n(monthsArr[mo]) : monthly;
+    }
+    if (wMap[y + 1]) bal = Math.max(0, bal - wMap[y + 1]);
+    out.push(bal);
+  }
+  return out;
+}
+
 export function projectFinal(rate, years, startBal, monthly, monthsArr, startMonth) {
   const s = projectSeries(rate, years, startBal, monthly, monthsArr, startMonth);
   return s[s.length - 1];

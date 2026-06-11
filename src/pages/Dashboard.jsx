@@ -7,7 +7,7 @@ import {
   Info, Home as HomeIcon,
 } from "lucide-react";
 import {
-  n, fmtMoney, pct1, projectSeries, projectFinal, contributedSeries,
+  n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
   totalContributed, monthIndexOf, riskBy, planRate, fv,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
@@ -58,6 +58,7 @@ export default function Dashboard({ plan, setPlan }) {
   const fee = (plan.risk === "custom" && plan.includeMER) ? Math.max(0, n(plan.customFee) / 100) : 0;
   const [inflation, setInflation] = useState(false);
   const [afterTax, setAfterTax] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
 
   const rrspLimit = n(plan.rrspLimitNOA) > 0 ? n(plan.rrspLimitNOA) : rrspEstimatedLimit(income);
@@ -68,10 +69,28 @@ export default function Dashboard({ plan, setPlan }) {
   const years = Math.max(1, retAge - age);
   const sel = plan.risk === "custom" ? { name: "custom", ret } : riskBy(plan.risk);
 
+  // Home purchase data — needed before projection so withdrawals are baked in
+  const homeAge = n(plan.homeAge);
+  const homeIdx = plan.buyHome && homeAge > age && homeAge < retAge ? homeAge - age : null;
+  const homePrice = n(plan.homePrice);
+  const homeDown = minDownPayment(homePrice);
+
+  // Withdrawal events: home down payment + custom savings goals
+  const goalWithdrawals = [
+    ...(homeIdx != null && homeDown > 0 ? [{ year: homeIdx, amount: homeDown }] : []),
+    ...(Array.isArray(plan.customGoals) ? plan.customGoals : [])
+      .filter((g) => n(g.years) >= 1 && n(g.years) <= years && n(g.amount) > 0)
+      .map((g) => ({ year: n(g.years), amount: n(g.amount) })),
+  ];
+  const gwKey = JSON.stringify(goalWithdrawals);
+
   // memoized expensive computations
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const selSeries = useMemo(
-    () => projectSeries(ret - fee, years, start, monthly, monthsArr, startMonth),
-    [ret, fee, years, start, monthly, monthsArr, startMonth]
+    () => projectSeriesWithWithdrawals(ret - fee, years, start, monthly, monthsArr, startMonth, goalWithdrawals),
+    // gwKey serializes goalWithdrawals so the memo only re-runs when goal data actually changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ret, fee, years, start, monthly, monthsArr, startMonth, gwKey]
   );
   const selFinal = selSeries[selSeries.length - 1];
   const contribSeries = useMemo(
@@ -95,12 +114,13 @@ export default function Dashboard({ plan, setPlan }) {
   const waitYears = 5;
   const costOfWaiting = years > waitYears ? selFinal - projectFinal(ret - fee, years - waitYears, start, monthly, monthsArr, startMonth) : 0;
 
-  const homeAge = n(plan.homeAge);
-  const homeIdx = plan.buyHome && homeAge > age && homeAge < retAge ? homeAge - age : null;
-  const homeValue = homeIdx != null ? selSeries[Math.min(homeIdx, selSeries.length - 1)] : null;
-  const homePrice = n(plan.homePrice);
-  const homeDown = minDownPayment(homePrice);
-  const homeProjAtBuy = (plan.buyHome && homePrice > 0 && homeIdx != null) ? selSeries[Math.min(homeIdx, selSeries.length - 1)] : null;
+  // Pre-withdrawal value at home purchase year — what the portfolio holds before the down payment is taken.
+  // Use projectFinal (no withdrawals) so the display shows "available to buy with" not "leftover after".
+  const homePreBuyValue = homeIdx != null
+    ? projectFinal(ret - fee, homeIdx, start, monthly, monthsArr, startMonth)
+    : null;
+  const homeValue = homePreBuyValue;
+  const homeProjAtBuy = plan.buyHome && homePrice > 0 && homeIdx != null ? homePreBuyValue : null;
   const homeGap = homeProjAtBuy != null ? homeDown - homeProjAtBuy : null;
 
   const fhsaDl = fhsaDeadline(n(plan.fhsaYearOpened));
@@ -181,6 +201,16 @@ export default function Dashboard({ plan, setPlan }) {
     return { ...g, amt, yrs, reqMonthly, yToReach: amt > 0 ? yearsToTarget(amt, ret - fee, 0, annInv) : null };
   });
 
+  // Milestone dots on the growth chart for each custom savings goal
+  const GOAL_COLORS = ["#7044BE", "#2E8B57", "#C05D5D", "#C0955D", "#5D80C0"];
+  const chartMilestones = customGoalCalc
+    .filter((g) => g.yrs >= 1 && g.yrs <= years && g.amt > 0)
+    .map((g, i) => ({
+      year: g.yrs,
+      label: (g.name || "Goal") + " −" + fmtShort(g.amt),
+      color: GOAL_COLORS[i % GOAL_COLORS.length],
+    }));
+
   const downNeed = buyingHome ? (n(plan.homePrice) > 0 ? minDownPayment(n(plan.homePrice)) : 0) : 0;
   const health = healthScore({ hasEmergency: emergencyFull, income, annualInvest: annInv, buyHome: buyingHome, marginal, projRetIncome: recSim.afterTax * 0.04, targetSpend: retSpend, downProj: recSim.downAtHome || 0, downNeed });
   const scoreColor = (s) => s >= 7 ? "var(--green)" : s >= 4 ? "var(--gold)" : "var(--rose)";
@@ -250,6 +280,9 @@ export default function Dashboard({ plan, setPlan }) {
           <>
             <div className="big">{fmtMoney(dispVal(selFinal))}</div>
             <div className="cap">Projected by age {retAge} ({years} years) on your <b style={{ color: "var(--gold-2)" }}>{sel.name.toLowerCase()}</b> path{fee > 0 ? `, after ~${pct1(fee)} fees` : ""}{inflation ? ", in today's dollars" : ""}{afterTax ? ", after estimated retirement tax" : ""}.</div>
+            <div style={{ marginTop: 10, fontSize: 13.5, color: "rgba(220,205,240,.9)", background: "rgba(255,255,255,.09)", borderRadius: 10, padding: "8px 14px", display: "inline-block" }}>
+              In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * 0.04)}/yr</b> throughout retirement without running out.
+            </div>
             <div className="pp-scn">
               {RISK.map((r) => (
                 <div className="pp-scnc" key={r.key}>
@@ -271,14 +304,15 @@ export default function Dashboard({ plan, setPlan }) {
       <div className="pp-snap">
         {hasData && <div className="pp-snapc"><div className="l">Projected total</div><div className="v">{fmtMoney(dispVal(selFinal))}</div><div className="h">by age {retAge}</div></div>}
         {income > 0 && <div className="pp-snapc"><div className="l">Take-home pay</div><div className="v">{fmtMoney(tax.netMonthly)}</div><div className="h">per month, after tax</div></div>}
-        {income > 0 && <div className="pp-snapc"><div className="l">Marginal rate</div><div className="v">{pct1(marginal)}</div><div className="h">on your next dollar</div></div>}
+        {income > 0 && <div className="pp-snapc"><div className="l">Your tax rate</div><div className="v">{pct1(marginal)}</div><div className="h">on your next dollar earned</div></div>}
         <div className="pp-snapc"><div className="l">Next priority</div><div className="v" style={{ fontSize: 16, lineHeight: 1.2 }}>{firstTodo >= 0 && nextSteps[firstTodo] ? nextSteps[firstTodo].label : "Keep investing"}</div><div className="h">{firstTodo >= 0 && nextSteps[firstTodo] && nextSteps[firstTodo].amount > 0 ? fmtMoney(nextSteps[firstTodo].amount) + (["ef","debt","match"].includes(nextSteps[firstTodo].key) ? "" : "/yr") : "your action plan below"}</div></div>
       </div>
 
       {/* Section-jump nav — uses pp-secnav to avoid colliding with top pp-topnav */}
       <nav className="pp-secnav pp-noprint" aria-label="Jump to dashboard section">
         {[
-          ["sec-plan", "Action plan"], ["sec-compare", "Compare strategies"],
+          ["sec-plan", "Action plan"], ["sec-compare", "Accounts"],
+          ...(income > 0 ? [["sec-taxplan", "Tax plan"]] : []),
           ["sec-goal", "Goal"],
           ...(income > 0 ? [["sec-pay", "Paycheque"], ["sec-tax", "Tax savings"], ["sec-vs", "TFSA vs RRSP"]] : []),
           ["sec-room", "Room"],
@@ -293,6 +327,74 @@ export default function Dashboard({ plan, setPlan }) {
 
       <div style={{ height: 14 }} />
       <Disclaimer />
+
+      {/* BEGINNER GUIDE */}
+      <div style={{ marginTop: 20 }}>
+        <button
+          onClick={() => setShowGuide((v) => !v)}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            background: "var(--violet-soft)", border: "1px solid var(--violet-mid)",
+            borderRadius: showGuide ? "18px 18px 0 0" : 18, padding: "15px 20px",
+            cursor: "pointer", fontFamily: "var(--sans)", textAlign: "left", transition: "border-radius .15s",
+          }}
+          aria-expanded={showGuide}
+        >
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".10em", color: "var(--plum-2)", marginBottom: 3 }}>New to investing?</div>
+            <span style={{ fontFamily: "var(--display)", fontSize: 17, fontWeight: 600, color: "var(--plum)" }}>Understand what this dashboard is showing you</span>
+          </div>
+          <ChevronRight size={20} style={{ color: "var(--plum-2)", transform: showGuide ? "rotate(90deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+        </button>
+        {showGuide && (
+          <div style={{ background: "var(--paper-card)", border: "1px solid var(--violet-mid)", borderTop: 0, borderRadius: "0 0 18px 18px", padding: "22px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+            <p style={{ fontSize: 14.5, color: "var(--ink)", lineHeight: 1.75, margin: 0 }}>
+              <b>The big idea:</b> Money sitting in a regular bank account grows slowly (1–2%/year). Invested money — in the stock market or index funds — has historically grown 6–10%/year. More importantly, your gains earn their own gains, called <b>compounding</b>. This dashboard shows where your money ends up if you invest consistently over {years} years.
+            </p>
+
+            {/* The three accounts */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--plum-2)", marginBottom: 10 }}>Your three investment accounts</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                <div style={{ background: "#EAF5EA", borderRadius: 12, padding: "14px 16px" }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: "#245A24", marginBottom: 6 }}>TFSA — Tax-Free Savings</div>
+                  <p style={{ fontSize: 13, color: "#245A24", lineHeight: 1.65, margin: 0 }}>Like a magic jar. Put money in, it grows, take it out — the government never taxes any of it. Use it for anything, any time, with no paperwork.</p>
+                </div>
+                <div style={{ background: "#F8F0E0", borderRadius: 12, padding: "14px 16px" }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: "#5C400A", marginBottom: 6 }}>RRSP — Retirement Savings</div>
+                  <p style={{ fontSize: 13, color: "#5C400A", lineHeight: 1.65, margin: 0 }}>A deal with the government: invest now, get a tax refund today. When you retire and take the money out, you pay some tax — but usually at a lower rate than you do now.</p>
+                </div>
+                <div style={{ background: "#FAE8EF", borderRadius: 12, padding: "14px 16px" }}>
+                  <div style={{ fontWeight: 800, fontSize: 13.5, color: "#6B1A35", marginBottom: 6 }}>FHSA — First Home Savings</div>
+                  <p style={{ fontSize: 13, color: "#6B1A35", lineHeight: 1.65, margin: 0 }}>For first-time buyers only. Get a tax refund each year you contribute, AND pay zero tax when you use it to buy your home. Best of both worlds.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Key terms */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--plum-2)", marginBottom: 12 }}>Key terms, explained simply</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+                {[
+                  { term: `Tax refund on investing`, def: `When you contribute to an RRSP or FHSA, the government refunds some of the income tax you already paid — because you're saving for your future. At your current rate of ${pct1(marginal)}, every $1,000 you put in returns about ${fmtMoney(marginal * 1000)} at tax time. It shows up like a bonus cheque when you file.` },
+                  { term: `Your tax rate — ${pct1(marginal)}`, def: `If you earned one more dollar of income today, ${pct1(marginal)} of it would go to tax. This is called your "marginal rate." It's why RRSP and FHSA contributions are valuable — every dollar you contribute saves you ${pct1(marginal)} in tax right now.` },
+                  { term: `4% rule`, def: `A widely-used retirement guideline: if you withdraw 4% of your savings each year, it should last your entire lifetime without running out. ${fmtMoney(dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000)} in savings → ${fmtMoney((dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000) * 0.04)}/yr to live on.` },
+                  { term: `After-tax value`, def: `RRSP money gets taxed when you take it out in retirement. "After-tax" shows the amount left after that future tax — your actual spending power. TFSA withdrawals are always after-tax (because they're never taxed at all).` },
+                  { term: `Sustainable income`, def: `The annual amount you could pay yourself from your savings without ever running out of money — calculated using the 4% rule above. Think of it like a salary you pay yourself from your investment pot.` },
+                ].map(({ term, def }) => (
+                  <div key={term} style={{ display: "flex", gap: 14, alignItems: "flex-start", paddingBottom: 11, borderBottom: "1px solid var(--line-soft)" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--plum)", minWidth: 185, flexShrink: 0, lineHeight: 1.5, paddingTop: 1 }}>{term}</div>
+                    <div style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.65 }}>{def}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
+              Still have questions? The <button className="pp-inlinelink" onClick={() => navigate("/library")}>Library</button> has full articles on every account type, tax brackets, and more.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* ACTION PLAN */}
       <div id="sec-plan" style={{ marginTop: 32 }}>
@@ -324,53 +426,319 @@ export default function Dashboard({ plan, setPlan }) {
         <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>This is a widely used Canadian priority framework applied to your inputs — a strong default, not personal advice. Your situation may justify a different order.</p>
       </div>
 
-      {/* COMPARE STRATEGIES */}
+      {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}
       <div id="sec-compare" style={{ marginTop: 34 }}>
-        <span className="pp-eyebrow"><Scale size={14} /> Compare strategies</span>
-        <h3 className="pp-sec-h">Your recommended path — and how the alternatives stack up</h3>
+        <span className="pp-eyebrow"><Scale size={14} /> Account breakdown</span>
+        <h3 className="pp-sec-h">What each account does for you</h3>
+        <p className="pp-sec-lead">Same money, different wrappers — the difference is when and how much tax you pay.</p>
+
         {annInv > 0 ? (() => {
-          const recS = strats.find((s) => s.key === recKey) || strats[0];
-          const bestRetire = Math.max(...strats.map((s) => s.sim.afterTax));
+          const tfsaS = strats.find((s) => s.key === "tfsa");
+          const rrspS = strats.find((s) => s.key === "rrsp");
+          const homeS = strats.find((s) => s.key === "home");
+          const recS  = strats.find((s) => s.key === recKey) || strats[0];
+          const bestAfterTax = Math.max(...strats.map((s) => s.sim.afterTax));
           const bestDown = buyingHome ? Math.max(...strats.map((s) => s.sim.downAtHome || 0)) : 0;
           return (
             <>
-              <div className="pp-card rec-hero" style={{ borderColor: "var(--violet)", boxShadow: "0 0 0 2px rgba(124,77,196,.18)" }}>
-                <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#fff", background: "var(--violet)", padding: "3px 9px", borderRadius: 999 }}>Recommended for you</span>
-                <h4 style={{ fontFamily: "var(--display)", fontSize: 23, color: "var(--plum)", margin: "10px 0 4px" }}>{recS.name}</h4>
-                <div style={{ fontSize: 14, color: "var(--muted)", marginBottom: 14 }}>Fund in this order: <b style={{ color: "var(--plum)" }}>{recOrder.filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}</b></div>
-                <div className="pp-grid-3">
-                  <div className="pp-rate-chip"><div className="l">Tax refund, year one</div><div className="v">{fmtMoney(recS.sim.refundYr1)}</div><div className="h">from RRSP/FHSA deductions</div></div>
-                  <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">After-tax at {retAge}</div><div className="v">{fmtMoney(recS.sim.afterTax)}</div><div className="h">withdrawals taxed realistically</div></div>
-                  {buyingHome
-                    ? <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Down payment by {homeAge || "?"}</div><div className="v">{recS.sim.downAtHome != null ? fmtMoney(recS.sim.downAtHome) : "—"}</div><div className="h">FHSA + TFSA + HBP</div></div>
-                    : <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Why this order</div><div className="v" style={{ fontSize: 15, lineHeight: 1.25 }}>{marginal >= 0.30 ? "Deduct high now" : "Stay flexible"}</div><div className="h">{marginal >= 0.30 ? `${pct1(marginal)} today vs ~${pct1(retMarginal)} later` : "TFSA first at your bracket"}</div></div>}
+              {/* Per-account cards */}
+              <div style={{ display: "grid", gridTemplateColumns: buyingHome ? "repeat(3, 1fr)" : "repeat(2, 1fr)", gap: 14, marginBottom: 20 }}>
+
+                {/* TFSA */}
+                <div className="pp-card" style={{ borderTop: "3px solid var(--green)", padding: "22px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EAF5EA", display: "grid", placeItems: "center", color: "var(--green)", flexShrink: 0 }}><PiggyBank size={18} /></div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--green)" }}>TFSA</div>
+                      <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Grows tax-free. Withdraw any time, no tax — ever.</div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize TFSA first</div>
+                    <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{tfsaS ? fmtMoney(tfsaS.sim.afterTax) : "—"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after-tax at {retAge} · {tfsaS ? fmtMoney(tfsaS.sim.afterTax * 0.04) + "/yr" : "—"} sustainable</div>
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
+                    <div className="pp-stat" style={{ padding: "3px 0" }}><span>Tax refund now</span><span style={{ fontWeight: 700, color: "var(--muted)" }}>None</span></div>
+                    <div className="pp-stat" style={{ padding: "3px 0" }}><span>Tax on withdrawal</span><span style={{ fontWeight: 700, color: "var(--green)" }}>None — ever ✓</span></div>
+                    <div className="pp-stat" style={{ padding: "3px 0", borderBottom: 0 }}><span>Room this year</span><span style={{ fontWeight: 700 }}>{fmtMoney(TAX_CONFIG.tfsa.annual)}</span></div>
+                  </div>
+                  <div style={{ marginTop: 12, padding: "10px 12px", background: "#EAF5EA", borderRadius: 10, fontSize: 12.5, color: "#245A24", lineHeight: 1.55 }}>
+                    <b>Best if</b> you want full flexibility, or expect your income (and tax rate) to rise.
+                  </div>
+                </div>
+
+                {/* RRSP */}
+                <div className="pp-card" style={{ borderTop: "3px solid var(--gold)", padding: "22px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F8F0E0", display: "grid", placeItems: "center", color: "var(--gold)", flexShrink: 0 }}><Landmark size={18} /></div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--gold)" }}>RRSP</div>
+                      <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Tax refund today. Pay tax in retirement — usually less.</div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize RRSP first</div>
+                    <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{rrspS ? fmtMoney(rrspS.sim.afterTax) : "—"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after-tax at {retAge} · {rrspS ? fmtMoney(rrspS.sim.afterTax * 0.04) + "/yr" : "—"} sustainable</div>
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
+                    {income > 0 && <div className="pp-stat" style={{ padding: "3px 0" }}><span>Refund on {fmtMoney(rrspPlan)}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>+{fmtMoney(rrspSaving)}</span></div>}
+                    <div className="pp-stat" style={{ padding: "3px 0" }}><span>Tax on withdrawal</span><span style={{ fontWeight: 700, color: "#9A6010" }}>~{pct1(retMarginal)} in retirement</span></div>
+                    <div className="pp-stat" style={{ padding: "3px 0", borderBottom: 0 }}><span>Room available</span><span style={{ fontWeight: 700 }}>{fmtMoney(rrspLeft)}</span></div>
+                  </div>
+                  <div style={{ marginTop: 12, padding: "10px 12px", background: "#F8F0E0", borderRadius: 10, fontSize: 12.5, color: "#5C400A", lineHeight: 1.55 }}>
+                    <b>Best if</b> your {pct1(marginal)} rate today is higher than your estimated ~{pct1(retMarginal)} retirement rate.
+                  </div>
+                </div>
+
+                {/* FHSA — only shown when buying a home */}
+                {buyingHome && (
+                  <div className="pp-card" style={{ borderTop: "3px solid var(--rose)", padding: "22px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#FAE8EF", display: "grid", placeItems: "center", color: "var(--rose)", flexShrink: 0 }}><HomeIcon size={18} /></div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--rose)" }}>FHSA</div>
+                        <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Tax refund now + zero tax when you buy your home.</div>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>Projected for your down payment</div>
+                      <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{homeS?.sim?.downAtHome ? fmtMoney(homeS.sim.downAtHome) : "—"}</div>
+                      <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>FHSA + TFSA + HBP by age {homeAge || "?"}</div>
+                    </div>
+                    <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
+                      {income > 0 && <div className="pp-stat" style={{ padding: "3px 0" }}><span>Refund on {fmtMoney(fhsaPlan)}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>+{fmtMoney(fhsaSaving)}</span></div>}
+                      <div className="pp-stat" style={{ padding: "3px 0" }}><span>Home withdrawal tax</span><span style={{ fontWeight: 700, color: "var(--green)" }}>None ✓</span></div>
+                      <div className="pp-stat" style={{ padding: "3px 0", borderBottom: 0 }}><span>Closes</span><span style={{ fontWeight: 700 }}>{fhsaCloseYear ?? "—"}</span></div>
+                    </div>
+                    <div style={{ marginTop: 12, padding: "10px 12px", background: "#FAE8EF", borderRadius: 10, fontSize: 12.5, color: "#6B1A35", lineHeight: 1.55 }}>
+                      <b>Best for</b> first-time home buyers. Deduction now + tax-free withdrawal. Stacks with HBP.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Recommended strategy callout */}
+              <div className="pp-card" style={{ borderColor: "var(--violet)", boxShadow: "0 0 0 2px rgba(112,68,190,.14)", marginBottom: 14, padding: "22px 24px" }}>
+                <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#fff", background: "linear-gradient(135deg, var(--plum), var(--plum-2))", padding: "3px 10px", borderRadius: 999, marginBottom: 12 }}>
+                  Recommended for your situation
+                </span>
+                <h4 style={{ fontFamily: "var(--display)", fontSize: 24, color: "var(--plum)", margin: "0 0 6px" }}>{recS.name}</h4>
+                <div style={{ fontSize: 14, color: "var(--muted)", marginBottom: 12 }}>
+                  Fund in order: <b style={{ color: "var(--plum)" }}>{recOrder.filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}</b>
+                </div>
+                <p style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.65, margin: "0 0 18px" }}>
+                  {marginal >= 0.30
+                    ? <>At your <b>{pct1(marginal)}</b> tax rate, putting money into an RRSP gives you a real cash refund today — and you'll likely pay only <b>~{pct1(retMarginal)}</b> when you take it out in retirement. That gap of {pct1(Math.max(0, marginal - retMarginal))} per dollar is money you keep.</>
+                    : marginal - retMarginal > 0.02
+                    ? <>Your tax rate today (<b>{pct1(marginal)}</b>) is higher than what you're likely to pay in retirement (<b>~{pct1(retMarginal)}</b>). That makes RRSP contributions worthwhile — you save at a higher rate than you'll pay.</>
+                    : <>Your tax rate today and in retirement are close. The TFSA is the better pick — your money grows completely tax-free and you can withdraw it any time without any tax or paperwork.</>}
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                  <div className="pp-rate-chip"><div className="l">Tax refund, year 1</div><div className="v">{fmtMoney(recS.sim.refundYr1)}</div><div className="h">back at tax time</div></div>
+                  <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">After-tax at {retAge}</div><div className="v">{fmtMoney(recS.sim.afterTax)}</div><div className="h">realistic withdrawals</div></div>
+                  <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Sustainable income</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">4% rule applied</div></div>
                 </div>
               </div>
-              <div className="pp-card" style={{ marginTop: 14, overflowX: "auto" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--plum-2)", marginBottom: 4 }}>Same {fmtMoney(annInv)}/yr, four ways — side by side</div>
+
+              {/* All strategies comparison table */}
+              <div className="pp-card" style={{ overflowX: "auto" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--plum-2)", marginBottom: 10 }}>
+                  All strategies — same {fmtMoney(annInv)}/yr, different outcomes
+                </div>
                 <table className="pp-cmp">
-                  <thead><tr><th>Strategy</th><th>Refund yr 1</th><th>After-tax @ {retAge}</th>{buyingHome && <th>Down pmt @ {homeAge || "?"}</th>}<th>Best for</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Strategy</th>
+                      <th>Order</th>
+                      <th>Tax refund yr 1</th>
+                      <th>After-tax at {retAge}</th>
+                      <th>Annual income</th>
+                      {buyingHome && <th>Down pmt @ {homeAge || "?"}</th>}
+                    </tr>
+                  </thead>
                   <tbody>
                     {strats.map((s) => (
                       <tr key={s.key} className={s.key === recKey ? "rec" : ""}>
-                        <td><span className="stratname">{s.name}</span>{s.key === recKey && <span className="recbadge">Rec</span>}<div className="ord">{(s.order || ["tfsa","rrsp"]).filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}{s.mode === "balanced" ? " (50/50)" : ""}</div></td>
+                        <td><span className="stratname">{s.name}</span>{s.key === recKey && <span className="recbadge">Rec</span>}</td>
+                        <td style={{ fontSize: 12, color: "var(--muted)" }}>{(s.order || ["tfsa","rrsp"]).filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}{s.mode === "balanced" ? " (50/50)" : ""}</td>
                         <td>{fmtMoney(s.sim.refundYr1)}</td>
-                        <td className={s.sim.afterTax === bestRetire ? "best" : ""}>{fmtMoney(s.sim.afterTax)}</td>
+                        <td className={s.sim.afterTax === bestAfterTax ? "best" : ""}>{fmtMoney(s.sim.afterTax)}</td>
+                        <td>{fmtMoney(s.sim.afterTax * 0.04)}/yr</td>
                         {buyingHome && <td className={(s.sim.downAtHome || 0) === bestDown && bestDown > 0 ? "best" : ""}>{s.sim.downAtHome != null ? fmtMoney(s.sim.downAtHome) : "—"}</td>}
-                        <td style={{ textAlign: "left", whiteSpace: "normal", fontSize: 12, color: "var(--muted)" }}>{s.goodIf[0]}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}><b className="best" style={{ color: "var(--green)" }}>Green</b> marks the highest figure. Trade-off to weigh: {recS.trade}</p>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                  <b style={{ color: "var(--green)" }}>Green</b> = highest in that column. Assumes {fmtMoney(annInv)}/yr at {pct1(ret)} returns, {pct1(marginal)} rate today, ~{pct1(retMarginal)} in retirement.
+                </p>
               </div>
             </>
           );
         })() : (
-          <div className="pp-card"><p style={{ color: "var(--muted)" }}>Add a monthly contribution to compare strategies with real figures.</p></div>
+          <div className="pp-card"><p style={{ color: "var(--muted)" }}>Add a monthly contribution in the planner to compare strategies with real figures.</p></div>
         )}
-        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>A model, not a guarantee: assumes steady {pct1(ret)} returns, your {pct1(marginal)} rate today and ~{pct1(retMarginal)} in retirement. Real outcomes vary.</p>
       </div>
+
+      {/* OPTIMIZED TAX PLAN */}
+      {income > 0 && (
+        <div id="sec-taxplan" style={{ marginTop: 34 }}>
+          <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
+          <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
+          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} marginal rate — the optimal order with the tax math shown.</p>
+          {(() => {
+            const yr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
+            const deductibleTotal = (yr1.rrsp || 0) + (yr1.fhsa || 0);
+            const totalTaxSaved = deductibleTotal > 0 ? deductionSaving(income, prov, empType, deductibleTotal) : 0;
+            const netInvested = (yr1.rrsp || 0) + (yr1.fhsa || 0) + (yr1.tfsa || 0) + (yr1.taxable || 0);
+
+            const taxSteps = [];
+            taxSteps.push({
+              key: "ef", done: emergencyFull,
+              icon: <Shield size={16} />, accentColor: emergencyFull ? "var(--green)" : "#3D7A3B", accentBg: emergencyFull ? "var(--violet-soft)" : "#EAF5EA",
+              label: "Emergency fund",
+              badge: emergencyFull ? "Complete" : null,
+              math: null,
+              detail: emergencyFull
+                ? "Fully funded — solid foundation for everything else."
+                : `Build ${fmtMoney(efTargetAmt > 0 ? efTargetAmt : 0)} in a high-interest savings account (3–6 months of expenses). This comes before investing.`,
+            });
+            if (matchAmt > 0) taxSteps.push({
+              key: "match", done: false,
+              icon: <Landmark size={16} />, accentColor: "var(--gold)", accentBg: "#F8F0E0",
+              label: "Capture your employer RRSP match",
+              badge: "Free money",
+              math: `${fmtMoney(matchAmt)} from you → ${fmtMoney(matchAmt)} matched = instant 100% return`,
+              detail: "The highest guaranteed return you'll find anywhere. Always do this before anything else.",
+            });
+            if (debt > 0) taxSteps.push({
+              key: "debt", done: false,
+              icon: <AlertTriangle size={16} />, accentColor: "var(--rose)", accentBg: "#FAE8EF",
+              label: "Pay off high-interest debt",
+              badge: null,
+              math: `Guaranteed, tax-free return — beats most investments`,
+              detail: `Clearing ${fmtMoney(debt)} of high-interest debt is better than most investment returns.`,
+            });
+            if ((yr1.rrsp || 0) > 0) {
+              const rrspSave = deductionSaving(income, prov, empType, yr1.rrsp || 0);
+              taxSteps.push({
+                key: "rrsp", done: false,
+                icon: <Landmark size={16} />, accentColor: "var(--gold)", accentBg: "#F8F0E0",
+                label: `RRSP — ${fmtMoney(yr1.rrsp)}/yr`,
+                badge: rrspSave > 0 ? `+${fmtMoney(rrspSave)} refund` : null,
+                math: `${fmtMoney(yr1.rrsp)} × ${pct1(marginal)} = ${fmtMoney(rrspSave)} tax back → your net cost is ${fmtMoney(Math.max(0, (yr1.rrsp || 0) - rrspSave))}`,
+                detail: `The government sends you a refund cheque at tax time — your real cost to have $${(yr1.rrsp||0).toLocaleString()} invested is just ${fmtMoney(Math.max(0,(yr1.rrsp||0)-deductionSaving(income,prov,empType,yr1.rrsp||0)))}. The money then grows until retirement, when you pay ~${pct1(retMarginal)} tax on withdrawals — lower than today's ${pct1(marginal)}, so you come out ahead.`,
+              });
+            }
+            if ((yr1.fhsa || 0) > 0 && buyingHome) {
+              const rrspAlready = yr1.rrsp || 0;
+              const combinedSave = deductionSaving(income, prov, empType, rrspAlready + (yr1.fhsa || 0));
+              const rrspSaveAlone = rrspAlready > 0 ? deductionSaving(income, prov, empType, rrspAlready) : 0;
+              const fhsaInc = combinedSave - rrspSaveAlone;
+              taxSteps.push({
+                key: "fhsa", done: false,
+                icon: <HomeIcon size={16} />, accentColor: "var(--rose)", accentBg: "#FAE8EF",
+                label: `FHSA — ${fmtMoney(yr1.fhsa)}/yr`,
+                badge: fhsaInc > 0 ? `+${fmtMoney(fhsaInc)} refund` : null,
+                math: `${fmtMoney(yr1.fhsa)} × ~${pct1(marginal)} ≈ ${fmtMoney(fhsaInc)} refund AND tax-free when you buy your home`,
+                detail: `Unlike the RRSP, you'll never pay tax on this money when you use it to buy your home — it's tax-free on both sides. If you don't end up buying a home, you can move the whole balance to your RRSP with no tax hit. Closes ${fhsaCloseYear ? "by " + fhsaCloseYear : "after 15 years"}.`,
+              });
+            }
+            if ((yr1.tfsa || 0) > 0) taxSteps.push({
+              key: "tfsa", done: false,
+              icon: <PiggyBank size={16} />, accentColor: "#3D7A3B", accentBg: "#EAF5EA",
+              label: `TFSA — ${fmtMoney(yr1.tfsa)}/yr`,
+              badge: null,
+              math: "No refund now — but grows and withdraws tax-free, forever.",
+              detail: "This money grows completely tax-free — dividends, gains, none of it taxed. Take it out any time for any reason (vacation, emergency, retirement). No forms, no tax. Room refills the next January after a withdrawal.",
+            });
+            if ((yr1.taxable || 0) > 0) taxSteps.push({
+              key: "taxable", done: false,
+              icon: <Wallet size={16} />, accentColor: "var(--blue)", accentBg: "#ECF0FA",
+              label: `Non-registered — ${fmtMoney(yr1.taxable)}/yr`,
+              badge: null,
+              math: "All registered accounts are full — overflow goes here.",
+              detail: "Growth is taxed at reduced rates (capital gains, eligible dividends). Still worth it once registered room is maxed.",
+            });
+
+            const firstUndoneIdx = taxSteps.findIndex((s) => !s.done);
+
+            return (
+              <div className="pp-card" style={{ padding: "6px 0" }}>
+                {taxSteps.map((s, i) => (
+                  <div key={s.key} style={{
+                    display: "flex", gap: 16, alignItems: "flex-start",
+                    padding: "18px 24px",
+                    borderBottom: i < taxSteps.length - 1 ? "1px solid var(--line-soft)" : "none",
+                    opacity: s.done ? 0.6 : 1,
+                  }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                      background: s.done ? "var(--violet-soft)" : s.accentBg,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: s.accentColor,
+                      outline: i === firstUndoneIdx && !s.done ? `2.5px solid ${s.accentColor}` : "none",
+                      outlineOffset: "1px",
+                    }}>
+                      {s.done ? <Check size={17} style={{ color: "var(--green)" }} /> : s.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 7 }}>
+                        <span style={{ fontFamily: "var(--display)", fontSize: 17, fontWeight: 600, color: "var(--plum)" }}>{s.label}</span>
+                        {i === firstUndoneIdx && !s.done && (
+                          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", background: "var(--violet)", color: "#fff", padding: "2px 8px", borderRadius: 999 }}>Do this now</span>
+                        )}
+                        {s.done && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", background: "var(--green)", color: "#fff", padding: "2px 8px", borderRadius: 999 }}>Complete</span>}
+                        {s.badge && !s.done && (
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--green)", background: "#EAF5EA", padding: "2px 9px", borderRadius: 999, border: "1px solid rgba(61,122,59,.2)" }}>{s.badge}</span>
+                        )}
+                      </div>
+                      {s.math && (
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--plum-2)", padding: "6px 11px", background: "rgba(112,68,190,.07)", borderRadius: 9, display: "inline-block", marginBottom: 8, lineHeight: 1.5 }}>
+                          {s.math}
+                        </div>
+                      )}
+                      <p style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, margin: 0 }}>{s.detail}</p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Summary strip */}
+                {(totalTaxSaved > 0 || recSim.afterTax > 0) && (
+                  <div style={{ margin: "6px 24px 18px", padding: "16px 20px", background: "linear-gradient(120deg, var(--violet-soft), #F3ECDB)", borderRadius: 14, display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+                    {totalTaxSaved > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--plum-2)" }}>Tax saved this year</div>
+                        <div style={{ fontFamily: "var(--display)", fontSize: 30, fontWeight: 600, color: "var(--green)", lineHeight: 1.1 }}>{fmtMoney(totalTaxSaved)}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>from RRSP{buyingHome ? " + FHSA" : ""} deductions</div>
+                      </div>
+                    )}
+                    {totalTaxSaved > 0 && netInvested > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--plum-2)" }}>Real cost to invest</div>
+                        <div style={{ fontFamily: "var(--display)", fontSize: 30, fontWeight: 600, color: "var(--plum)", lineHeight: 1.1 }}>{fmtMoney(Math.max(0, netInvested - totalTaxSaved))}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>after your tax refund</div>
+                      </div>
+                    )}
+                    {recSim.afterTax > 0 && (
+                      <div style={{ marginLeft: "auto" }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--plum-2)" }}>After-tax at {retAge}</div>
+                        <div style={{ fontFamily: "var(--display)", fontSize: 30, fontWeight: 600, color: "var(--plum)", lineHeight: 1.1 }}>{fmtMoney(recSim.afterTax)}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>on your recommended path</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p style={{ fontSize: 12, color: "var(--muted)", padding: "0 24px 18px", margin: 0 }}>
+                  Estimates based on {TAX_YEAR} rules and your inputs — not personal financial advice. Limits, rates, and income may change.
+                </p>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* GOAL TRACKER */}
       <div id="sec-goal" style={{ marginTop: 34 }}>
@@ -453,45 +821,6 @@ export default function Dashboard({ plan, setPlan }) {
         })}
       </div>
 
-      {/* OPPORTUNITY COST */}
-      {income > 0 && (
-        <div style={{ marginTop: 34 }}>
-          <span className="pp-eyebrow"><Coins size={14} /> Opportunity cost</span>
-          <h3 className="pp-sec-h">Where your next {fmtMoney(oppAmt)} ends up ahead</h3>
-          <div className="pp-callout" style={{ marginBottom: 14 }}>
-            <Info size={18} style={{ flex: "none" }} />
-            <span><b>What's a "tax refund" here?</b> RRSP and FHSA contributions are subtracted from your taxable income. At your {pct1(marginal)} rate, putting {fmtMoney(oppAmt)} into an RRSP or FHSA returns about <b>{fmtMoney(refundNow)}</b> at tax time. A TFSA gives no refund, but it's never taxed again.</span>
-          </div>
-          <div className="pp-card">
-            <table className="pp-opp">
-              <thead><tr><th>Account</th><th>Tax back now</th><th>Grows to (age {retAge})</th><th>Tax on withdrawal</th><th>Net when used</th></tr></thead>
-              <tbody>
-                {oppRows.map((r) => r.closes ? (
-                  <tr key={r.key}>
-                    <td>{r.name}</td>
-                    <td className={r.taxNow > 0 ? "good" : ""}>{fmtMoney(r.taxNow)}</td>
-                    <td style={{ color: "var(--muted)" }}>—</td>
-                    <td className="good">None — for a home</td>
-                    <td style={{ color: "#9A6010", fontWeight: 600, fontSize: 12 }}>Closes at age {r.closeAge ?? "—"}</td>
-                  </tr>
-                ) : (
-                  <tr key={r.key}>
-                    <td>{r.name}</td>
-                    <td className={r.taxNow > 0 ? "good" : ""}>{fmtMoney(r.taxNow)}</td>
-                    <td>{fmtMoney(r.gross)}</td>
-                    <td className={r.wTaxRate > 0 ? "bad" : "good"}>{r.withdrawal}</td>
-                    <td><b>{fmtMoney(r.net)}</b></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="pp-callout" style={{ marginTop: 14, marginBottom: 0 }}>
-              <Sparkles size={18} style={{ flex: "none" }} />
-              <span>For your situation, <b>{oppBest.name}</b> comes out ahead — about <b>{fmtMoney(oppBest.net)}</b> net{oppBest.key === "rrsp" ? `, because your retirement rate (~${pct1(retMarginal)}) is below today's ${pct1(marginal)}.` : `, because paying tax now and never again wins.`}</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* SCORECARD */}
       <div style={{ marginTop: 34 }}>
@@ -745,9 +1074,10 @@ export default function Dashboard({ plan, setPlan }) {
               color={plan.risk === "custom" ? "var(--violet)" : sel.color}
               inflation={inflation} inflRate={inflRate}
               afterTax={afterTax} retMarginal={retMarginal} rrspShare={rrspShare}
+              milestones={chartMilestones}
             />
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 14 }}>
-              Hover / tap or use arrow keys to read any year. The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}Illustrative only.
+              Hover / tap or use arrow keys to read any year. The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}Illustrative only.
             </p>
           </div>
 
