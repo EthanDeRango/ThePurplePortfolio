@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmtMoney, fmtShort } from "../lib/calculations.js";
 
 export default function GrowthChart({
-  series, scaleRef, contribSeries, years, startAge, startMonth,
+  series, optSeries, scaleRef, contribSeries, years, startAge, startMonth,
   homeIdx, homeAge, fhsaIdx, color, inflation, inflRate = 0.02,
   afterTax, retMarginal, rrspShare,
   milestones,  // [{year, label, color}] — goal markers drawn on the curve
@@ -14,8 +14,9 @@ export default function GrowthChart({
   const taxFactor = afterTax ? (1 - (retMarginal || 0) * (rrspShare == null ? 1 : rrspShare)) : 1;
   const adj = (v, y) => { let x = v * taxFactor; if (inflation) x = x / Math.pow(1 + inflRate, y); return x; };
   const vals = (series || [0]).map((v, y) => adj(v, y));
+  const optVals = optSeries ? optSeries.map((v, y) => adj(v, y)) : null;
   const refAdj = scaleRef ? adj(scaleRef, years) : 0;
-  const max = Math.max(1, refAdj, ...vals);
+  const max = Math.max(1, refAdj, ...vals, ...(optVals || []));
   const X = (y) => PL + (years === 0 ? 0 : (y / years) * plotW);
   const Y = (v) => PT + plotH - (v / max) * plotH;
   const linePts = vals.map((v, y) => `${X(y)},${Y(v)}`).join(" ");
@@ -56,7 +57,13 @@ export default function GrowthChart({
     <div className="pp-chartwrap">
       <div className="pp-chartlegend">
         <span className="dot" style={{ background: lineColor }} />
-        Total projected value — all your accounts combined
+        Your current path
+        {optVals && (
+          <>
+            <span style={{ marginLeft: 14, border: "2px dashed #2E8B57", width: 10, height: 10, display: "inline-block", borderRadius: "50%", verticalAlign: "middle", flexShrink: 0 }} />
+            <span style={{ marginLeft: 4 }}>Optimal strategy (reinvest tax refund)</span>
+          </>
+        )}
       </div>
 
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
@@ -108,8 +115,16 @@ export default function GrowthChart({
           )}
 
           <polygon points={areaPts} fill="url(#ppArea)" />
+          {optVals && (
+            <polyline
+              points={optVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
+              fill="none" stroke="#2E8B57" strokeWidth="2" strokeDasharray="7 4"
+              strokeLinejoin="round" strokeLinecap="round" opacity="0.75"
+            />
+          )}
           <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
           <circle cx={X(years)} cy={Y(vals[years])} r="4" fill={lineColor} />
+          {optVals && <circle cx={X(years)} cy={Y(optVals[years])} r="4" fill="#2E8B57" />}
 
           {/* Goal milestones — dots on the curve with labels */}
           {milestones?.filter((m) => m.year >= 0 && m.year <= years).map((m, mi, arr) => {
@@ -157,6 +172,11 @@ export default function GrowthChart({
             <div className="tr">
               <i style={{ background: lineColor }} /> {fmtMoney(vals[hover])}
             </div>
+            {optVals && optVals[hover] != null && (
+              <div className="tr" style={{ color: "#2E8B57" }}>
+                <i style={{ background: "#2E8B57" }} /> {fmtMoney(optVals[hover])} optimal
+              </div>
+            )}
             {contribSeries && contribSeries[hover] != null && (() => {
               const inv = contribSeries[hover] * taxFactor / (inflation ? Math.pow(1 + inflRate, hover) : 1);
               const grw = Math.max(0, vals[hover] - inv);

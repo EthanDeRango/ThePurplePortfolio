@@ -1255,6 +1255,43 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   box-shadow: var(--shadow-sm);
 }
 
+/* ── Optimal strategy callout (Dashboard) ───────────────────────────────── */
+.pp-opt-callout {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: #EAF5EA; border: 1.5px solid #A8D5A8;
+  border-radius: 14px; padding: 16px 18px; margin-top: 16px;
+}
+.pp-opt-callout-icon {
+  color: #2E8B57; flex-shrink: 0; margin-top: 2px;
+}
+.pp-opt-callout-hd {
+  font-size: 15px; font-weight: 700; color: #1A4D2A; margin-bottom: 5px;
+}
+.pp-opt-callout-hd span { color: #2E8B57; }
+.pp-opt-callout-body { font-size: 13.5px; color: #2A5C35; line-height: 1.6; }
+
+/* ── Accounts to open (Action plan) ────────────────────────────────────── */
+.pp-opt-open {
+  margin-top: 20px; background: var(--paper-card);
+  border: 1.5px solid var(--violet-mid); border-radius: 14px; padding: 16px 18px;
+}
+.pp-opt-open-hd {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--plum-2); margin-bottom: 12px;
+}
+.pp-opt-open-list { display: flex; flex-direction: column; gap: 10px; }
+.pp-opt-open-row {
+  border-left: 3px solid var(--violet); padding: 10px 14px;
+  background: var(--paper); border-radius: 0 10px 10px 0;
+}
+.pp-opt-open-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+.pp-opt-open-benefit { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.pp-opt-open-why { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pp-opt-open-note {
+  font-size: 12px; color: var(--muted); margin-top: 12px; margin-bottom: 0;
+}
+
 /* ── Account selector (Planner section 4) ────────────────────────────────── */
 .pp-acct-grid {
   display: grid;

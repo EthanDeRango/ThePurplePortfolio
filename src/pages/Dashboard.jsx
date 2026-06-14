@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronRight, Shield, Sparkles,
   AlertTriangle, Wallet, Landmark, PiggyBank, Coins, Scale,
   Receipt, Calculator, CalendarClock, ListOrdered, Printer,
-  Info, Home as HomeIcon,
+  Info, Home as HomeIcon, TrendingUp,
 } from "lucide-react";
 import {
   n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
@@ -183,6 +183,36 @@ export default function Dashboard({ plan, setPlan }) {
   const simCtx = { years, r: ret - fee, income, marginal, retMarginal, startTfsa: n(plan.bTfsa), startRrsp: n(plan.bRrsp) + n(plan.bLocked), startFhsa: n(plan.bFhsa), annualInvest: annInv, homeIdx, eligFhsa: buyingHome, buyingHome, fhsaCloseIdx };
   const recOrder = recommendOrder(goal, buyingHome, marginal);
   const recSim = useMemo(() => simulateStrategy(recOrder, simCtx), [JSON.stringify(simCtx), recOrder.join(",")]);
+
+  // Optimal-path series: current monthly + reinvested tax refund from RRSP/FHSA contributions
+  const optRefundMonthly = (recSim.refundYr1 || 0) / 12;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const optSeries = useMemo(() => {
+    if (optRefundMonthly < 1 || !hasData) return null;
+    return projectSeriesWithWithdrawals(ret - fee, years, start, monthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ret, fee, years, start, monthly, optRefundMonthly, monthsArr, startMonth, gwKey]);
+  const optFinal = optSeries ? optSeries[optSeries.length - 1] : null;
+  const optBoost = optFinal != null ? Math.max(0, optFinal - selFinal) : 0;
+
+  // Accounts the user should open (eligible but not in their openAccounts list)
+  const openAccts = plan.openAccounts ?? (() => {
+    const a = [];
+    if (n(plan.bTfsa) > 0 || plan.birthYear) a.push("tfsa");
+    if (n(plan.bRrsp) > 0 || plan.rrspLimitNOA) a.push("rrsp");
+    if (n(plan.bFhsa) > 0 || plan.fhsaYearOpened) a.push("fhsa");
+    if (n(plan.bNonreg) > 0) a.push("nonreg");
+    if (n(plan.bLocked) > 0) a.push("lira");
+    if (n(plan.bRrif) > 0) a.push("rrif");
+    if (n(plan.bPensionDC) > 0) a.push("pension_dc");
+    if (n(plan.bDpsp) > 0) a.push("dpsp");
+    return a;
+  })();
+  const eligibleUnopened = [
+    age >= 18 && !openAccts.includes("tfsa") && { key: "tfsa", name: "TFSA", color: "#3D7A3B", benefit: `${fmtMoney(TAX_CONFIG.tfsa.annual)}/yr completely tax-free`, why: "Grows and withdraws tax-free — for any goal, any time." },
+    income > 0 && !openAccts.includes("rrsp") && { key: "rrsp", name: "RRSP", color: "#A8761E", benefit: `Save ~${fmtMoney(Math.round(income * 0.18 * marginal))} in taxes this year`, why: "Deduct contributions from taxable income today." },
+    buyingHome && age >= 18 && income > 0 && !openAccts.includes("fhsa") && { key: "fhsa", name: "FHSA", color: "#9E3D65", benefit: `Save ~${fmtMoney(Math.round(TAX_CONFIG.fhsa.annual * marginal))} + tax-free home withdrawal`, why: "Best of both worlds: deduction now, tax-free out for your first home." },
+  ].filter(Boolean);
 
   const stratList = [];
   if (buyingHome) stratList.push({ key: "home", name: "Home-first (FHSA)", order: ["fhsa", "tfsa", "rrsp"], goodIf: ["Buying a first home", "Want tax-free home savings", "Deduction now + tax-free out"], trade: "FHSA must go to a home (or roll to RRSP) within 15 years." });
@@ -475,6 +505,22 @@ export default function Dashboard({ plan, setPlan }) {
             </div>
           ))}
         </div>
+        {eligibleUnopened.length > 0 && (
+          <div className="pp-opt-open">
+            <div className="pp-opt-open-hd"><Sparkles size={13} /> Accounts you should open</div>
+            <div className="pp-opt-open-list">
+              {eligibleUnopened.map((a) => (
+                <div key={a.key} className="pp-opt-open-row" style={{ borderLeftColor: a.color }}>
+                  <div className="pp-opt-open-name" style={{ color: a.color }}>{a.name}</div>
+                  <div className="pp-opt-open-benefit">{a.benefit}</div>
+                  <div className="pp-opt-open-why">{a.why}</div>
+                </div>
+              ))}
+            </div>
+            <p className="pp-opt-open-note">These accounts are available to you based on your age, income, and goals. Your plan would be stronger with them in it.</p>
+          </div>
+        )}
+
         <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>This is a widely used Canadian priority framework applied to your inputs — a strong default, not personal advice. Your situation may justify a different order.</p>
       </div>
 
@@ -1120,7 +1166,7 @@ export default function Dashboard({ plan, setPlan }) {
             <span className="pp-eyebrow">Growth over time</span>
             <h3 style={{ fontSize: 22, margin: "8px 0 18px" }}>How your money could grow to age {retAge}</h3>
             <GrowthChart
-              series={selSeries} scaleRef={scaleRef} contribSeries={contribSeries}
+              series={selSeries} optSeries={optSeries} scaleRef={scaleRef} contribSeries={contribSeries}
               years={years} startAge={age} startMonth={startMonth}
               homeIdx={homeIdx} homeAge={homeAge} fhsaIdx={fhsaIdx}
               color={plan.risk === "custom" ? "var(--violet)" : sel.color}
@@ -1132,6 +1178,20 @@ export default function Dashboard({ plan, setPlan }) {
               Hover / tap or use arrow keys to read any year. The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}Illustrative only.
             </p>
           </div>
+
+          {optBoost > 1000 && (
+            <div className="pp-opt-callout">
+              <div className="pp-opt-callout-icon"><TrendingUp size={18} /></div>
+              <div>
+                <div className="pp-opt-callout-hd">
+                  Optimal strategy adds <span>{fmtMoney(optBoost)}</span> to retirement
+                </div>
+                <div className="pp-opt-callout-body">
+                  The <b style={{ color: "#2E8B57" }}>green dashed line</b> models what happens when you reinvest your ~{fmtMoney(Math.round(recSim.refundYr1))}/yr tax refund from {recOrder.filter(k => k === "rrsp" || k === "fhsa").map(k => k.toUpperCase()).join(" + ")} contributions back into your portfolio. Same income, same monthly amount — just smarter account use.
+                </div>
+              </div>
+            </div>
+          )}
 
           {costOfWaiting > 1000 && (
             <div className="pp-callout" style={{ marginTop: 16 }}>
