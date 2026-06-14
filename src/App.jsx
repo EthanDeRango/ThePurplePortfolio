@@ -113,6 +113,13 @@ function Footer() {
           <h5>About</h5>
           <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6 }}>Built for Canadians. Runs in your browser — your numbers never leave your device.</p>
         </div>
+        <div>
+          <h5>Contact</h5>
+          <a href="mailto:uwopurpleportfolio@gmail.com" style={{ fontSize: 13, color: "#8E7AA0", textDecoration: "none", lineHeight: 2 }}>
+            uwopurpleportfolio@gmail.com
+          </a>
+          <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6, marginTop: 4 }}>Questions, feedback, or want to get involved?</p>
+        </div>
       </div>
       <div className="pp-wrap pp-footer-fine">
         Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs — actual returns and tax outcomes will vary.
