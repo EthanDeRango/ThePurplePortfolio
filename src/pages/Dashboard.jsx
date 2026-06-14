@@ -156,6 +156,25 @@ export default function Dashboard({ plan, setPlan }) {
     : n(plan.monthly) * (12 - startMonth);
   const matchAmt = n(plan.employerMatch);
   const debt = n(plan.highInterestDebt);
+
+  // "This year only" projection — what does just this year's new money grow to?
+  // Step 1: what's the balance at end of year 1 from new contributions (no starting balance)
+  const yr1FromNew = (monthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0)))
+    ? projectFinal(ret - fee, 1, 0, monthly, monthsArr, startMonth)
+    : 0;
+  // Step 2: grow that end-of-year-1 balance forward for the remaining years
+  const thisYearInvest = restOfYearInvestable + lumpSum;
+  const thisYearFV = (() => {
+    if (years <= 0 || thisYearInvest <= 0) return 0;
+    const lumpFV = lumpSum > 0 ? fv(ret - fee, years * 12, lumpSum, 0) : 0;
+    const monthlyFV = yr1FromNew > 0
+      ? (years > 1 ? fv(ret - fee, (years - 1) * 12, yr1FromNew, 0) : yr1FromNew)
+      : 0;
+    return lumpFV + monthlyFV;
+  })();
+  const thisYearMultiple = thisYearInvest > 0 && thisYearFV > thisYearInvest
+    ? Math.round(thisYearFV / thisYearInvest)
+    : 0;
   const fhsaCloseIdx = fhsaForceCloseYear != null ? Math.max(0, fhsaForceCloseYear - TAX_YEAR) : null;
 
   const simCtx = { years, r: ret - fee, income, marginal, retMarginal, startTfsa: n(plan.bTfsa), startRrsp: n(plan.bRrsp) + n(plan.bLocked), startFhsa: n(plan.bFhsa), annualInvest: annInv, homeIdx, eligFhsa: buyingHome, buyingHome, fhsaCloseIdx };
@@ -299,6 +318,36 @@ export default function Dashboard({ plan, setPlan }) {
           </>
         )}
       </div>
+
+      {/* This year's contribution impact */}
+      {thisYearInvest > 0 && thisYearFV > 0 && (
+        <div className="pp-thisyear pp-noprint">
+          <div className="pp-thisyear-eyebrow">{TAX_YEAR} — what your money this year actually does</div>
+          <div className="pp-thisyear-flow">
+            <div className="pp-thisyear-pill">
+              <div className="pp-thisyear-amt">{fmtMoney(thisYearInvest)}</div>
+              <div className="pp-thisyear-lbl">invested this year{lumpSum > 0 && monthly > 0 ? ` (${fmtMoney(lumpSum)} lump + ${fmtMoney(restOfYearInvestable)} monthly)` : ""}</div>
+            </div>
+            <div className="pp-thisyear-arrow">
+              <svg width="56" height="14" viewBox="0 0 56 14" aria-hidden="true">
+                <line x1="0" y1="7" x2="48" y2="7" stroke="currentColor" strokeWidth="1.5" />
+                <polyline points="42,2 52,7 42,12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>{years} yr{years !== 1 ? "s" : ""} compounding at {pct1(ret - fee)}</span>
+            </div>
+            <div className="pp-thisyear-pill pp-thisyear-pill-future">
+              <div className="pp-thisyear-amt">{fmtMoney(thisYearFV)}</div>
+              <div className="pp-thisyear-lbl">by age {retAge} — without adding another dollar</div>
+            </div>
+          </div>
+          {thisYearMultiple > 1 && (
+            <div className="pp-thisyear-note">
+              <b style={{ color: "var(--violet)" }}>{thisYearMultiple}× your money</b> from compound growth alone.
+              {" "}Every year you invest, another {thisYearMultiple}× seed is planted.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Snapshot */}
       <div className="pp-snap">

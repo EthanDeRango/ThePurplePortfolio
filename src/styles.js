@@ -1015,6 +1015,47 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 }
 .pp-printonly { display: none; }
 
+/* ── This-year contribution card ─────────────────────────────────────────── */
+.pp-thisyear {
+  background: var(--paper-card);
+  border: 1.5px solid var(--violet-mid);
+  border-radius: 18px;
+  padding: 18px 22px;
+  margin-top: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.pp-thisyear-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--violet); margin-bottom: 14px;
+}
+.pp-thisyear-flow {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.pp-thisyear-pill {
+  background: var(--paper); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 10px 18px; text-align: center;
+  min-width: 120px; flex-shrink: 0;
+}
+.pp-thisyear-pill-future {
+  background: var(--violet-soft); border-color: var(--violet-mid);
+}
+.pp-thisyear-amt {
+  font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--plum);
+  line-height: 1.1;
+}
+.pp-thisyear-pill-future .pp-thisyear-amt { color: var(--violet); }
+.pp-thisyear-lbl {
+  font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.3;
+}
+.pp-thisyear-arrow {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  color: var(--muted); font-size: 11px; flex: 1; min-width: 70px;
+}
+.pp-thisyear-note {
+  margin-top: 13px; font-size: 13px; color: var(--ink); line-height: 1.55;
+  border-top: 1px solid var(--border); padding-top: 11px;
+}
+
 /* ── Brand logo image ─────────────────────────────────────────────────────── */
 .pp-brand-logo {
   width: 42px; height: 42px;
