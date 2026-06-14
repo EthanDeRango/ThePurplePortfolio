@@ -292,8 +292,11 @@ export default function Dashboard({ plan, setPlan }) {
 
   const tfsaCum = tfsaCumulativeRoom(n(plan.birthYear));
   const tfsaUsed = n(plan.tfsaUsed);
-  const tfsaAnnualLeft = Math.max(0, TAX_CONFIG.tfsa.annual - tfsaUsed);
-  const tfsaLifeLeft = Math.max(0, tfsaCum - n(plan.bTfsa));
+  // Use CRA-provided room if entered (includes carryforward); otherwise fall back to this year's annual room only
+  const tfsaProvidedRoom = n(plan.tfsaAvailableRoom);
+  const tfsaRoomStart = tfsaProvidedRoom > 0 ? tfsaProvidedRoom : TAX_CONFIG.tfsa.annual;
+  const tfsaRoomLeft = Math.max(0, tfsaRoomStart - tfsaUsed);
+  const tfsaOver = tfsaUsed > tfsaRoomStart;
   const rrspUsed = n(plan.rrspUsed);
   const rrspLeft = Math.max(0, rrspLimit - rrspUsed);
   const rrspOver = rrspUsed - rrspLimit > TAX_CONFIG.rrsp.overBuffer;
@@ -1085,12 +1088,17 @@ export default function Dashboard({ plan, setPlan }) {
         <div className="pp-room">
           <div className="pp-roomc">
             <h4>TFSA <PiggyBank size={18} style={{ color: "var(--violet)" }} /></h4>
-            <div className="pp-room-big">{fmtMoney(tfsaCum)}</div>
-            <div className="pp-room-sub">Cumulative room{n(plan.birthYear) > 0 ? " since you turned 18" : " (if 18+ since 2009)"}</div>
-            <Bar used={n(plan.bTfsa)} total={tfsaCum} color="var(--violet)" />
-            <div className="pp-room-legend"><span>This year: {fmtMoney(TAX_CONFIG.tfsa.annual)}</span><span>Used: {fmtMoney(tfsaUsed)}</span></div>
-            <div className="pp-room-sub"><b style={{ color: "var(--plum)" }}>{fmtMoney(tfsaAnnualLeft)}</b> of this year's room left</div>
-            {tfsaUsed > tfsaCum && <div className="pp-overwarn"><AlertTriangle size={15} style={{ flex: "none" }} /><span>That's more than your estimated room — <b>1%/month</b> penalty on over-contributions.</span></div>}
+            <div className="pp-room-big">{fmtMoney(tfsaRoomLeft)}</div>
+            <div className="pp-room-sub">
+              {tfsaProvidedRoom > 0 ? "Room left (from your CRA figure)" : "This year's remaining room (no carryforward entered)"}
+              {n(plan.birthYear) > 0 && <> · {fmtMoney(tfsaCum)} accumulated since 18</>}
+            </div>
+            <Bar used={tfsaUsed} total={tfsaRoomStart} color="var(--violet)" />
+            <div className="pp-room-legend">
+              <span>{tfsaProvidedRoom > 0 ? "CRA room" : "Annual room"}: {fmtMoney(tfsaRoomStart)}</span>
+              <span>Contributed: {fmtMoney(tfsaUsed)}</span>
+            </div>
+            {tfsaOver && <div className="pp-overwarn"><AlertTriangle size={15} style={{ flex: "none" }} /><span>You've contributed more than your available room — <b>1%/month</b> penalty applies to the excess.</span></div>}
           </div>
           <div className="pp-roomc">
             <h4>RRSP <Landmark size={18} style={{ color: "var(--gold)" }} /></h4>
