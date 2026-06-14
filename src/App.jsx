@@ -128,6 +128,12 @@ function Footer() {
   );
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
+
 function AppShell({ plan, setPlan, onReset, hasSaved }) {
   const { user, showNewsletterPrompt } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
@@ -136,6 +142,7 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
 
   return (
     <>
+      <ScrollToTop />
       <TopNav onReset={onReset} hasSaved={hasSaved} onSignIn={() => setShowAuth(true)} />
       {showNewsletterPrompt && (
         <div className="pp-wrap" style={{ paddingTop: 10 }}>
