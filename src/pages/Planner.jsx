@@ -365,6 +365,28 @@ export default function Planner({ plan, setPlan }) {
                   <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>CMHC mortgage insurance</b> — a premium of roughly 2.8–4% added to the mortgage.</> : <>At this price, the rules require a full <b>20%</b> down.</>}</span>
                 </div>
               )}
+              <div className="pp-row2" style={{ marginTop: 10 }}>
+                <div className="pp-field">
+                  <label className="pp-label2" htmlFor="f-mortgagerate">Mortgage rate <span style={{ fontWeight: 500, color: "var(--muted)" }}>(optional)</span></label>
+                  <div className="pp-input-wrap">
+                    <input id="f-mortgagerate" className="pp-input" inputMode="decimal"
+                      value={plan.mortgageRate ?? ""} placeholder="5.0"
+                      onChange={(e) => set("mortgageRate", e.target.value.replace(/[^0-9.]/g, ""))} />
+                    <span className="pp-adorn r">%/yr</span>
+                  </div>
+                  <div className="pp-help">Used to project your home equity on the chart. Defaults to 5% if blank.</div>
+                </div>
+                <div className="pp-field">
+                  <label className="pp-label2" htmlFor="f-homeapprec">Home appreciation <span style={{ fontWeight: 500, color: "var(--muted)" }}>(optional)</span></label>
+                  <div className="pp-input-wrap">
+                    <input id="f-homeapprec" className="pp-input" inputMode="decimal"
+                      value={plan.homeAppreciation ?? ""} placeholder="2.5"
+                      onChange={(e) => set("homeAppreciation", e.target.value.replace(/[^0-9.]/g, ""))} />
+                    <span className="pp-adorn r">%/yr</span>
+                  </div>
+                  <div className="pp-help">Annual home value growth assumption. Defaults to 2.5% if blank.</div>
+                </div>
+              </div>
             </>
           )}
         </div>

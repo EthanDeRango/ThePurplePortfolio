@@ -243,6 +243,82 @@ export function simulateStrategy(order, ctx, mode) {
   return { gross, afterTax, refundYr1, downAtHome, bal, yr1 };
 }
 
+// ── Per-account projection ────────────────────────────────────────────────────
+// Projects each account independently with priority-based monthly allocation.
+// rate = net annual return decimal (e.g. 0.075); returns year-0..years arrays.
+export function projectByAccount(plan, rate, years, monthly, monthsArr, startMonth, homeIdx, fhsaCloseIdx) {
+  const mr = rate / 12;
+  const sm = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
+  const custom = monthsArr && monthsArr.length === 12;
+  const income = n(plan.income);
+
+  let bTfsa    = n(plan.bTfsa);
+  let bRrsp    = n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif);
+  let bFhsa    = n(plan.bFhsa);
+  let bPension = n(plan.bPensionDC) + n(plan.bDpsp);
+  let bNonreg  = n(plan.bNonreg) + n(plan.bResp) + n(plan.bRdsp);
+
+  const hasFhsa    = n(plan.fhsaYearOpened) > 0 || n(plan.bFhsa) > 0;
+  const fhsaMoCap  = TAX_CONFIG.fhsa.annual / 12;
+  const tfsaMoCap  = TAX_CONFIG.tfsa.annual / 12;
+  const rrspMoCap  = Math.min(TAX_CONFIG.rrsp.dollarMax, Math.max(0, income * 0.18)) / 12;
+  const fhsaClose  = homeIdx != null ? homeIdx : (fhsaCloseIdx != null ? fhsaCloseIdx : years + 1);
+
+  const out = { tfsa: [bTfsa], rrsp: [bRrsp], fhsa: [bFhsa], pension: [bPension], nonreg: [bNonreg], fhsaAtClose: 0 };
+
+  for (let y = 0; y < years; y++) {
+    for (let mo = 0; mo < 12; mo++) {
+      if (y === 0 && mo < sm) continue;
+      const mc = (custom && y === 0) ? n(monthsArr[mo]) : monthly;
+      let rem = mc;
+      let fhsaC = 0, tfsaC = 0, rrspC = 0, nonregC = 0;
+      if (hasFhsa && y < fhsaClose) { fhsaC = Math.min(fhsaMoCap, rem); rem -= fhsaC; }
+      tfsaC = Math.min(tfsaMoCap, rem); rem -= tfsaC;
+      rrspC = Math.min(rrspMoCap, rem); rem -= rrspC;
+      nonregC = rem;
+      bTfsa    = bTfsa * (1 + mr) + tfsaC;
+      bRrsp    = bRrsp * (1 + mr) + rrspC;
+      bFhsa    = (y < fhsaClose) ? (bFhsa * (1 + mr) + fhsaC) : 0;
+      bPension = bPension * (1 + mr);
+      bNonreg  = bNonreg * (1 + mr) + nonregC;
+    }
+    if (homeIdx != null && (y + 1) === homeIdx) { out.fhsaAtClose = bFhsa; bFhsa = 0; }
+    out.tfsa.push(bTfsa); out.rrsp.push(bRrsp); out.fhsa.push(bFhsa);
+    out.pension.push(bPension); out.nonreg.push(bNonreg);
+  }
+  return out;
+}
+
+// Computes year-by-year home equity: home value − remaining mortgage balance.
+// homeYear is years-from-now of purchase. downPayment in dollars, mortgageRate as decimal.
+export function mortgageEquitySeries(homePrice, downPayment, mortgageRate, homeAppreciation, years, homeYear) {
+  const result = new Array(years + 1).fill(0);
+  if (!homePrice || homePrice <= 0 || homeYear == null || homeYear > years) return result;
+  const minDown  = minDownPayment(homePrice);
+  const dp       = Math.max(minDown, n(downPayment));
+  const principal = Math.max(0, homePrice - dp);
+  const amortYrs = 25;
+  const moRate   = n(mortgageRate) / 12;
+  const nPmt     = amortYrs * 12;
+  const moPmt    = (principal > 0 && moRate > 0)
+    ? principal * (moRate * Math.pow(1 + moRate, nPmt)) / (Math.pow(1 + moRate, nPmt) - 1)
+    : (principal > 0 ? principal / nPmt : 0);
+
+  for (let y = homeYear; y <= years; y++) {
+    const t = y - homeYear;
+    const homeValue = homePrice * Math.pow(1 + n(homeAppreciation), t);
+    const paidMo = Math.min(t * 12, nPmt);
+    let bal = 0;
+    if (principal > 0 && paidMo < nPmt) {
+      bal = moRate > 0
+        ? principal * Math.pow(1 + moRate, paidMo) - moPmt * (Math.pow(1 + moRate, paidMo) - 1) / moRate
+        : Math.max(0, principal - moPmt * paidMo);
+    }
+    result[y] = Math.max(0, homeValue - Math.max(0, bal));
+  }
+  return result;
+}
+
 export function fiTarget(annualSpend) { return { number: Math.max(0, annualSpend) * 25, swr: 0.04 }; }
 
 export function yearsToTarget(target, r, startTotal, annualInvest) {

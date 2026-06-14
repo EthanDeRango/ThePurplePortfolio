@@ -24,6 +24,8 @@ export const PLAN_DEFAULTS = {
   respBeneficiaryAge: "",
   pensionDCEmployerPct: "",
   pensionDBMonthly: "", pensionDBStartAge: "",
+  // Home purchase projection assumptions (optional overrides)
+  mortgageRate: "", homeAppreciation: "",
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";

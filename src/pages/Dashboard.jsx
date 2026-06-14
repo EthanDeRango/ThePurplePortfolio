@@ -13,6 +13,7 @@ import {
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
   yearsToTarget, fiTarget, simulateStrategy,
   recommendOrder, healthScore, annualInvestable, insights, accounts,
+  projectByAccount, mortgageEquitySeries,
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
 import { TAX_CONFIG, TAX_YEAR, RISK, MONTH_NAMES } from "../lib/tax-config.js";
@@ -194,6 +195,48 @@ export default function Dashboard({ plan, setPlan }) {
   }, [ret, fee, years, start, monthly, optRefundMonthly, monthsArr, startMonth, gwKey]);
   const optFinal = optSeries ? optSeries[optSeries.length - 1] : null;
   const optBoost = optFinal != null ? Math.max(0, optFinal - selFinal) : 0;
+
+  // ── Per-account stacked series ────────────────────────────────────────────────
+  const mortgageRateDecimal = n(plan.mortgageRate)     > 0 ? n(plan.mortgageRate) / 100     : 0.05;
+  const homeApprecDecimal   = n(plan.homeAppreciation) > 0 ? n(plan.homeAppreciation) / 100 : 0.025;
+  const planAcctKey = JSON.stringify({
+    bTfsa: plan.bTfsa, bRrsp: plan.bRrsp, bLocked: plan.bLocked, bRrif: plan.bRrif,
+    bFhsa: plan.bFhsa, bPensionDC: plan.bPensionDC, bDpsp: plan.bDpsp,
+    bNonreg: plan.bNonreg, bResp: plan.bResp, bRdsp: plan.bRdsp,
+    fhsaYearOpened: plan.fhsaYearOpened, income: plan.income,
+  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const byAcct = useMemo(
+    () => hasData ? projectByAccount(plan, ret - fee, years, monthly, monthsArr, startMonth, homeIdx, fhsaCloseIdx) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasData, planAcctKey, ret, fee, years, monthly, monthsArr, startMonth, homeIdx, fhsaCloseIdx]
+  );
+  const fhsaAtPurchase = (byAcct && homeIdx != null && homeIdx > 0)
+    ? (byAcct.fhsaAtClose || n(plan.bFhsa)) : n(plan.bFhsa);
+  const homeEquityArr = useMemo(
+    () => (buyingHome && homePrice > 0 && homeIdx != null)
+      ? mortgageEquitySeries(homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx)
+      : new Array(years + 1).fill(0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buyingHome, homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx]
+  );
+  const stackedSeries = useMemo(() => {
+    if (!byAcct) return null;
+    const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0;
+    const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
+    const hasNonreg   = n(plan.bNonreg) + n(plan.bResp) + n(plan.bRdsp) > 0;
+    const hasHomeEq   = homeEquityArr.some((v) => v > 0);
+    const layers = [
+      { key: "tfsa",    label: "TFSA",              color: "#2D7A2B", values: byAcct.tfsa    },
+      { key: "rrsp",    label: "RRSP / Registered", color: "#A8761E", values: byAcct.rrsp    },
+      hasFhsaData ? { key: "fhsa",    label: "FHSA",           color: "#9E3D65", values: byAcct.fhsa    } : null,
+      hasPension  ? { key: "pension", label: "Pension / DC",   color: "#5B7EC4", values: byAcct.pension  } : null,
+      (hasNonreg || monthly > 0) ? { key: "nonreg", label: "Non-reg", color: "#7044BE", values: byAcct.nonreg } : null,
+      hasHomeEq   ? { key: "home",    label: "Home equity",    color: "#C68D3F", values: homeEquityArr   } : null,
+    ].filter(Boolean).filter((l) => l.values.some((v) => v > 0));
+    return layers.length > 1 ? layers : null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byAcct, plan.bFhsa, plan.fhsaYearOpened, plan.bPensionDC, plan.bDpsp, plan.bNonreg, plan.bResp, plan.bRdsp, monthly, homeEquityArr]);
 
   // Accounts the user should open (eligible but not in their openAccounts list)
   const openAccts = plan.openAccounts ?? (() => {
@@ -1174,16 +1217,22 @@ export default function Dashboard({ plan, setPlan }) {
             <span className="pp-eyebrow">Growth over time</span>
             <h3 style={{ fontSize: 22, margin: "8px 0 18px" }}>How your money could grow to age {retAge}</h3>
             <GrowthChart
-              series={selSeries} optSeries={optSeries} scaleRef={scaleRef} contribSeries={contribSeries}
+              series={selSeries} optSeries={stackedSeries ? null : optSeries}
+              scaleRef={scaleRef} contribSeries={contribSeries}
               years={years} startAge={age} startMonth={startMonth}
               homeIdx={homeIdx} homeAge={homeAge} fhsaIdx={fhsaIdx}
               color={plan.risk === "custom" ? "var(--violet)" : sel.color}
               inflation={inflation} inflRate={inflRate}
               afterTax={afterTax} retMarginal={retMarginal} rrspShare={rrspShare}
               milestones={chartMilestones}
+              stackedSeries={stackedSeries}
             />
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 14 }}>
-              Hover / tap or use arrow keys to read any year. The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}Illustrative only.
+              Hover / tap or use arrow keys to read any year.{" "}
+              {stackedSeries
+                ? <>Each coloured band shows one account type — they stack to your total wealth{homeEquityArr.some((v) => v > 0) ? ` (including home equity assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)} annual appreciation)` : ""}. Account balances shown before retirement tax.</>
+                : <>The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}</>
+              }{" "}Illustrative only.
             </p>
           </div>
 
