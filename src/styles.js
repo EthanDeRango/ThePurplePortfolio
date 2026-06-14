@@ -1254,6 +1254,92 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   border-radius: 14px; padding: 12px 16px; margin-bottom: 4px;
   box-shadow: var(--shadow-sm);
 }
+
+/* ── Account selector (Planner section 4) ────────────────────────────────── */
+.pp-acct-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+.pp-acct-card {
+  position: relative;
+  background: var(--paper-card);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 13px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+.pp-acct-card:hover {
+  border-color: var(--violet-mid);
+  box-shadow: var(--shadow-sm);
+}
+.pp-acct-card.on {
+  box-shadow: var(--shadow-sm);
+}
+.pp-acct-card-icon {
+  margin-bottom: 8px;
+  transition: color 0.18s;
+}
+.pp-acct-card-name {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+  line-height: 1.1;
+}
+.pp-acct-card-full {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 6px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+.pp-acct-card-blurb {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.pp-acct-detail {
+  border-left: 3px solid var(--violet);
+  padding: 14px 18px 16px;
+  background: var(--paper-card);
+  border-radius: 0 12px 12px 0;
+  margin-top: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.pp-acct-detail-hd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pp-acct-detail-tag {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel);
+  padding: 2px 7px;
+  border-radius: 20px;
+  margin-left: 2px;
+}
+@media (max-width: 600px) {
+  .pp-acct-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .pp-acct-card { padding: 12px 10px 10px; }
+  .pp-acct-card-name { font-size: 13px; }
+  .pp-acct-card-blurb { display: none; }
+  .pp-acct-detail { padding: 12px 14px 14px; }
+}
 `;
 
 export default STYLES;

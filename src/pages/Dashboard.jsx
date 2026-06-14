@@ -37,7 +37,8 @@ export default function Dashboard({ plan, setPlan }) {
   const prov = plan.province || "ON";
   const empType = plan.employmentType || "employed";
   const lumpSum = n(plan.lumpSum);
-  const startBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg) + n(plan.bLocked);
+  const startBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg)
+    + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp);
   const start = startBal + lumpSum;
   const monthsArr = plan.contribMode === "custom" ? (plan.months || null) : null;
   const emergencyFull = plan.emergencyStatus === "full";
@@ -110,7 +111,9 @@ export default function Dashboard({ plan, setPlan }) {
   const growth = Math.max(0, selFinal - contributed);
   const hasData = start > 0 || monthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0));
 
-  const rrspShare = startBal > 0 ? (n(plan.bRrsp) + n(plan.bLocked)) / startBal : 0;
+  const rrspShare = startBal > 0
+    ? (n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp)) / startBal
+    : 0;
   const waitYears = 5;
   const costOfWaiting = years > waitYears ? selFinal - projectFinal(ret - fee, years - waitYears, start, monthly, monthsArr, startMonth) : 0;
 

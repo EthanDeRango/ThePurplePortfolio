@@ -3,12 +3,148 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Check, Info, Shield, Sparkles,
   PiggyBank, Landmark, Home as HomeIcon, AlertTriangle,
+  GraduationCap, Heart, TrendingDown, Lock, Building2,
+  Briefcase, Gift, TrendingUp,
 } from "lucide-react";
 import { NumberField, CurrencyField, SelectField } from "../components/InputFields.jsx";
 import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget } from "../lib/calculations.js";
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
 import { GOALS } from "../data/goals.jsx";
+
+// ─── Canadian account definitions ────────────────────────────────────────────
+const CANADIAN_ACCOUNTS = [
+  {
+    key: "tfsa", name: "TFSA", full: "Tax-Free Savings Account",
+    Icon: PiggyBank, accent: "#3D7A3B",
+    blurb: "Tax-free growth. Withdraw any time — no tax ever.",
+    renderDetail: (plan, set, fmt, TC) => (
+      <>
+        <CurrencyField id="ab-btfsa" label="Current balance" placeholder="0" value={plan.bTfsa} onChange={(v) => set("bTfsa", v)} />
+        <div className="pp-row2" style={{ marginTop: 8 }}>
+          <NumberField id="ab-birth" label="Birth year" placeholder="e.g. 1996" value={plan.birthYear} onChange={(v) => set("birthYear", v)}
+            help="Sets your cumulative TFSA room since age 18." />
+          <CurrencyField id="ab-tfsaused" label="Contributed this year" placeholder="0" value={plan.tfsaUsed} onChange={(v) => set("tfsaUsed", v)} />
+        </div>
+        <CurrencyField id="ab-tfsaroom"
+          label={<>Available room from CRA <span style={{ color: "var(--muted)", fontWeight: 500 }}>· optional override</span></>}
+          placeholder="e.g. 47,000" value={plan.tfsaAvailableRoom} onChange={(v) => set("tfsaAvailableRoom", v)}
+          help="Check CRA My Account → TFSA for your exact available room." />
+      </>
+    ),
+  },
+  {
+    key: "rrsp", name: "RRSP", full: "Registered Retirement Savings Plan",
+    Icon: Landmark, accent: "#A8761E",
+    blurb: "Tax deduction now. Taxed on withdrawal in retirement.",
+    renderDetail: (plan, set) => (
+      <>
+        <CurrencyField id="ab-brrsp" label="Current balance" placeholder="0" value={plan.bRrsp} onChange={(v) => set("bRrsp", v)} />
+        <div className="pp-row2" style={{ marginTop: 8 }}>
+          <CurrencyField id="ab-rrsplimit" label="Contribution room (from NOA)" placeholder="e.g. 12,000" value={plan.rrspLimitNOA} onChange={(v) => set("rrspLimitNOA", v)}
+            help="From your Notice of Assessment or CRA My Account." />
+          <CurrencyField id="ab-rrspused" label="Contributed this year" placeholder="0" value={plan.rrspUsed} onChange={(v) => set("rrspUsed", v)} />
+        </div>
+      </>
+    ),
+  },
+  {
+    key: "fhsa", name: "FHSA", full: "First Home Savings Account",
+    Icon: HomeIcon, accent: "#9E3D65",
+    blurb: "Tax deduction now + tax-free on withdrawal when buying your first home.",
+    renderDetail: (plan, set, fmt, TC) => (
+      <>
+        <CurrencyField id="ab-bfhsa" label="Current balance" placeholder="0" value={plan.bFhsa} onChange={(v) => set("bFhsa", v)} />
+        <div className="pp-row2" style={{ marginTop: 8 }}>
+          <NumberField id="ab-fhsayear" label="Year you opened it" placeholder="e.g. 2024" value={plan.fhsaYearOpened} onChange={(v) => set("fhsaYearOpened", v)}
+            help="Your 15-year closing deadline and room start from this year." />
+          <CurrencyField id="ab-fhsalife" label="Contributed (lifetime total)" placeholder="0" value={plan.fhsaLifetimeUsed} onChange={(v) => set("fhsaLifetimeUsed", v)}
+            help={`Toward the ${fmt(TC.fhsa.lifetime)} lifetime cap.`} />
+        </div>
+        <CurrencyField id="ab-fhsayrused" label="Contributed this year" placeholder="0" value={plan.fhsaThisYearUsed} onChange={(v) => set("fhsaThisYearUsed", v)} />
+      </>
+    ),
+  },
+  {
+    key: "resp", name: "RESP", full: "Registered Education Savings Plan",
+    Icon: GraduationCap, accent: "#2F60A8",
+    blurb: "Tax-sheltered savings for a child's post-secondary education. Earns the Canada Education Savings Grant.",
+    renderDetail: (plan, set) => (
+      <>
+        <CurrencyField id="ab-bresp" label="Current balance" placeholder="0" value={plan.bResp} onChange={(v) => set("bResp", v)} />
+        <NumberField id="ab-respage" label="Beneficiary's current age" placeholder="e.g. 3" value={plan.respBeneficiaryAge} onChange={(v) => set("respBeneficiaryAge", v)}
+          suffix="yrs" help="The child who will use the funds. CESG stops at age 17." />
+      </>
+    ),
+  },
+  {
+    key: "rdsp", name: "RDSP", full: "Registered Disability Savings Plan",
+    Icon: Heart, accent: "#C05D5D",
+    blurb: "Long-term savings for Canadians with disabilities. Canada Disability Savings Grant (CDSG) available.",
+    renderDetail: (plan, set) => (
+      <CurrencyField id="ab-brdsp" label="Current balance" placeholder="0" value={plan.bRdsp} onChange={(v) => set("bRdsp", v)} />
+    ),
+  },
+  {
+    key: "rrif", name: "RRIF", full: "Registered Retirement Income Fund",
+    Icon: TrendingDown, accent: "#6B5EA8",
+    blurb: "A converted RRSP you're drawing down. Mandatory annual withdrawals once open.",
+    renderDetail: (plan, set) => (
+      <CurrencyField id="ab-brrif" label="Current balance" placeholder="0" value={plan.bRrif} onChange={(v) => set("bRrif", v)}
+        help="Taxed on withdrawal, just like an RRSP." />
+    ),
+  },
+  {
+    key: "lira", name: "LIRA", full: "Locked-In Retirement Account",
+    Icon: Lock, accent: "#7A5230",
+    blurb: "Old workplace pension money in a locked account. Restricted access until retirement age.",
+    renderDetail: (plan, set) => (
+      <CurrencyField id="ab-blocked" label="Current balance" placeholder="0" value={plan.bLocked} onChange={(v) => set("bLocked", v)}
+        help="Also includes RPP and LIF transfers. Taxed like an RRSP on withdrawal." />
+    ),
+  },
+  {
+    key: "pension_db", name: "DB Pension", full: "Defined Benefit Pension",
+    Icon: Building2, accent: "#2A7A5E",
+    blurb: "A guaranteed monthly income from your employer in retirement — not market-based.",
+    renderDetail: (plan, set) => (
+      <>
+        <CurrencyField id="ab-dbmonthly" label="Expected monthly income at retirement" placeholder="e.g. 2,500" value={plan.pensionDBMonthly} onChange={(v) => set("pensionDBMonthly", v)}
+          help="From your pension statement or HR. Usually shown as an estimated amount at age 65." />
+        <NumberField id="ab-dbstart" label="Pension start age" placeholder="65" value={plan.pensionDBStartAge} onChange={(v) => set("pensionDBStartAge", v)}
+          suffix="yrs" help="Often 60 or 65. Taking it earlier usually reduces the monthly amount." />
+      </>
+    ),
+  },
+  {
+    key: "pension_dc", name: "DC Pension", full: "Defined Contribution Pension",
+    Icon: Briefcase, accent: "#4E7A3A",
+    blurb: "You and your employer both contribute to a personal pension account. Returns depend on markets.",
+    renderDetail: (plan, set) => (
+      <>
+        <CurrencyField id="ab-bpensiondc" label="Current balance" placeholder="0" value={plan.bPensionDC} onChange={(v) => set("bPensionDC", v)} />
+        <NumberField id="ab-dcrate" label="Employer contribution" placeholder="e.g. 4" value={plan.pensionDCEmployerPct} onChange={(v) => set("pensionDCEmployerPct", v)}
+          suffix="% of salary" help="Your employer adds this on top of your own contributions." />
+      </>
+    ),
+  },
+  {
+    key: "dpsp", name: "DPSP", full: "Deferred Profit Sharing Plan",
+    Icon: Gift, accent: "#8A6A2E",
+    blurb: "Employer profit-sharing contributions to a registered plan. Vests over time.",
+    renderDetail: (plan, set) => (
+      <CurrencyField id="ab-bdpsp" label="Current balance (vested)" placeholder="0" value={plan.bDpsp} onChange={(v) => set("bDpsp", v)} />
+    ),
+  },
+  {
+    key: "nonreg", name: "Non-Reg", full: "Non-Registered / Taxable Account",
+    Icon: TrendingUp, accent: "#5465A8",
+    blurb: "No contribution limit. Growth is taxed annually (dividends, interest) and on sale (capital gains).",
+    renderDetail: (plan, set) => (
+      <CurrencyField id="ab-bnonreg" label="Current balance" placeholder="0" value={plan.bNonreg} onChange={(v) => set("bNonreg", v)} />
+    ),
+  },
+];
 
 export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
@@ -19,6 +155,31 @@ export default function Planner({ plan, setPlan }) {
   const yrsRet = age > 0 && retAge > age ? retAge - age : null;
   const yrsHome = age > 0 && homeAge > age ? homeAge - age : null;
 
+  // Account selection — null means not yet set (backward compat: infer from existing balances)
+  const openAccts = plan.openAccounts ?? (() => {
+    const auto = [];
+    if (n(plan.bTfsa) > 0 || plan.birthYear || plan.tfsaUsed) auto.push("tfsa");
+    if (n(plan.bRrsp) > 0 || plan.rrspLimitNOA) auto.push("rrsp");
+    if (n(plan.bFhsa) > 0 || plan.fhsaYearOpened) auto.push("fhsa");
+    if (n(plan.bResp) > 0) auto.push("resp");
+    if (n(plan.bRdsp) > 0) auto.push("rdsp");
+    if (n(plan.bRrif) > 0) auto.push("rrif");
+    if (n(plan.bLocked) > 0) auto.push("lira");
+    if (plan.pensionDBMonthly) auto.push("pension_db");
+    if (n(plan.bPensionDC) > 0 || plan.pensionDCEmployerPct) auto.push("pension_dc");
+    if (n(plan.bDpsp) > 0) auto.push("dpsp");
+    if (n(plan.bNonreg) > 0) auto.push("nonreg");
+    return auto;
+  })();
+
+  const toggleAcct = (key) => {
+    const next = openAccts.includes(key)
+      ? openAccts.filter((k) => k !== key)
+      : [...openAccts, key];
+    set("openAccounts", next);
+  };
+  const hasAcct = (key) => openAccts.includes(key);
+
   // validation errors
   const errors = {};
   if (plan.age !== undefined && plan.age !== "" && n(plan.age) <= 0) errors.age = "Age must be a positive number.";
@@ -27,7 +188,8 @@ export default function Planner({ plan, setPlan }) {
   const customRateNum = parseFloat(plan.customRate);
   const showRateWarn = plan.risk === "custom" && !isNaN(customRateNum) && customRateNum > 15;
 
-  const ready = age > 0 && retAge > age && !!plan.province && (n(plan.bFhsa) <= 0 || n(plan.fhsaYearOpened) > 0);
+  const hasFhsa = openAccts.includes("fhsa");
+  const ready = age > 0 && retAge > age && !!plan.province && (!hasFhsa || n(plan.fhsaYearOpened) > 0);
   const onDone = () => { if (ready) navigate("/dashboard"); };
   const onExit = () => navigate("/");
 
@@ -251,21 +413,7 @@ export default function Planner({ plan, setPlan }) {
             </div>
           )}
 
-          <label className="pp-label2" style={{ marginBottom: 6, marginTop: 4 }}>What's the current value of each account today?</label>
-          <div className="pp-help" style={{ marginTop: 0, marginBottom: 10 }}>Today's market value — including growth, not just what you put in.</div>
-          <div className="pp-grid-money">
-            <CurrencyField id="f-btfsa" label="TFSA" placeholder="0" value={plan.bTfsa} onChange={(v) => set("bTfsa", v)} />
-            <CurrencyField id="f-brrsp" label="RRSP" placeholder="0" value={plan.bRrsp} onChange={(v) => set("bRrsp", v)} />
-            <CurrencyField id="f-bfhsa" label="FHSA" placeholder="0" value={plan.bFhsa} onChange={(v) => set("bFhsa", v)} />
-          </div>
-          <div className="pp-grid-money" style={{ marginTop: 10 }}>
-            <CurrencyField id="f-bnonreg" label="Non-registered (taxable)" placeholder="0" value={plan.bNonreg} onChange={(v) => set("bNonreg", v)}
-              help={<>A regular investment/brokerage account — no contribution limit, but growth is taxed.</>} />
-            <CurrencyField id="f-blocked" label="Locked-in (LIRA / RPP / DPSP)" placeholder="0" value={plan.bLocked} onChange={(v) => set("bLocked", v)}
-              help={<>Pension money in a LIRA or similar. Taxed on withdrawal like an RRSP.</>} />
-          </div>
-
-          <div className="pp-field" style={{ marginTop: 20 }}>
+          <div className="pp-field" style={{ marginTop: 4 }}>
             <label className="pp-label2">Do you have an emergency fund?</label>
             <div className="pp-seg2">
               <button className={plan.emergencyStatus === "full" ? "on" : ""} onClick={() => set("emergencyStatus", "full")}>Yes, fully</button>
@@ -314,44 +462,52 @@ export default function Planner({ plan, setPlan }) {
           </div>
         </div>
 
-        {/* 4 — Contribution room */}
+        {/* 4 — Your accounts */}
         <div className="pp-fs">
-          <div className="pp-fs-head"><div className="pp-fs-num">4</div><h3>Contribution room</h3></div>
-          <p className="pp-fs-sub">Track how much room you have <em>left</em> in each account, and get over-contribution warnings. These are optional — except your FHSA open year, which is needed once you hold an FHSA.</p>
+          <div className="pp-fs-head"><div className="pp-fs-num">4</div><h3>Your accounts</h3></div>
+          <p className="pp-fs-sub">Check every account type you hold — including RRSPs, TFSAs, pensions, and more. We'll ask for the details that matter for your plan.</p>
 
-          <div className="pp-acctgroup">
-            <h4><PiggyBank size={16} style={{ color: "var(--violet)" }} /> TFSA</h4>
-            <div className="pp-row2">
-              <NumberField id="f-birth" label="Birth year" placeholder="e.g. 1996" value={plan.birthYear} onChange={(v) => set("birthYear", v)}
-                help={<>Sets your <b>cumulative TFSA room</b> since 2009 (room starts the year you turn 18).</>} />
-              <CurrencyField id="f-tfsaused" label="TFSA contributed this year" placeholder="0" value={plan.tfsaUsed} onChange={(v) => set("tfsaUsed", v)} help={<>What you've put in during {TAX_YEAR}.</>} />
-            </div>
-            <CurrencyField id="f-tfsaroom" label={<>Available TFSA room <span style={{ fontWeight: 500, color: "var(--muted)" }}>· from CRA My Account (optional)</span></>}
-              placeholder="e.g. 47,000" value={plan.tfsaAvailableRoom} onChange={(v) => set("tfsaAvailableRoom", v)}
-              help={<>Check <b>CRA My Account → TFSA</b> for your exact available room for {TAX_YEAR}. Overrides our estimate.</>} />
+          <div className="pp-acct-grid">
+            {CANADIAN_ACCOUNTS.map(({ key, name, full, Icon, accent, blurb }) => {
+              const on = hasAcct(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={"pp-acct-card" + (on ? " on" : "")}
+                  style={on ? { borderColor: accent, background: accent + "12" } : {}}
+                  onClick={() => toggleAcct(key)}
+                >
+                  {on && <span className="pp-goalcheck"><Check size={13} /></span>}
+                  <div className="pp-acct-card-icon" style={{ color: on ? accent : "var(--muted)" }}><Icon size={20} /></div>
+                  <div className="pp-acct-card-name">{name}</div>
+                  <div className="pp-acct-card-full">{full}</div>
+                  <div className="pp-acct-card-blurb">{blurb}</div>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="pp-acctgroup">
-            <h4><Landmark size={16} style={{ color: "var(--gold)" }} /> RRSP</h4>
-            <div className="pp-row2">
-              <CurrencyField id="f-rrspnoa" label="RRSP contribution room" placeholder="e.g. 12,000" value={plan.rrspLimitNOA} onChange={(v) => set("rrspLimitNOA", v)}
-                help={<>From your latest <b>Notice of Assessment</b> — also in CRA My Account. Blank = we estimate from income.</>} />
-              <CurrencyField id="f-rrspused" label="RRSP contributed this year" placeholder="0" value={plan.rrspUsed} onChange={(v) => set("rrspUsed", v)} />
+          {openAccts.length === 0 && (
+            <div className="pp-callout" style={{ marginTop: 12 }}>
+              <Info size={18} style={{ flex: "none" }} />
+              <span>Starting from zero? No problem — skip this section and continue. You can always come back and add accounts later.</span>
             </div>
-          </div>
+          )}
 
-          <div className={"pp-acctgroup" + (n(plan.bFhsa) > 0 && !(n(plan.fhsaYearOpened) > 0) ? " need" : "")}>
-            <h4>
-              <HomeIcon size={16} style={{ color: "var(--rose)" }} /> FHSA{" "}
-              {n(plan.bFhsa) > 0 && <span className="pp-req">{n(plan.fhsaYearOpened) > 0 ? "open year set" : "open year required"}</span>}
-            </h4>
-            <div className="pp-row2">
-              <NumberField id="f-fhsayear" label="What year did you open your FHSA?" placeholder="e.g. 2024" value={plan.fhsaYearOpened} onChange={(v) => set("fhsaYearOpened", v)}
-                help={<>The year you <b>first opened</b> an FHSA. Your room and 15-year closing deadline start here.</>} />
-              <CurrencyField id="f-fhsalife" label="FHSA contributed (lifetime)" placeholder="0" value={plan.fhsaLifetimeUsed} onChange={(v) => set("fhsaLifetimeUsed", v)} help={<>Total ever contributed, toward the {fmtMoney(TAX_CONFIG.fhsa.lifetime)} cap.</>} />
+          {CANADIAN_ACCOUNTS.filter((a) => hasAcct(a.key)).map((acct) => (
+            <div key={acct.key} className="pp-acct-detail" style={{ borderLeftColor: acct.accent }}>
+              <div className="pp-acct-detail-hd">
+                <acct.Icon size={15} style={{ color: acct.accent, flexShrink: 0 }} />
+                <span>{acct.full}</span>
+                <span className="pp-acct-detail-tag">{acct.name}</span>
+                {acct.key === "fhsa" && hasFhsa && !(n(plan.fhsaYearOpened) > 0) && (
+                  <span className="pp-req" style={{ marginLeft: "auto" }}>open year required</span>
+                )}
+              </div>
+              {acct.renderDetail(plan, set, fmtMoney, TAX_CONFIG)}
             </div>
-            <CurrencyField id="f-fhsayr" label="FHSA contributed this year" placeholder="0" value={plan.fhsaThisYearUsed} onChange={(v) => set("fhsaThisYearUsed", v)} />
-          </div>
+          ))}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
@@ -366,8 +522,8 @@ export default function Planner({ plan, setPlan }) {
         </div>
         {!ready && (
           <p style={{ textAlign: "right", fontSize: 12.5, color: "var(--muted)", marginTop: 8 }}>
-            {n(plan.bFhsa) > 0 && !(n(plan.fhsaYearOpened) > 0)
-              ? "Add the year you opened your FHSA (Step 4) to continue."
+            {hasFhsa && !(n(plan.fhsaYearOpened) > 0)
+              ? "Add the year you opened your FHSA in Step 4 to continue."
               : "Enter your age, a retirement age above it, and your province to continue."}
           </p>
         )}

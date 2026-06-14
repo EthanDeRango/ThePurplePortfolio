@@ -16,6 +16,14 @@ export const PLAN_DEFAULTS = {
   incomeStability: "variable", goals: ["retirement"], employerMatch: "", highInterestDebt: "",
   bNonreg: "", bLocked: "", emergencyStatus: "none", emergencySaved: "", retTaxRate: "",
   retSpend: "", inflationRate: 2, customGoals: [],
+  // Account selection (null = not yet set; infer from existing balances for backward compat)
+  openAccounts: null,
+  // New account balances
+  bRrif: "", bPensionDC: "", bDpsp: "", bResp: "", bRdsp: "",
+  // Account-specific details
+  respBeneficiaryAge: "",
+  pensionDCEmployerPct: "",
+  pensionDBMonthly: "", pensionDBStartAge: "",
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";
