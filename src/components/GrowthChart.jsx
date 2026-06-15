@@ -10,11 +10,11 @@ export default function GrowthChart({
   milestones,
   stackedSeries,
 }) {
-  // Increased top padding gives 3 staggered label rows without shrinking plotH (264px).
-  const W = 720, H = 354, PL = 56, PR = 18, PT = 56, PB = 34;
+  // PT=72 gives 4 label rows (16px each) above the plot while keeping plotH=264.
+  const W = 720, H = 370, PL = 56, PR = 18, PT = 72, PB = 34;
   const plotW = W - PL - PR, plotH = H - PT - PB;
-  const LABEL_ROWS = [PT - 14, PT - 28, PT - 42];
-  const OVERLAP_PX = 82;
+  // Four rows, 16px apart, so even 10.5px bold text has a clear gap between rows.
+  const LABEL_ROWS = [PT - 14, PT - 30, PT - 46, PT - 62];
 
   const [hover, setHover] = useState(null);
   const lineColor = color || "var(--violet)";
@@ -56,20 +56,34 @@ export default function GrowthChart({
   const visibleMilestones = (milestones || []).filter((m) => m.year >= 0 && m.year <= years);
 
   // ── Greedy label-row assignment ───────────────────────────────────────────────
+  // Each label's half-width is estimated from its text length so two labels only
+  // share a row when they genuinely won't collide (fixed-pixel thresholds fail when
+  // a milestone label like "Kids University −$20k" is much wider than "Home · age 30").
+  const CHAR_PX = 6.5; // avg px per char, 10.5px Hanken Grotesk Bold
+  const labelText = {
+    home: `Home · age ${homeAge}`,
+    fhsa: "FHSA closes",
+    ...Object.fromEntries(visibleMilestones.map((m) => [`m${m.year}`, m.label])),
+  };
+  const halfW = (key) => Math.ceil((labelText[key] || "").length * CHAR_PX / 2) + 4;
+
   const allMarkers = [
     ...(showHome ? [{ key: "home", xv: X(homeIdx) }] : []),
     ...(showFhsa ? [{ key: "fhsa", xv: X(fhsaIdx) }] : []),
     ...visibleMilestones.map((m) => ({ key: `m${m.year}`, xv: X(m.year) })),
   ].sort((a, b) => a.xv - b.xv);
 
-  const placed = [];
+  const placed = []; // [{xv, row, key}]
   const rowOf = {};
   for (const mk of allMarkers) {
-    const taken = placed.filter((p) => Math.abs(p.xv - mk.xv) < OVERLAP_PX).map((p) => p.row);
+    // Two labels collide if their centers are closer than the sum of their half-widths.
+    const taken = placed
+      .filter((p) => Math.abs(p.xv - mk.xv) < halfW(mk.key) + halfW(p.key))
+      .map((p) => p.row);
     let row = 0;
     while (taken.includes(row) && row < LABEL_ROWS.length - 1) row++;
     rowOf[mk.key] = row;
-    placed.push({ xv: mk.xv, row });
+    placed.push({ xv: mk.xv, row, key: mk.key });
   }
   const labelY = (key) => LABEL_ROWS[rowOf[key] ?? 0];
 
