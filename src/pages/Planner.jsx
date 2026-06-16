@@ -69,13 +69,24 @@ const CANADIAN_ACCOUNTS = [
     key: "resp", name: "RESP", full: "Registered Education Savings Plan",
     Icon: GraduationCap, accent: "#2F60A8",
     blurb: "Tax-sheltered savings for a child's post-secondary education. Earns the Canada Education Savings Grant.",
-    renderDetail: (plan, set) => (
-      <>
-        <CurrencyField id="ab-bresp" label="Current balance" placeholder="0" value={plan.bResp} onChange={(v) => set("bResp", v)} />
-        <NumberField id="ab-respage" label="Beneficiary's current age" placeholder="e.g. 3" value={plan.respBeneficiaryAge} onChange={(v) => set("respBeneficiaryAge", v)}
-          suffix="yrs" help="The child who will use the funds. The government education grant (CESG) matches 20% of contributions up to $2,500/yr — it stops at age 17." />
-      </>
-    ),
+    renderDetail: (plan, set) => {
+      const hasEducationGoal = (plan.goals || []).includes("education");
+      const hasResps = Array.isArray(plan.resps) && plan.resps.length > 0;
+      if (hasEducationGoal && hasResps) {
+        return (
+          <div className="pp-help" style={{ marginTop: 0, fontStyle: "italic" }}>
+            Your children's RESPs are managed in <b>Step 2 — Your goals</b> above. Each child has their own entry there.
+          </div>
+        );
+      }
+      return (
+        <>
+          <CurrencyField id="ab-bresp" label="Current balance" placeholder="0" value={plan.bResp} onChange={(v) => set("bResp", v)} />
+          <NumberField id="ab-respage" label="Beneficiary's current age" placeholder="e.g. 3" value={plan.respBeneficiaryAge} onChange={(v) => set("respBeneficiaryAge", v)}
+            suffix="yrs" help="The child who will use the funds. The government education grant (CESG) matches 20% of contributions up to $2,500/yr — it stops at age 17." />
+        </>
+      );
+    },
   },
   {
     key: "rdsp", name: "RDSP", full: "Registered Disability Savings Plan",
@@ -293,6 +304,13 @@ export default function Planner({ plan, setPlan }) {
                   const next = on ? cur.filter((k) => k !== g.key) : [...cur, g.key];
                   set("goals", next.length ? next : ["retirement"]);
                   if (g.key === "house") set("buyHome", !on ? true : plan.buyHome);
+                  // When adding education goal, migrate a legacy bResp into the resps array
+                  if (g.key === "education" && !on && (!Array.isArray(plan.resps) || plan.resps.length === 0)) {
+                    const seed = n(plan.bResp) > 0
+                      ? [{ id: String(Date.now()), name: "", balance: plan.bResp, beneficiaryAge: plan.respBeneficiaryAge || "", monthlyContrib: "" }]
+                      : [{ id: String(Date.now()), name: "", balance: "", beneficiaryAge: "", monthlyContrib: "" }];
+                    set("resps", seed);
+                  }
                 }}>
                   {on && <span className="pp-goalcheck"><Check size={13} /></span>}
                   <Ic size={20} /><div className="nm">{g.name}</div><div className="ds">{g.blurb}</div>
@@ -305,6 +323,54 @@ export default function Planner({ plan, setPlan }) {
             <CurrencyField id="f-targetnum" label="Your target invested amount" placeholder="e.g. 100,000" value={plan.targetNumber} onChange={(v) => set("targetNumber", v)}
               help={<>We'll estimate when you'd reach it at your current pace.</>} />
           )}
+
+          {(plan.goals || []).includes("education") && (() => {
+            const resps = Array.isArray(plan.resps) ? plan.resps : [];
+            const updResp = (id, key, val) => set("resps", resps.map((r) => r.id === id ? { ...r, [key]: val } : r));
+            const addResp = () => set("resps", [...resps, { id: String(Date.now()), name: "", balance: "", beneficiaryAge: "", monthlyContrib: "" }]);
+            const rmResp = (id) => set("resps", resps.filter((r) => r.id !== id));
+            return (
+              <div className="pp-subcard">
+                <p className="pp-sub-h">Each child's education fund</p>
+                <div className="pp-help" style={{ marginTop: 0 }}>Add one entry per child. The government automatically adds a <b>20% grant (CESG)</b> on your first $2,500/yr per child — up to $500/yr free money, until they turn 17.</div>
+                {resps.map((r, i) => {
+                  const age = n(r.beneficiaryAge);
+                  const yearsLeft = age > 0 ? Math.max(0, 18 - age) : null;
+                  const cesgYears = age > 0 ? Math.max(0, 17 - age) : null;
+                  return (
+                    <div key={r.id} style={{ marginTop: 14, paddingTop: 14, borderTop: i > 0 ? "1px solid var(--line-soft)" : "none" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--plum)" }}>Child {i + 1}{r.name ? ` — ${r.name}` : ""}</span>
+                        {resps.length > 1 && <button className="pp-savedit-rm" onClick={() => rmResp(r.id)} aria-label="Remove">✕</button>}
+                      </div>
+                      <div className="pp-row2">
+                        <div className="pp-field" style={{ marginBottom: 0 }}>
+                          <label className="pp-label2">Child's name <span style={{ color: "var(--muted)", fontWeight: 400 }}>· optional</span></label>
+                          <input className="pp-input" placeholder="e.g. Maya" value={r.name || ""} onChange={(e) => updResp(r.id, "name", e.target.value)} />
+                        </div>
+                        <NumberField label="Current age" placeholder="e.g. 5" value={r.beneficiaryAge} onChange={(v) => updResp(r.id, "beneficiaryAge", v)} suffix="yrs" />
+                      </div>
+                      <div className="pp-row2" style={{ marginTop: 8 }}>
+                        <CurrencyField label="Current RESP balance" placeholder="0" value={r.balance} onChange={(v) => updResp(r.id, "balance", v)} />
+                        <CurrencyField label="Monthly contribution" placeholder="e.g. 200" value={r.monthlyContrib} onChange={(v) => updResp(r.id, "monthlyContrib", v)}
+                          help="A dedicated amount for this child's education — separate from your main monthly savings." />
+                      </div>
+                      {yearsLeft != null && (
+                        <div className="pp-help" style={{ marginTop: 6, color: "var(--plum-2)" }}>
+                          {yearsLeft > 0
+                            ? <>{yearsLeft} years until university.{cesgYears > 0 ? <> CESG adds up to <b>$500/yr free</b> for {cesgYears} more year{cesgYears === 1 ? "" : "s"}.</> : " CESG has ended (age 17+)."}</>
+                            : "University age reached — RESP can now be withdrawn for education."}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button className="pp-btn pp-btn-ghost" style={{ marginTop: 14 }} onClick={addResp}>
+                  + Add {resps.length === 0 ? "a child" : "another child"}
+                </button>
+              </div>
+            );
+          })()}
 
           {(plan.goals || []).includes("save") && (() => {
             const list = Array.isArray(plan.customGoals) ? plan.customGoals : [];

@@ -20,7 +20,9 @@ export const PLAN_DEFAULTS = {
   openAccounts: null,
   // New account balances
   bRrif: "", bPensionDC: "", bDpsp: "", bResp: "", bRdsp: "",
-  // Account-specific details
+  // RESP — array of per-child entries (replaces bResp/respBeneficiaryAge for education goal)
+  resps: [],
+  // Account-specific details (legacy single-RESP fields kept for backward compat)
   respBeneficiaryAge: "",
   pensionDCEmployerPct: "",
   pensionDBMonthly: "", pensionDBStartAge: "",

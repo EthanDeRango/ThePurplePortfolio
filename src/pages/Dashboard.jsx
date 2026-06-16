@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronRight, Shield, Sparkles,
   AlertTriangle, Wallet, Landmark, PiggyBank, Coins, Scale,
   Receipt, Calculator, CalendarClock, ListOrdered, Printer,
-  Info, Home as HomeIcon, TrendingUp,
+  Info, Home as HomeIcon, TrendingUp, GraduationCap,
 } from "lucide-react";
 import {
   n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
@@ -13,7 +13,7 @@ import {
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
   yearsToTarget, fiTarget, simulateStrategy,
   recommendOrder, healthScore, annualInvestable, insights, accounts,
-  projectByAccount, mortgageEquitySeries,
+  projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
 import { TAX_CONFIG, TAX_YEAR, RISK, MONTH_NAMES } from "../lib/tax-config.js";
@@ -235,6 +235,7 @@ export default function Dashboard({ plan, setPlan }) {
     bTfsa: plan.bTfsa, bRrsp: plan.bRrsp, bLocked: plan.bLocked, bRrif: plan.bRrif,
     bFhsa: plan.bFhsa, bPensionDC: plan.bPensionDC, bDpsp: plan.bDpsp,
     bNonreg: plan.bNonreg, bResp: plan.bResp, bRdsp: plan.bRdsp,
+    resps: plan.resps,
     fhsaYearOpened: plan.fhsaYearOpened, income: plan.income,
     pensionDCEmployerPct: plan.pensionDCEmployerPct,
   });
@@ -257,7 +258,7 @@ export default function Dashboard({ plan, setPlan }) {
     if (!byAcct) return null;
     const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0;
     const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
-    const hasResp     = n(plan.bResp) > 0;
+    const hasResp     = (Array.isArray(plan.resps) && plan.resps.some(r => n(r.balance) > 0 || n(r.monthlyContrib) > 0)) || n(plan.bResp) > 0;
     const hasRdsp     = n(plan.bRdsp) > 0;
     const hasNonreg   = n(plan.bNonreg) > 0;
     const hasHomeEq   = homeEquityArr.some((v) => v > 0);
@@ -359,6 +360,14 @@ export default function Dashboard({ plan, setPlan }) {
     if (k === "house") return downNeed > 0 ? Math.min(1, (recSim.downAtHome || 0) / downNeed) : null;
     if (k === "number") return targetNumber > 0 ? Math.min(1, selFinal / targetNumber) : null;
     if (k === "save") { const tot = customGoalCalc.reduce((a, g) => a + g.amt, 0); return tot > 0 ? Math.min(1, selFinal / tot) : null; }
+    if (k === "education") {
+      const respList = Array.isArray(plan.resps) && plan.resps.length > 0 ? plan.resps : [];
+      if (respList.length === 0) return null;
+      const rate = ret - fee;
+      const totalProjected = respList.reduce((s, r) => s + projectRespToAge18(r.balance, r.beneficiaryAge, r.monthlyContrib, rate), 0);
+      const benchmark = respList.length * 80000;
+      return Math.min(1, totalProjected / benchmark);
+    }
     // INFLATION FIX: compare dispVal(selFinal) against retTarget (consistent units)
     return retTarget > 0 ? Math.min(1, dispVal(selFinal) / retTarget) : null;
   };
@@ -992,6 +1001,69 @@ export default function Dashboard({ plan, setPlan }) {
               ) : <p style={{ color: "var(--muted)", marginTop: 8 }}>Add your target home price and purchase age in your numbers to see your down-payment timeline.</p>}
             </div>
           );
+          if (k === "education") {
+            const respList = Array.isArray(plan.resps) && plan.resps.length > 0 ? plan.resps : [];
+            const rate = ret - fee;
+            return (
+              <div className="pp-card" style={{ marginBottom: 14 }} key={k}>
+                <span className="pp-eyebrow"><GraduationCap size={13} /> Kids&apos; education</span>
+                {respList.length === 0 ? (
+                  <p style={{ color: "var(--muted)", marginTop: 8 }}>Add your children&apos;s RESP details in the goal step of the planner to see projections here.</p>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    {respList.map((r, ri) => {
+                      const proj = projectRespToAge18(r.balance, r.beneficiaryAge, r.monthlyContrib, rate);
+                      const yearsLeft = Math.max(0, 18 - n(r.beneficiaryAge));
+                      const annContrib = n(r.monthlyContrib) * 12;
+                      const ceisgYears = Math.min(yearsLeft, Math.max(0, 17 - n(r.beneficiaryAge)));
+                      const totalCesg = ceisgYears > 0 ? Math.min(ceisgYears * Math.min(500, annContrib * 0.2), 7200) : 0;
+                      const benchmark = 80000;
+                      const gap = Math.max(0, benchmark - proj);
+                      const moNeeded = (yearsLeft > 0 && gap > 0) ? (() => {
+                        const mr = rate / 12;
+                        const months = yearsLeft * 12;
+                        if (mr > 0) return Math.ceil((gap - n(r.balance) * Math.pow(1 + mr, months)) * mr / (Math.pow(1 + mr, months) - 1));
+                        return Math.ceil(gap / months);
+                      })() : 0;
+                      return (
+                        <div key={r.id || ri} style={{ marginBottom: ri < respList.length - 1 ? 16 : 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--plum)", marginBottom: 8 }}>
+                            {r.name || `Child ${ri + 1}`}
+                            {n(r.beneficiaryAge) > 0 && <span style={{ fontWeight: 400, fontSize: 13, color: "var(--muted)", marginLeft: 6 }}>· age {n(r.beneficiaryAge)}{yearsLeft > 0 ? `, ${yearsLeft}yr until 18` : " · already 18"}</span>}
+                          </div>
+                          <div className="pp-grid-3">
+                            <div className="pp-rate-chip">
+                              <div className="l">Projected at 18</div>
+                              <div className="v">{fmtMoney(proj)}</div>
+                              <div className="h">at {pct1(ret)} growth</div>
+                            </div>
+                            <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}>
+                              <div className="l">Government grant (CESG)</div>
+                              <div className="v">{totalCesg > 0 ? `+${fmtMoney(totalCesg)}` : "—"}</div>
+                              <div className="h">{totalCesg > 0 ? `20% on first $2,500/yr · ${ceisgYears}yr left` : n(r.beneficiaryAge) >= 17 ? "past grant age" : "add contributions to earn"}</div>
+                            </div>
+                            <div className="pp-rate-chip" style={{ background: proj >= benchmark ? "var(--green-soft, #edf7ed)" : "#F3ECDB" }}>
+                              <div className="l">vs. ~$80k university est.</div>
+                              <div className="v" style={{ color: proj >= benchmark ? "var(--green)" : "var(--gold)" }}>{proj >= benchmark ? "On track ✓" : fmtMoney(gap) + " short"}</div>
+                              <div className="h">{proj >= benchmark ? "projected to cover 4 years" : `save ~$${moNeeded > 0 ? moNeeded.toLocaleString() : "?"}/mo more to close the gap`}</div>
+                            </div>
+                          </div>
+                          {n(r.monthlyContrib) > 0 && (
+                            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8 }}>
+                              Contributing <b>{fmtMoney(n(r.monthlyContrib))}/mo</b> separately from your main savings.{totalCesg > 0 ? ` The government tops up every dollar you save with a 20% bonus — that's $${Math.round(Math.min(500, annContrib * 0.2)).toLocaleString()} free per year.` : ""}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                      RESP money is used tax-free for school. Unused funds can be transferred to your RRSP or withdrawn (contributions back tax-free, growth taxed in the student&apos;s hands — usually very low).
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          }
           if (k === "save") return (
             <div className="pp-card" style={{ marginBottom: 14 }} key={k}>
               <span className="pp-eyebrow"><PiggyBank size={13} /> Save for something</span>
@@ -1133,6 +1205,13 @@ export default function Dashboard({ plan, setPlan }) {
                 const detail = k === "house" ? (downNeed > 0 ? `${fmtMoney(recSim.downAtHome || 0)} of ${fmtMoney(downNeed)} down payment` : "add a home price to track")
                   : k === "number" ? (targetNumber > 0 ? `${fmtMoney(selFinal)} of ${fmtMoney(targetNumber)}` : "add a target amount to track")
                   : k === "save" ? (customGoalCalc.length > 0 ? `${fmtMoney(selFinal)} of ${fmtMoney(customGoalCalc.reduce((a, g) => a + g.amt, 0))} across your goals` : "add a savings goal to track")
+                  : k === "education" ? (() => {
+                    const respList = Array.isArray(plan.resps) && plan.resps.length > 0 ? plan.resps : [];
+                    if (respList.length === 0) return "add children in the goal step to track";
+                    const rate = ret - fee;
+                    const totalProj = respList.reduce((s, r) => s + projectRespToAge18(r.balance, r.beneficiaryAge, r.monthlyContrib, rate), 0);
+                    return `${fmtMoney(totalProj)} projected vs. ${fmtMoney(respList.length * 80000)} benchmark`;
+                  })()
                   : `${fmtMoney(dispVal(selFinal))} of ${fmtMoney(retTarget)} ${inflation ? "(today's $)" : "retirement target"}`;
                 return (
                   <div className="pp-scrow" key={k}>

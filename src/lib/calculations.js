@@ -244,6 +244,23 @@ export function simulateStrategy(order, ctx, mode) {
   return { gross, afterTax, refundYr1, downAtHome, bal, yr1 };
 }
 
+// ── RESP projection helper ────────────────────────────────────────────────────
+// Projects a single RESP to age 18, applying CESG (20% on first $2,500/yr until age 17).
+export function projectRespToAge18(balance, beneficiaryAge, monthlyContrib, rate) {
+  const yearsLeft = Math.max(0, 18 - n(beneficiaryAge));
+  if (yearsLeft === 0) return Math.round(n(balance));
+  const mr = rate / 12;
+  let bal = n(balance);
+  const mo = n(monthlyContrib);
+  const annContrib = mo * 12;
+  for (let y = 0; y < yearsLeft; y++) {
+    for (let m = 0; m < 12; m++) bal = bal * (1 + mr) + mo;
+    const age = n(beneficiaryAge) + y;
+    if (age < 17) bal += Math.min(500, annContrib * 0.20);
+  }
+  return Math.round(bal);
+}
+
 // ── Per-account projection ────────────────────────────────────────────────────
 // Projects each account independently with priority-based monthly allocation.
 // rate = net annual return decimal (e.g. 0.075); returns year-0..years arrays.
@@ -257,7 +274,12 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
   let bRrsp    = n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif);
   let bFhsa    = n(plan.bFhsa);
   let bPension = n(plan.bPensionDC) + n(plan.bDpsp);
-  let bResp    = n(plan.bResp);
+  // Multi-child RESP: use plan.resps array if available, fall back to legacy bResp
+  const respList = Array.isArray(plan.resps) && plan.resps.length > 0
+    ? plan.resps
+    : (n(plan.bResp) > 0 ? [{ balance: plan.bResp, beneficiaryAge: plan.respBeneficiaryAge || 0, monthlyContrib: 0 }] : []);
+  let bResp = respList.reduce((s, r) => s + n(r.balance), 0);
+  const respMoContrib = respList.reduce((s, r) => s + n(r.monthlyContrib), 0);
   let bRdsp    = n(plan.bRdsp);
   let bNonreg  = n(plan.bNonreg);
 
@@ -287,10 +309,16 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
       bRrsp    = bRrsp * (1 + mr) + rrspC;
       bFhsa    = (y < fhsaClose) ? (bFhsa * (1 + mr) + fhsaC) : 0;
       bPension = bPension * (1 + mr) + dcEmployerMo;
-      bResp    = bResp * (1 + mr);
+      bResp    = bResp * (1 + mr) + respMoContrib;
       bRdsp    = bRdsp * (1 + mr);
       bNonreg  = bNonreg * (1 + mr) + nonregC;
     }
+    // CESG: government adds 20% on first $2,500/yr per child, until age 17
+    const annCesg = respList.reduce((s, r) => {
+      const age = n(r.beneficiaryAge) + y;
+      return age < 17 ? s + Math.min(500, n(r.monthlyContrib) * 12 * 0.20) : s;
+    }, 0);
+    bResp += annCesg;
     if (homeIdx != null && (y + 1) === homeIdx) { out.fhsaAtClose = bFhsa; bFhsa = 0; }
     else if (homeIdx == null && fhsaCloseIdx != null && (y + 1) === fhsaCloseIdx) { bRrsp += bFhsa; bFhsa = 0; }
     out.tfsa.push(bTfsa); out.rrsp.push(bRrsp); out.fhsa.push(bFhsa);
