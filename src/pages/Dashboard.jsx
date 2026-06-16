@@ -477,7 +477,7 @@ export default function Dashboard({ plan, setPlan }) {
       <div className="pp-snap">
         {hasData && <div className="pp-snapc"><div className="l">Projected total</div><div className="v">{fmtMoney(dispVal(selFinal))}</div><div className="h">by age {retAge}</div></div>}
         {income > 0 && <div className="pp-snapc"><div className="l">Take-home pay</div><div className="v">{fmtMoney(tax.netMonthly)}</div><div className="h">per month, after tax</div></div>}
-        {income > 0 && <div className="pp-snapc"><div className="l">Your tax rate</div><div className="v">{pct1(marginal)}</div><div className="h">on your next dollar earned</div></div>}
+        {income > 0 && <div className="pp-snapc"><div className="l">Your tax rate</div><div className="v">{pct1(marginal)}</div><div className="h">on each extra dollar you earn</div></div>}
         <div className="pp-snapc"><div className="l">Next priority</div><div className="v" style={{ fontSize: 16, lineHeight: 1.2 }}>{firstTodo >= 0 && nextSteps[firstTodo] ? nextSteps[firstTodo].label : "Keep investing"}</div><div className="h">{firstTodo >= 0 && nextSteps[firstTodo] && nextSteps[firstTodo].amount > 0 ? fmtMoney(nextSteps[firstTodo].amount) + (["ef","debt","match"].includes(nextSteps[firstTodo].key) ? "" : "/yr") : "your action plan below"}</div></div>
       </div>
 
@@ -488,9 +488,9 @@ export default function Dashboard({ plan, setPlan }) {
           ...(income > 0 ? [["sec-taxplan", "Tax plan"]] : []),
           ["sec-goal", "Goal"],
           ...(income > 0 ? [["sec-pay", "Paycheque"], ["sec-tax", "Tax savings"], ["sec-vs", "TFSA vs RRSP"]] : []),
-          ["sec-room", "Room"],
+          ["sec-room", "Contribution limits"],
           ...(hasData ? [["sec-grow", "Growth"]] : []),
-          ["sec-accounts", "Accounts"],
+          ["sec-accounts", "Account types"],
         ].map(([id, label]) => (
           <button key={id} type="button" onClick={() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
             {label}
@@ -645,7 +645,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize TFSA first</div>
                     <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{tfsaS ? fmtMoney(tfsaS.sim.afterTax) : "—"}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after-tax at {retAge} · {tfsaS ? fmtMoney(tfsaS.sim.afterTax * 0.04) + "/yr" : "—"} sustainable</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {tfsaS ? fmtMoney(tfsaS.sim.afterTax * 0.04) + "/yr to spend" : "—"}</div>
                   </div>
                   <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
                     <div className="pp-stat" style={{ padding: "3px 0" }}><span>Tax refund now</span><span style={{ fontWeight: 700, color: "var(--muted)" }}>None</span></div>
@@ -669,7 +669,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize RRSP first</div>
                     <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{rrspS ? fmtMoney(rrspS.sim.afterTax) : "—"}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after-tax at {retAge} · {rrspS ? fmtMoney(rrspS.sim.afterTax * 0.04) + "/yr" : "—"} sustainable</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {rrspS ? fmtMoney(rrspS.sim.afterTax * 0.04) + "/yr to spend" : "—"}</div>
                   </div>
                   <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
                     {income > 0 && <div className="pp-stat" style={{ padding: "3px 0" }}><span>Refund on {fmtMoney(rrspPlan)}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>+{fmtMoney(rrspSaving)}</span></div>}
@@ -694,7 +694,7 @@ export default function Dashboard({ plan, setPlan }) {
                     <div style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>Projected for your down payment</div>
                       <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{homeS?.sim?.downAtHome ? fmtMoney(homeS.sim.downAtHome) : "—"}</div>
-                      <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>FHSA + TFSA + HBP by age {homeAge || "?"}</div>
+                      <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>FHSA + TFSA + Home Buyers' Plan by age {homeAge || "?"}</div>
                     </div>
                     <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
                       {income > 0 && <div className="pp-stat" style={{ padding: "3px 0" }}><span>Refund on {fmtMoney(fhsaPlan)}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>+{fmtMoney(fhsaSaving)}</span></div>}
@@ -702,7 +702,7 @@ export default function Dashboard({ plan, setPlan }) {
                       <div className="pp-stat" style={{ padding: "3px 0", borderBottom: 0 }}><span>Closes</span><span style={{ fontWeight: 700 }}>{fhsaCloseYear ?? "—"}</span></div>
                     </div>
                     <div style={{ marginTop: 12, padding: "10px 12px", background: "#FAE8EF", borderRadius: 10, fontSize: 12.5, color: "#6B1A35", lineHeight: 1.55 }}>
-                      <b>Best for</b> first-time home buyers. Deduction now + tax-free withdrawal. Stacks with HBP.
+                      <b>Best for</b> first-time buyers. Tax refund now + zero tax when you buy. Can stack with the Home Buyers' Plan (HBP).
                     </div>
                   </div>
                 )}
@@ -725,9 +725,9 @@ export default function Dashboard({ plan, setPlan }) {
                     : <>Your tax rate today and in retirement are close. The TFSA is the better pick — your money grows completely tax-free and you can withdraw it any time without any tax or paperwork.</>}
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  <div className="pp-rate-chip"><div className="l">Tax refund, year 1</div><div className="v">{fmtMoney(recS.sim.refundYr1)}</div><div className="h">back at tax time</div></div>
-                  <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">After-tax at {retAge}</div><div className="v">{fmtMoney(recS.sim.afterTax)}</div><div className="h">realistic withdrawals</div></div>
-                  <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Sustainable income</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">4% rule applied</div></div>
+                  <div className="pp-rate-chip"><div className="l">Tax refund, year 1</div><div className="v">{fmtMoney(recS.sim.refundYr1)}</div><div className="h">cash back at tax time</div></div>
+                  <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">What you can spend at {retAge}</div><div className="v">{fmtMoney(recS.sim.afterTax)}</div><div className="h">after estimated retirement tax</div></div>
+                  <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Yearly income in retirement</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">withdrawing 4%/yr — the safe-withdrawal rule</div></div>
                 </div>
               </div>
 
@@ -742,8 +742,8 @@ export default function Dashboard({ plan, setPlan }) {
                       <th>Strategy</th>
                       <th>Order</th>
                       <th>Tax refund yr 1</th>
-                      <th>After-tax at {retAge}</th>
-                      <th>Annual income</th>
+                      <th>Spendable at {retAge}</th>
+                      <th>Yearly income in retirement</th>
                       {buyingHome && <th>Down pmt @ {homeAge || "?"}</th>}
                     </tr>
                   </thead>
@@ -776,7 +776,7 @@ export default function Dashboard({ plan, setPlan }) {
         <div id="sec-taxplan" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
           <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
-          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} marginal rate — the optimal order with the tax math shown.</p>
+          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} tax rate on your next dollar earned — the optimal contribution order with the math shown.</p>
           {(() => {
             const yr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
             const deductibleTotal = (yr1.rrsp || 0) + (yr1.fhsa || 0);
@@ -941,7 +941,7 @@ export default function Dashboard({ plan, setPlan }) {
                 <>
                   <div className="pp-grid-2" style={{ marginTop: 8 }}>
                     <div className="pp-rate-chip"><div className="l">Min. down payment</div><div className="v">{fmtMoney(downNeed)}</div><div className="h">on a {fmtMoney(n(plan.homePrice))} home</div></div>
-                    <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Projected by age {homeAge || "?"}</div><div className="v">{recSim.downAtHome != null ? fmtMoney(recSim.downAtHome) : "—"}</div><div className="h">FHSA + TFSA + HBP at {pct1(ret)}</div></div>
+                    <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Projected by age {homeAge || "?"}</div><div className="v">{recSim.downAtHome != null ? fmtMoney(recSim.downAtHome) : "—"}</div><div className="h">FHSA + TFSA + Home Buyers' Plan at {pct1(ret)}</div></div>
                   </div>
                   {(() => {
                     const N = homeIdx ? homeIdx * 12 : 0;
@@ -1007,11 +1007,11 @@ export default function Dashboard({ plan, setPlan }) {
 
               {/* Retirement income picture */}
               <div style={{ marginTop: 14, background: "var(--paper-card)", borderRadius: 12, padding: "12px 16px" }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted)", marginBottom: 8 }}>Income at retirement</div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted)", marginBottom: 8 }}>Where your money will come from each year</div>
                 <div className="pp-stat">
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--violet)", display: "inline-block", flexShrink: 0 }} />
-                    Investment portfolio (4%/yr)
+                    <span>Savings &amp; investments <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— drawing 4%/yr from your portfolio</span></span>
                   </span>
                   <b>{fmtMoney(projInvestIncome)}/yr</b>
                 </div>
@@ -1019,8 +1019,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div className="pp-stat">
                     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: "#5B7EC4", display: "inline-block", flexShrink: 0 }} />
-                      CPP + OAS
-                      <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 400 }}> · estimated</span>
+                      <span>CPP + OAS <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— government retirement benefits · estimated</span></span>
                     </span>
                     <b>~{fmtMoney(govBenefits)}/yr</b>
                   </div>
@@ -1029,7 +1028,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div className="pp-stat">
                     <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} />
-                      DB Pension
+                      <span>Defined benefit pension <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— guaranteed monthly amount from employer</span></span>
                     </span>
                     <b>{fmtMoney(pensionDBIncome)}/yr</b>
                   </div>
@@ -1137,7 +1136,7 @@ export default function Dashboard({ plan, setPlan }) {
           <h3 className="pp-sec-h">Your bracket, and what a deduction does to it</h3>
           {brk && (
             <div className="pp-brackets" style={{ marginBottom: 16 }}>
-              <div className="pp-brk"><div className="l">Your marginal bracket</div><div className="v">{pct1(brk.cur)}</div><div className="h">Combined federal + {brk && tax.isQC ? "Quebec" : "provincial"} rate on your next dollar.</div></div>
+              <div className="pp-brk"><div className="l">Your marginal tax rate</div><div className="v">{pct1(brk.cur)}</div><div className="h">Combined federal + {brk && tax.isQC ? "Quebec" : "provincial"} — the rate on each extra dollar you earn.</div></div>
               <div className="pp-brk up"><div className="l">Into the next bracket</div><div className="v">{brk.up != null ? "+" + fmtMoney(brk.toNext) : "—"}</div><div className="h">{brk.up != null ? <>About this much more income pushes you to <b>{pct1(brk.rateAbove)}</b>.</> : <>You're in the top bracket.</>}</div></div>
               <div className="pp-brk down"><div className="l">Down a bracket</div><div className="v">{brk.down != null ? fmtMoney(brk.toLower) : "—"}</div><div className="h">{brk.down != null ? <>Deducting about this much drops you to <b>{pct1(brk.rateBelow)}</b>.</> : <>Already in the lowest bracket.</>}</div></div>
             </div>
@@ -1209,7 +1208,7 @@ export default function Dashboard({ plan, setPlan }) {
                 <div className="pp-callout" style={{ marginTop: 12, marginBottom: 0, background: "#F3E4C8", borderColor: "#C98A2E" }}>
                   <AlertTriangle size={18} style={{ flex: "none", color: "#9A6010" }} />
                   <span>{lowIncomeRet
-                    ? <><b>Watch the GIS trap.</b> RRSP/RRIF withdrawals reduce GIS by ~50¢/dollar — but <b>TFSA withdrawals don't</b>.</>
+                    ? <><b>Watch the GIS trap.</b> GIS (Guaranteed Income Supplement) is a benefit for low-income retirees — RRSP/RRIF withdrawals claw back ~50¢ of GIS per dollar, but <b>TFSA withdrawals don't count</b>.</>
                     : claw > 0
                     ? <><b>OAS clawback flag.</b> At {fmtMoney(retTaxableIncome)}, you'd lose about <b>{fmtMoney(claw)}/yr</b> to the 15% recovery tax. TFSA withdrawals don't count toward it.</>
                     : <><b>OAS clawback is close.</b> TFSA withdrawals won't push you over the threshold.</>}</span>
@@ -1225,15 +1224,15 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* ROOM */}
       <div id="sec-room" style={{ marginTop: 34 }}>
-        <span className="pp-eyebrow"><Wallet size={14} /> Contribution room</span>
-        <h3 className="pp-sec-h">How much room you have left</h3>
+        <span className="pp-eyebrow"><Wallet size={14} /> Contribution limits</span>
+        <h3 className="pp-sec-h">How much you can still put in each account this year</h3>
         <div className="pp-room">
           <div className="pp-roomc">
             <h4>TFSA <PiggyBank size={18} style={{ color: "var(--violet)" }} /></h4>
             <div className="pp-room-big">{fmtMoney(tfsaRoomLeft)}</div>
             <div className="pp-room-sub">
-              {tfsaProvidedRoom > 0 ? "Room left (from your CRA figure)" : "This year's remaining room (no carryforward entered)"}
-              {n(plan.birthYear) > 0 && <> · {fmtMoney(tfsaCum)} accumulated since 18</>}
+              {tfsaProvidedRoom > 0 ? "How much you can still contribute (from your CRA figure)" : "This year's remaining room — unused room carries forward forever"}
+              {n(plan.birthYear) > 0 && <> · {fmtMoney(tfsaCum)} total room accumulated since age 18</>}
             </div>
             <Bar used={tfsaUsed} total={tfsaRoomStart} color="var(--violet)" />
             <div className="pp-room-legend">
@@ -1245,7 +1244,7 @@ export default function Dashboard({ plan, setPlan }) {
           <div className="pp-roomc">
             <h4>RRSP <Landmark size={18} style={{ color: "var(--gold)" }} /></h4>
             <div className="pp-room-big">{fmtMoney(rrspLeft)}</div>
-            <div className="pp-room-sub">Room left {n(plan.rrspLimitNOA) > 0 ? "(from your NOA)" : "(estimated from income)"}</div>
+            <div className="pp-room-sub">Room left {n(plan.rrspLimitNOA) > 0 ? "(from your Notice of Assessment)" : "(estimated from income)"}</div>
             <Bar used={rrspUsed} total={rrspLimit} color="var(--gold)" />
             <div className="pp-room-legend"><span>Limit: {fmtMoney(rrspLimit)}</span><span>Used: {fmtMoney(rrspUsed)}</span></div>
             {rrspOver && <div className="pp-overwarn"><AlertTriangle size={15} style={{ flex: "none" }} /><span>Over your limit by more than the {fmtMoney(TAX_CONFIG.rrsp.overBuffer)} buffer — <b>1%/month</b> penalty.</span></div>}
@@ -1290,8 +1289,8 @@ export default function Dashboard({ plan, setPlan }) {
       {hasData && (
         <div id="sec-grow">
           <div className="pp-card pp-noprint" style={{ marginTop: 34 }}>
-            <span className="pp-eyebrow">What if…</span>
-            <h3 style={{ fontSize: 22, margin: "8px 0 16px" }}>Adjust the inputs — slide or type</h3>
+            <span className="pp-eyebrow">Play with the numbers</span>
+            <h3 style={{ fontSize: 22, margin: "8px 0 16px" }}>Change these sliders and watch your projection update</h3>
             <div className="pp-sliders">
               <div className="pp-slider">
                 <div className="top"><span className="l">Monthly contribution</span><span className="vwrap"><span className="vu">$</span><input className="vin" inputMode="numeric" value={monthly} onChange={(e) => setMonthly(Math.max(0, Number(e.target.value.replace(/[^0-9]/g,"")) || 0))} aria-label="Monthly contribution amount" /></span></div>
@@ -1302,14 +1301,18 @@ export default function Dashboard({ plan, setPlan }) {
                 <input className="pp-range" type="range" min={age + 1} max="75" step="1" value={Math.min(Math.max(retAge, age + 1), 75)} onChange={(e) => setRetAge(Number(e.target.value))} aria-label="Retirement age" />
               </div>
               <div className="pp-slider">
-                <div className="top"><span className="l">Annual return</span><span className="vwrap"><input className="vin" inputMode="decimal" value={(ret * 100).toFixed(1)} onChange={(e) => { const v = parseFloat(e.target.value.replace(/[^0-9.]/g,"")); if (!isNaN(v)) setRet(v / 100); }} aria-label="Annual return percent" /><span className="vu">%</span></span></div>
+                <div className="top"><span className="l">Expected investment return</span><span className="vwrap"><input className="vin" inputMode="decimal" value={(ret * 100).toFixed(1)} onChange={(e) => { const v = parseFloat(e.target.value.replace(/[^0-9.]/g,"")); if (!isNaN(v)) setRet(v / 100); }} aria-label="Annual return percent" /><span className="vu">%/yr</span></span></div>
                 <input className="pp-range" type="range" min="0.02" max="0.12" step="0.005" value={Math.min(Math.max(ret, 0.02), 0.12)} onChange={(e) => setRet(Number(e.target.value))} aria-label="Annual return" />
               </div>
             </div>
             <div className="pp-toggles">
-              <button className={"pp-tog" + (inflation ? " on" : "")} onClick={() => setInflation((v) => !v)}><Check size={14} /> Today's dollars ({pct1(inflRate)} inflation)</button>
-              <button className={"pp-tog" + (afterTax ? " on" : "")} onClick={() => setAfterTax((v) => !v)}><Check size={14} /> After estimated retirement tax</button>
+              <button className={"pp-tog" + (inflation ? " on" : "")} onClick={() => setInflation((v) => !v)} title="Adjusts projected numbers down so they reflect what that money would actually buy in today's world, not tomorrow's inflated prices."><Check size={14} /> Inflation-adjusted (show in today's $)</button>
+              <button className={"pp-tog" + (afterTax ? " on" : "")} onClick={() => setAfterTax((v) => !v)} title="Estimates the tax you'd owe when withdrawing from registered accounts in retirement, showing your real spendable amount."><Check size={14} /> After retirement tax (show spendable $)</button>
             </div>
+            <p style={{ fontSize: 11.5, color: "var(--muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
+              <b>Inflation adjustment:</b> {inflation ? <>On — the numbers are shrunk to reflect today's purchasing power. {fmtMoney(Math.pow(1 + inflRate, years) * 1000 | 0)} in {years} years ≈ {fmtMoney(1000)} today.</> : <>Off — numbers are in future dollars (bigger, but buys the same stuff).</>}
+              {" "}<b>Retirement tax:</b> {afterTax ? <>On — showing what you can actually spend after estimated ~{pct1(retMarginal)} tax on RRSP/registered withdrawals.</> : <>Off — raw portfolio value before any future tax is deducted.</>}
+            </p>
           </div>
 
           <div className="pp-card" style={{ marginTop: 18 }}>
@@ -1328,11 +1331,11 @@ export default function Dashboard({ plan, setPlan }) {
               noContribSeries={noContribSeries}
             />
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 14 }}>
-              Hover / tap or use arrow keys to read any year.{" "}
+              Hover or tap any point on the chart to read the exact value for that year.{" "}
               {stackedSeries
-                ? <>Each coloured band shows one account type — they stack to your total wealth{homeEquityArr.some((v) => v > 0) ? ` (including home equity assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)} annual appreciation)` : ""}. Account balances shown before retirement tax. The dashed line shows your current savings growing without future contributions.</>
-                : <>The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}{noContribSeries && start > 0 ? " The dashed line shows your current savings growing with no new contributions — everything above it is the value of continuing to invest." : ""}</>
-              }{" "}Illustrative only.
+                ? <>Each coloured band is a different account — they stack up to your total projected wealth{homeEquityArr.some((v) => v > 0) ? ` (home equity included, assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)}/yr appreciation)` : ""}. The dashed purple line shows how much you'd have if you stopped contributing today — everything above it is the extra wealth built by continuing to save.</>
+                : <>The curve grows at your chosen return of <b>{pct1(ret)}/yr</b> — drag the slider lower and you'll see it visibly flatten. {goalWithdrawals.length > 0 && `The dip${goalWithdrawals.length > 1 ? "s" : ""} show money being taken out for goals (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")}). `}{noContribSeries && start > 0 ? "The dashed line shows your current savings growing with zero new contributions — everything above it is the extra wealth built by staying invested." : ""}</>
+              }{" "}Illustrative projections only — real returns vary.
             </p>
 
             {/* Milestone snapshot cards */}
@@ -1427,7 +1430,7 @@ export default function Dashboard({ plan, setPlan }) {
               <span className="pp-eyebrow"><HomeIcon size={14} /> Your home goal</span>
               <h3 style={{ fontSize: 22, margin: "8px 0 14px" }}>Down payment on a {fmtMoney(homePrice)} home</h3>
               <div className="pp-grid-3">
-                <div className="pp-rate-chip"><div className="l">Minimum down payment</div><div className="v">{fmtMoney(homeDown)}</div><div className="h">{homePrice < 1500000 ? <>{pct1(homeDown / homePrice)} · CMHC applies under 20%</> : <>20% required</>}</div></div>
+                <div className="pp-rate-chip"><div className="l">Minimum down payment</div><div className="v">{fmtMoney(homeDown)}</div><div className="h">{homePrice < 1500000 ? <>{pct1(homeDown / homePrice)} · mortgage insurance required if under 20%</> : <>20% required at this price</>}</div></div>
                 <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">20% (skip insurance)</div><div className="v">{fmtMoney(homePrice * 0.2)}</div></div>
                 {homeProjAtBuy != null && <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Projected by age {homeAge}</div><div className="v">{fmtMoney(homeProjAtBuy)}</div></div>}
               </div>

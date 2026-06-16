@@ -41,8 +41,8 @@ const CANADIAN_ACCOUNTS = [
       <>
         <CurrencyField id="ab-brrsp" label="Current balance" placeholder="0" value={plan.bRrsp} onChange={(v) => set("bRrsp", v)} />
         <div className="pp-row2" style={{ marginTop: 8 }}>
-          <CurrencyField id="ab-rrsplimit" label="Contribution room (from NOA)" placeholder="e.g. 12,000" value={plan.rrspLimitNOA} onChange={(v) => set("rrspLimitNOA", v)}
-            help="From your Notice of Assessment or CRA My Account." />
+          <CurrencyField id="ab-rrsplimit" label="How much room you have left (optional)" placeholder="e.g. 12,000" value={plan.rrspLimitNOA} onChange={(v) => set("rrspLimitNOA", v)}
+            help="Find this on your Notice of Assessment (NOA) — the tax summary CRA mails after you file — or at CRA My Account online." />
           <CurrencyField id="ab-rrspused" label="Contributed this year" placeholder="0" value={plan.rrspUsed} onChange={(v) => set("rrspUsed", v)} />
         </div>
       </>
@@ -73,7 +73,7 @@ const CANADIAN_ACCOUNTS = [
       <>
         <CurrencyField id="ab-bresp" label="Current balance" placeholder="0" value={plan.bResp} onChange={(v) => set("bResp", v)} />
         <NumberField id="ab-respage" label="Beneficiary's current age" placeholder="e.g. 3" value={plan.respBeneficiaryAge} onChange={(v) => set("respBeneficiaryAge", v)}
-          suffix="yrs" help="The child who will use the funds. CESG stops at age 17." />
+          suffix="yrs" help="The child who will use the funds. The government education grant (CESG) matches 20% of contributions up to $2,500/yr — it stops at age 17." />
       </>
     ),
   },
@@ -217,7 +217,7 @@ export default function Planner({ plan, setPlan }) {
             <NumberField id="f-age" label="Your age" placeholder="e.g. 19" value={plan.age} onChange={(v) => set("age", v)} suffix="years" error={errors.age}
               help={<>Your age is the single biggest factor in long-term growth — earlier means more time to compound.</>} />
             <CurrencyField id="f-income" label="Annual income (CAD)" placeholder="e.g. 45,000" value={plan.income} onChange={(v) => set("income", v)} error={errors.income}
-              help={<>Your gross employment income, before deductions. We use it for tax, CPP/EI, and contribution room.</>} />
+              help={<>Your total yearly pay <b>before</b> any taxes or deductions. Used to calculate your tax rate, RRSP room, and payroll deductions (CPP pension contributions and EI insurance premiums).</>} />
           </div>
           <div className="pp-row2">
             <SelectField id="f-prov" label="Province / territory" value={plan.province} onChange={(v) => set("province", v)} options={PROV_LIST}
@@ -228,7 +228,7 @@ export default function Planner({ plan, setPlan }) {
                 <button className={plan.employmentType === "employed" ? "on" : ""} onClick={() => set("employmentType", "employed")}>Employed</button>
                 <button className={plan.employmentType === "self" ? "on" : ""} onClick={() => set("employmentType", "self")}>Self-employed</button>
               </div>
-              <div className="pp-help">{plan.employmentType === "self" ? <>Self-employed pay <b>both</b> CPP halves and usually no EI.</> : <>Standard CPP/CPP2 and EI premiums apply.</>}</div>
+              <div className="pp-help">{plan.employmentType === "self" ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan) — roughly double the normal deduction. No EI (Employment Insurance) typically applies.</> : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
             </div>
           </div>
 
@@ -261,17 +261,17 @@ export default function Planner({ plan, setPlan }) {
                   </div>
                 )}
                 <div className="pp-toggle" style={{ marginTop: 10 }}>
-                  <button className={plan.includeMER ? "on" : ""} onClick={() => set("includeMER", true)}>Subtract MER fees</button>
-                  <button className={!plan.includeMER ? "on" : ""} onClick={() => set("includeMER", false)}>Return is already net</button>
+                  <button className={plan.includeMER ? "on" : ""} onClick={() => set("includeMER", true)}>Subtract fund fees (MER)</button>
+                  <button className={!plan.includeMER ? "on" : ""} onClick={() => set("includeMER", false)}>Return is already after fees</button>
                 </div>
                 {plan.includeMER && (
                   <div className="pp-input-wrap" style={{ marginTop: 10, maxWidth: 220 }}>
                     <input id="f-customfee" className="pp-input" inputMode="decimal" value={plan.customFee}
                       onChange={(e) => { const raw = e.target.value.replace(/[^0-9.]/g, ""); set("customFee", raw); }} placeholder="e.g. 0.5" />
-                    <span className="pp-adorn r">% MER</span>
+                    <span className="pp-adorn r">% annual fund fee</span>
                   </div>
                 )}
-                <div className="pp-help">The preset Conservative/Moderate/Aggressive rates are treated as <em>net</em> long-run returns, so no fee is applied. Only your own custom rate can optionally have an MER subtracted.</div>
+                <div className="pp-help">MER (Management Expense Ratio) is the annual fee your fund charges — usually 0.1–2.5%. Low-cost index ETFs are typically under 0.25%. The preset rates above already assume fees are included.</div>
               </div>
             )}
             <div className="pp-help">Those percentages are illustrative long-run averages — real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
@@ -341,7 +341,7 @@ export default function Planner({ plan, setPlan }) {
                 onChange={(e) => set("inflationRate", e.target.value.replace(/[^0-9.]/g, ""))} />
               <span className="pp-adorn r">% / yr</span>
             </div>
-            <div className="pp-help">Canada has averaged about <b>2%</b> a year over the long run — that's the default. Adjust it if you'd like to be more cautious; it feeds the "today's dollars" view and your retirement target.</div>
+            <div className="pp-help">Inflation means prices rise a little each year — $100 today buys less in 20 years. Canada has averaged about <b>2%</b> a year. This number adjusts your retirement target so it reflects what things will actually cost, not today's prices.</div>
           </div>
 
           <div className="pp-field">
@@ -364,7 +364,7 @@ export default function Planner({ plan, setPlan }) {
               {n(plan.homePrice) > 0 && (
                 <div className="pp-callout" style={{ marginTop: 4 }}>
                   <Info size={18} style={{ flex: "none" }} />
-                  <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>CMHC mortgage insurance</b> — a premium of roughly 2.8–4% added to the mortgage.</> : <>At this price, the rules require a full <b>20%</b> down.</>}</span>
+                  <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>mortgage default insurance (CMHC)</b> — a one-time premium of roughly 2.8–4% rolled into your mortgage.</> : <>At this price, the rules require a full <b>20%</b> down — no mortgage insurance required.</>}</span>
                 </div>
               )}
               <div className="pp-row2" style={{ marginTop: 10 }}>
