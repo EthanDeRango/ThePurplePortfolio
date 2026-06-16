@@ -6,7 +6,7 @@ import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from './
 export const n = (v) => (v === "" || v == null || isNaN(Number(v)) ? 0 : Number(v));
 export const fmtMoney  = (x) => (x < 0 ? "-$" : "$") + Math.abs(Math.round(x)).toLocaleString("en-CA");
 export const fmtMoney2 = (x) => (x < 0 ? "-$" : "$") + Math.abs(x).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-export const fmtShort  = (x) => x >= 1e6 ? "$" + (x / 1e6).toFixed(x >= 1e7 ? 0 : 1) + "M" : x >= 1e3 ? "$" + Math.round(x / 1e3) + "k" : "$" + Math.round(x);
+export const fmtShort  = (x) => { const abs = Math.abs(x), s = x < 0 ? "-" : ""; return abs >= 1e6 ? s + "$" + (abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1) + "M" : abs >= 1e3 ? s + "$" + Math.round(abs / 1e3) + "k" : s + "$" + Math.round(abs); };
 export const pct1 = (x) => (x * 100).toFixed(1) + "%";
 export const pct2 = (x) => (x * 100).toFixed(2) + "%";
 
@@ -134,11 +134,13 @@ export function rrspEstimatedLimit(prevIncome) {
   return Math.min((prevIncome || 0) * TAX_CONFIG.rrsp.pct, TAX_CONFIG.rrsp.dollarMax);
 }
 
-export function fhsaDeadline(yearOpened) {
+export function fhsaDeadline(yearOpened, age = 0) {
   if (!yearOpened) return null;
   const closeByParticipation = yearOpened + TAX_CONFIG.fhsa.participationYears;
-  const yearsLeft = closeByParticipation - TAX_YEAR;
-  return { closeBy: closeByParticipation, yearsLeft };
+  const closeByAge71 = age > 0 ? TAX_YEAR + (TAX_CONFIG.fhsa.closeAge - age) : Infinity;
+  const closeBy = Math.min(closeByParticipation, closeByAge71);
+  const yearsLeft = closeBy - TAX_YEAR;
+  return { closeBy, yearsLeft };
 }
 
 // FHSA room ACCRUES at $8k/yr from the year you open it (not all $40k at once).
@@ -160,7 +162,6 @@ export function bracketInfo(gross, prov, employmentType, deductions = 0) {
   const bounds = Array.from(
     new Set([...F.brackets, ...P.brackets].map((b) => b.to).filter((x) => isFinite(x)))
   ).sort((a, b) => a - b);
-  const selfEmployed = employmentType === "self";
   const { taxable } = taxEngine(gross, prov, employmentType, deductions);
   const cur  = marginalRate(gross, prov, employmentType, deductions);
   const up   = bounds.find((b) => b > taxable + 0.5);
@@ -256,15 +257,20 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
   let bRrsp    = n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif);
   let bFhsa    = n(plan.bFhsa);
   let bPension = n(plan.bPensionDC) + n(plan.bDpsp);
-  let bNonreg  = n(plan.bNonreg) + n(plan.bResp) + n(plan.bRdsp);
+  let bResp    = n(plan.bResp);
+  let bRdsp    = n(plan.bRdsp);
+  let bNonreg  = n(plan.bNonreg);
 
-  const hasFhsa    = n(plan.fhsaYearOpened) > 0 || n(plan.bFhsa) > 0;
-  const fhsaMoCap  = TAX_CONFIG.fhsa.annual / 12;
-  const tfsaMoCap  = TAX_CONFIG.tfsa.annual / 12;
+  const hasFhsa     = n(plan.fhsaYearOpened) > 0 || n(plan.bFhsa) > 0;
+  const fhsaRm      = hasFhsa ? fhsaRoomInfo(n(plan.fhsaYearOpened), plan.fhsaLifetimeUsed) : null;
+  const fhsaY0Cap   = fhsaRm ? Math.min(TAX_CONFIG.fhsa.maxYear, fhsaRm.thisYearRoom) / Math.max(1, 12 - sm) : 0;
+  const fhsaAnnCap  = TAX_CONFIG.fhsa.annual / 12;
+  const tfsaMoCap   = TAX_CONFIG.tfsa.annual / 12;
   const rrspMoCap  = Math.min(TAX_CONFIG.rrsp.dollarMax, Math.max(0, income * 0.18)) / 12;
+  const dcEmployerMo = income > 0 && n(plan.pensionDCEmployerPct) > 0 ? income * n(plan.pensionDCEmployerPct) / 100 / 12 : 0;
   const fhsaClose  = homeIdx != null ? homeIdx : (fhsaCloseIdx != null ? fhsaCloseIdx : years + 1);
 
-  const out = { tfsa: [bTfsa], rrsp: [bRrsp], fhsa: [bFhsa], pension: [bPension], nonreg: [bNonreg], fhsaAtClose: 0 };
+  const out = { tfsa: [bTfsa], rrsp: [bRrsp], fhsa: [bFhsa], pension: [bPension], resp: [bResp], rdsp: [bRdsp], nonreg: [bNonreg], fhsaAtClose: 0 };
 
   for (let y = 0; y < years; y++) {
     for (let mo = 0; mo < 12; mo++) {
@@ -272,19 +278,23 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
       const mc = (custom && y === 0) ? n(monthsArr[mo]) : monthly;
       let rem = mc;
       let fhsaC = 0, tfsaC = 0, rrspC = 0, nonregC = 0;
-      if (hasFhsa && y < fhsaClose) { fhsaC = Math.min(fhsaMoCap, rem); rem -= fhsaC; }
+      const fhsaCap = y === 0 ? fhsaY0Cap : fhsaAnnCap;
+      if (hasFhsa && y < fhsaClose) { fhsaC = Math.min(fhsaCap, rem); rem -= fhsaC; }
       tfsaC = Math.min(tfsaMoCap, rem); rem -= tfsaC;
       rrspC = Math.min(rrspMoCap, rem); rem -= rrspC;
       nonregC = rem;
       bTfsa    = bTfsa * (1 + mr) + tfsaC;
       bRrsp    = bRrsp * (1 + mr) + rrspC;
       bFhsa    = (y < fhsaClose) ? (bFhsa * (1 + mr) + fhsaC) : 0;
-      bPension = bPension * (1 + mr);
+      bPension = bPension * (1 + mr) + dcEmployerMo;
+      bResp    = bResp * (1 + mr);
+      bRdsp    = bRdsp * (1 + mr);
       bNonreg  = bNonreg * (1 + mr) + nonregC;
     }
     if (homeIdx != null && (y + 1) === homeIdx) { out.fhsaAtClose = bFhsa; bFhsa = 0; }
+    else if (homeIdx == null && fhsaCloseIdx != null && (y + 1) === fhsaCloseIdx) { bRrsp += bFhsa; bFhsa = 0; }
     out.tfsa.push(bTfsa); out.rrsp.push(bRrsp); out.fhsa.push(bFhsa);
-    out.pension.push(bPension); out.nonreg.push(bNonreg);
+    out.pension.push(bPension); out.resp.push(bResp); out.rdsp.push(bRdsp); out.nonreg.push(bNonreg);
   }
   return out;
 }
@@ -368,7 +378,7 @@ export function insights(plan, marginal) {
   const annual = plan.contribMode === "custom" ? customSum : monthly * 12;
   const lump = n(plan.lumpSum);
   const investingNow = annual > 0 || lump > 0;
-  const totalBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa);
+  const totalBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg) + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp) + n(plan.bResp) + n(plan.bRdsp);
   if (age > 0 && age <= 30) good.push("Starting young is the single biggest advantage in investing — time does most of the heavy lifting.");
   if (horizon >= 25) good.push(`A ${horizon}-year horizon gives compounding real room to work and smooths out short-term dips.`);
   if (annual > 0) good.push(`Investing consistently — about ${fmtMoney(annual)} a year — is exactly the habit that builds wealth.`);
@@ -378,7 +388,7 @@ export function insights(plan, marginal) {
   if (marginal >= 0.40) good.push(`At a ${pct1(marginal)} marginal rate, the RRSP deduction is especially valuable for you right now.`);
   if (!investingNow) watch.push("You haven't set any contributions yet. Even a small regular amount dramatically changes the long-term picture — try the controls below.");
   if (plan.emergencyStatus !== "full") watch.push("Your emergency fund isn't full yet — a cash cushion usually comes before heavy investing, so a rough month doesn't derail your plan.");
-  if (annual > 7000 && income < 75000 && !plan.buyHome) watch.push(`Your ${fmtMoney(annual)}/yr exceeds the ${fmtMoney(TAX_CONFIG.tfsa.annual)} TFSA room — see how RRSP or FHSA room can absorb the rest tax-efficiently.`);
+  if (annual > TAX_CONFIG.tfsa.annual && income < 75000 && !plan.buyHome) watch.push(`Your ${fmtMoney(annual)}/yr exceeds the ${fmtMoney(TAX_CONFIG.tfsa.annual)} TFSA room — see how RRSP or FHSA room can absorb the rest tax-efficiently.`);
   if (horizon > 0 && horizon < 10) watch.push("Your horizon is fairly short, so be deliberate about risk — capacity matters as much as appetite.");
   if (plan.buyHome && n(plan.homeAge) - age <= 5 && n(plan.homeAge) > age) watch.push("Your home purchase is close — money you'll need soon usually belongs in safer, accessible options.");
   return { good, watch };

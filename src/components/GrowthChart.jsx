@@ -9,6 +9,7 @@ export default function GrowthChart({
   afterTax, retMarginal, rrspShare,
   milestones,
   stackedSeries,
+  noContribSeries,
 }) {
   // PT=72 gives 4 label rows (16px each) above the plot while keeping plotH=264.
   const W = 720, H = 370, PL = 56, PR = 18, PT = 72, PB = 34;
@@ -22,6 +23,8 @@ export default function GrowthChart({
   const adj = (v, y) => { let x = v * taxFactor; if (inflation) x /= Math.pow(1 + inflRate, y); return x; };
   const vals = (series || [0]).map((v, y) => adj(v, y));
   const optVals = (optSeries && !stackedSeries) ? optSeries.map((v, y) => adj(v, y)) : null;
+  const ncVals = noContribSeries ? noContribSeries.map((v, y) => adj(v, y)) : null;
+  const showNoContrib = !!(ncVals && ncVals[0] > 0);
 
   // ── Stacked mode ─────────────────────────────────────────────────────────────
   // Each layer gets a cumulative bottom/top. Inflation is applied but not after-tax,
@@ -115,13 +118,22 @@ export default function GrowthChart({
       {/* Legend */}
       <div className="pp-chartlegend" style={stackedSeries ? { flexWrap: "wrap", gap: "6px 14px" } : {}}>
         {stackedSeries ? (
-          // Show layers in reverse (top → bottom) so most prominent comes first
-          [...(stackedSeries)].reverse().map((layer) => (
-            <span key={layer.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5 }}>
-              <span style={{ width: 11, height: 11, borderRadius: 3, background: layer.color, display: "inline-block", flexShrink: 0 }} />
-              {layer.label}
-            </span>
-          ))
+          <>
+            {[...stackedSeries].reverse().map((layer) => (
+              <span key={layer.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5 }}>
+                <span style={{ width: 11, height: 11, borderRadius: 3, background: layer.color, display: "inline-block", flexShrink: 0 }} />
+                {layer.label}
+              </span>
+            ))}
+            {showNoContrib && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, opacity: 0.72 }}>
+                <svg width="14" height="10" viewBox="0 0 14 10" style={{ flexShrink: 0 }} aria-hidden="true">
+                  <line x1="0" y1="5" x2="14" y2="5" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" />
+                </svg>
+                Without contributing
+              </span>
+            )}
+          </>
         ) : (
           <>
             <span className="dot" style={{ background: lineColor }} />
@@ -130,6 +142,14 @@ export default function GrowthChart({
               <>
                 <span style={{ marginLeft: 14, border: "2px dashed #2E8B57", width: 10, height: 10, display: "inline-block", borderRadius: "50%", verticalAlign: "middle", flexShrink: 0 }} />
                 <span style={{ marginLeft: 4 }}>Optimal strategy (reinvest tax refund)</span>
+              </>
+            )}
+            {showNoContrib && (
+              <>
+                <svg width="14" height="10" viewBox="0 0 14 10" style={{ verticalAlign: "middle", marginLeft: 12, flexShrink: 0 }} aria-hidden="true">
+                  <line x1="0" y1="5" x2="14" y2="5" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" />
+                </svg>
+                <span style={{ marginLeft: 4, opacity: 0.72 }}>Current savings only</span>
               </>
             )}
           </>
@@ -203,6 +223,21 @@ export default function GrowthChart({
                     stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinejoin="round" />
                 );
               })}
+              {/* "If I stopped today" — current savings compounding with no future contributions */}
+              {showNoContrib && ncVals && (
+                <>
+                  <polyline
+                    points={ncVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
+                    fill="none" stroke="rgba(110,94,120,0.65)" strokeWidth="1.8"
+                    strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round"
+                  />
+                  <text
+                    x={X(ncVals.length - 1) - 6} y={Y(ncVals[ncVals.length - 1]) - 8}
+                    fontSize={9} fill="rgba(110,94,120,0.85)" textAnchor="end"
+                    style={{ userSelect: "none", pointerEvents: "none" }}
+                  >savings only</text>
+                </>
+              )}
               {/* Subtle total outline */}
               <polyline
                 points={totalSeries.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
@@ -214,6 +249,21 @@ export default function GrowthChart({
             /* ── SINGLE LINE ─────────────────────────────────────────────── */
             <>
               <polygon points={areaPts} fill="url(#ppArea)" />
+              {/* "If I stopped today" reference line */}
+              {showNoContrib && ncVals && (
+                <>
+                  <polyline
+                    points={ncVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
+                    fill="none" stroke="rgba(110,94,120,0.5)" strokeWidth="1.5"
+                    strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round"
+                  />
+                  <text
+                    x={X(ncVals.length - 1) - 6} y={Y(ncVals[ncVals.length - 1]) - 8}
+                    fontSize={9} fill="rgba(110,94,120,0.85)" textAnchor="end"
+                    style={{ userSelect: "none", pointerEvents: "none" }}
+                  >savings only</text>
+                </>
+              )}
               {optVals && (
                 <polyline
                   points={optVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
@@ -285,11 +335,22 @@ export default function GrowthChart({
                   <i style={{ background: "rgba(255,255,255,0.55)", borderRadius: 2 }} />
                   Total: {fmtMoney(hoverTotal)}
                 </div>
+                {showNoContrib && ncVals && ncVals[hover] != null && hoverTotal > ncVals[hover] + 100 && (
+                  <div className="tr" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 2, paddingTop: 2, opacity: 0.7, fontSize: 11 }}>
+                    <i style={{ background: "rgba(110,94,120,0.5)", borderRadius: 2 }} />
+                    No contributions: {fmtMoney(ncVals[hover])}
+                  </div>
+                )}
               </>
             ) : (
               // Single-line tooltip
               <>
                 <div className="tr"><i style={{ background: lineColor }} /> {fmtMoney(vals[hover])}</div>
+                {showNoContrib && ncVals && ncVals[hover] != null && (
+                  <div className="tr" style={{ opacity: 0.7 }}>
+                    <i style={{ background: "rgba(110,94,120,0.6)" }} /> {fmtMoney(ncVals[hover])} without contributing
+                  </div>
+                )}
                 {optVals && optVals[hover] != null && (
                   <div className="tr" style={{ color: "#2E8B57" }}>
                     <i style={{ background: "#2E8B57" }} /> {fmtMoney(optVals[hover])} optimal

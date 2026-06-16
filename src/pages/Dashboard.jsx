@@ -55,6 +55,9 @@ export default function Dashboard({ plan, setPlan }) {
 
   // what-if controls
   const [monthly, setMonthly] = useState(n(plan.monthly));
+  const dcEmployerMonthly = income > 0 && n(plan.pensionDCEmployerPct) > 0
+    ? income * n(plan.pensionDCEmployerPct) / 100 / 12 : 0;
+  const effectiveMonthly = monthly + dcEmployerMonthly;
   const [retAge, setRetAge] = useState(retAgeRaw);
   const [ret, setRet] = useState(planRate(plan));
   const fee = (plan.risk === "custom" && plan.includeMER) ? Math.max(0, n(plan.customFee) / 100) : 0;
@@ -89,34 +92,34 @@ export default function Dashboard({ plan, setPlan }) {
   // memoized expensive computations
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const selSeries = useMemo(
-    () => projectSeriesWithWithdrawals(ret - fee, years, start, monthly, monthsArr, startMonth, goalWithdrawals),
+    () => projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly, monthsArr, startMonth, goalWithdrawals),
     // gwKey serializes goalWithdrawals so the memo only re-runs when goal data actually changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ret, fee, years, start, monthly, monthsArr, startMonth, gwKey]
+    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey]
   );
   const selFinal = selSeries[selSeries.length - 1];
   const contribSeries = useMemo(
-    () => contributedSeries(years, start, monthly, monthsArr, startMonth),
-    [years, start, monthly, monthsArr, startMonth]
+    () => contributedSeries(years, start, effectiveMonthly, monthsArr, startMonth),
+    [years, start, effectiveMonthly, monthsArr, startMonth]
   );
   const finals = useMemo(
-    () => Object.fromEntries(RISK.map((r) => [r.key, projectFinal(r.ret - fee, years, start, monthly, monthsArr, startMonth)])),
-    [fee, years, start, monthly, monthsArr, startMonth]
+    () => Object.fromEntries(RISK.map((r) => [r.key, projectFinal(r.ret - fee, years, start, effectiveMonthly, monthsArr, startMonth)])),
+    [fee, years, start, effectiveMonthly, monthsArr, startMonth]
   );
   const scaleRef = useMemo(
-    () => projectFinal(0.10, years, start, monthly, monthsArr, startMonth),
-    [years, start, monthly, monthsArr, startMonth]
+    () => projectFinal(0.10, years, start, effectiveMonthly, monthsArr, startMonth),
+    [years, start, effectiveMonthly, monthsArr, startMonth]
   );
 
-  const contributed = totalContributed(years, start, monthly, monthsArr, startMonth);
+  const contributed = totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
   const growth = Math.max(0, selFinal - contributed);
-  const hasData = start > 0 || monthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0));
+  const hasData = start > 0 || effectiveMonthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0));
 
   const rrspShare = startBal > 0
     ? (n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp)) / startBal
     : 0;
   const waitYears = 5;
-  const costOfWaiting = years > waitYears ? selFinal - projectFinal(ret - fee, years - waitYears, start, monthly, monthsArr, startMonth) : 0;
+  const costOfWaiting = years > waitYears ? selFinal - projectFinal(ret - fee, years - waitYears, start, effectiveMonthly, monthsArr, startMonth) : 0;
 
   // Pre-withdrawal value at home purchase year — what the portfolio holds before the down payment is taken.
   // Use projectFinal (no withdrawals) so the display shows "available to buy with" not "leftover after".
@@ -127,13 +130,12 @@ export default function Dashboard({ plan, setPlan }) {
   const homeProjAtBuy = plan.buyHome && homePrice > 0 && homeIdx != null ? homePreBuyValue : null;
   const homeGap = homeProjAtBuy != null ? homeDown - homeProjAtBuy : null;
 
-  const fhsaDl = fhsaDeadline(n(plan.fhsaYearOpened));
   const age71Year = age > 0 ? TAX_YEAR + (TAX_CONFIG.fhsa.closeAge - age) : null;
+  const fhsaDl = fhsaDeadline(n(plan.fhsaYearOpened), age);
   let fhsaEffYearsLeft = null, fhsaCloseYear = null;
   if (fhsaDl) {
     fhsaCloseYear = fhsaDl.closeBy;
-    if (age71Year != null) fhsaCloseYear = Math.min(fhsaCloseYear, age71Year);
-    fhsaEffYearsLeft = fhsaCloseYear - TAX_YEAR;
+    fhsaEffYearsLeft = fhsaDl.yearsLeft;
   }
   const fhsaIdx = fhsaCloseYear != null ? fhsaCloseYear - TAX_YEAR : null;
   const fhsaOpenYr = n(plan.fhsaYearOpened) > 0 ? n(plan.fhsaYearOpened) : TAX_YEAR;
@@ -144,15 +146,45 @@ export default function Dashboard({ plan, setPlan }) {
 
   const retSpendDefault = income > 0 ? Math.round(income * 0.7) : 50000;
   const retSpend = n(plan.retSpend) > 0 ? n(plan.retSpend) : retSpendDefault;
-  const retNeedToday = retSpend * 25;
+  const pensionDBIncome = (() => {
+    const mo = n(plan.pensionDBMonthly);
+    if (mo <= 0) return 0;
+    const startAge = n(plan.pensionDBStartAge) > 0 ? n(plan.pensionDBStartAge) : retAge;
+    return startAge <= retAge ? mo * 12 : 0;
+  })();
+  // Rough CPP + OAS estimate — CPP from income/age, OAS starts at 65
+  const govBenefits = (() => {
+    if (retAge < 60) return 0;
+    const oas = retAge >= 65 ? 8800 : 0;
+    const cppFull = income > 0 ? Math.min(17400, Math.max(4000, income * 0.18)) : 8500;
+    const yearsEarly = Math.max(0, 65 - retAge);
+    const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
+    return Math.max(0, cpp) + oas;
+  })();
+  const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) * 25;
   const retNeedFuture = Math.round(retNeedToday * Math.pow(1 + inflRate, years));
   // INFLATION FIX: when inflation toggle is on, the displayed balance is in today's $,
   // so compare it against retNeedToday (also today's $), not retNeedFuture (nominal $).
   const retTarget = inflation ? retNeedToday : retNeedFuture;
+  // How much you'd need to save monthly to hit the target, given current balance + rate
+  const requiredMonthly = (() => {
+    if (retNeedFuture <= 0) return 0;
+    const r = (ret - fee) / 12;
+    const nMo = years * 12;
+    if (nMo <= 0) return 0;
+    const pvGrown = start * Math.pow(1 + r, nMo);
+    if (retNeedFuture <= pvGrown) return 0;
+    return r > 0
+      ? Math.max(0, (retNeedFuture - pvGrown) * r / (Math.pow(1 + r, nMo) - 1))
+      : Math.max(0, (retNeedFuture - start) / nMo);
+  })();
   const retTaxableIncome = Math.max(GOV_BENEFITS, retSpend);
   const retMarginalAuto = retTaxableIncome > 0 ? retirementMarginal(retTaxableIncome, prov) : 0;
   const retMarginal = n(plan.retTaxRate) > 0 ? Math.min(0.6, n(plan.retTaxRate) / 100) : retMarginalAuto;
   const dispVal = (v) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x = x / Math.pow(1 + inflRate, years); return x; };
+  const dispValAt = (v, yr) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x /= Math.pow(1 + inflRate, yr); return x; };
+  const projInvestIncome = Math.round(dispVal(selFinal) * 0.04);
+  const totalRetIncome = projInvestIncome + govBenefits + pensionDBIncome;
 
   const annInv = annualInvestable(plan);
   const restOfYearInvestable = plan.contribMode === "custom"
@@ -190,9 +222,9 @@ export default function Dashboard({ plan, setPlan }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const optSeries = useMemo(() => {
     if (optRefundMonthly < 1 || !hasData) return null;
-    return projectSeriesWithWithdrawals(ret - fee, years, start, monthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
+    return projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ret, fee, years, start, monthly, optRefundMonthly, monthsArr, startMonth, gwKey]);
+  }, [ret, fee, years, start, effectiveMonthly, optRefundMonthly, monthsArr, startMonth, gwKey]);
   const optFinal = optSeries ? optSeries[optSeries.length - 1] : null;
   const optBoost = optFinal != null ? Math.max(0, optFinal - selFinal) : 0;
 
@@ -204,6 +236,7 @@ export default function Dashboard({ plan, setPlan }) {
     bFhsa: plan.bFhsa, bPensionDC: plan.bPensionDC, bDpsp: plan.bDpsp,
     bNonreg: plan.bNonreg, bResp: plan.bResp, bRdsp: plan.bRdsp,
     fhsaYearOpened: plan.fhsaYearOpened, income: plan.income,
+    pensionDCEmployerPct: plan.pensionDCEmployerPct,
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const byAcct = useMemo(
@@ -222,21 +255,33 @@ export default function Dashboard({ plan, setPlan }) {
   );
   const stackedSeries = useMemo(() => {
     if (!byAcct) return null;
-    const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0;
+    const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0;
     const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
-    const hasNonreg   = n(plan.bNonreg) + n(plan.bResp) + n(plan.bRdsp) > 0;
+    const hasResp     = n(plan.bResp) > 0;
+    const hasRdsp     = n(plan.bRdsp) > 0;
+    const hasNonreg   = n(plan.bNonreg) > 0;
     const hasHomeEq   = homeEquityArr.some((v) => v > 0);
     const layers = [
       { key: "tfsa",    label: "TFSA",              color: "#2D7A2B", values: byAcct.tfsa    },
       { key: "rrsp",    label: "RRSP / Registered", color: "#A8761E", values: byAcct.rrsp    },
       hasFhsaData ? { key: "fhsa",    label: "FHSA",           color: "#9E3D65", values: byAcct.fhsa    } : null,
       hasPension  ? { key: "pension", label: "Pension / DC",   color: "#5B7EC4", values: byAcct.pension  } : null,
+      hasResp     ? { key: "resp",    label: "RESP",            color: "#1B7A6E", values: byAcct.resp     } : null,
+      hasRdsp     ? { key: "rdsp",    label: "RDSP",            color: "#3E7BA0", values: byAcct.rdsp     } : null,
       (hasNonreg || monthly > 0) ? { key: "nonreg", label: "Non-reg", color: "#7044BE", values: byAcct.nonreg } : null,
       hasHomeEq   ? { key: "home",    label: "Home equity",    color: "#C68D3F", values: homeEquityArr   } : null,
     ].filter(Boolean).filter((l) => l.values.some((v) => v > 0));
     return layers.length > 1 ? layers : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byAcct, plan.bFhsa, plan.fhsaYearOpened, plan.bPensionDC, plan.bDpsp, plan.bNonreg, plan.bResp, plan.bRdsp, monthly, homeEquityArr]);
+  }, [byAcct, plan.bFhsa, plan.fhsaYearOpened, plan.bPensionDC, plan.bDpsp, plan.bNonreg, plan.bResp, plan.bRdsp, plan.pensionDCEmployerPct, monthly, homeEquityArr]);
+
+  // "If I stopped today" — starting balance compounding with zero future contributions
+  // Uses the same withdrawal events as selSeries so the gap purely reflects contribution value
+  const noContribSeries = useMemo(
+    () => (hasData && start > 0) ? projectSeriesWithWithdrawals(ret - fee, years, start, 0, null, startMonth, goalWithdrawals) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasData, start, ret, fee, years, startMonth, gwKey]
+  );
 
   // Accounts the user should open (eligible but not in their openAccounts list)
   const openAccts = plan.openAccounts ?? (() => {
@@ -952,14 +997,68 @@ export default function Dashboard({ plan, setPlan }) {
               <span className="pp-eyebrow"><Landmark size={13} /> Retire comfortably</span>
               <div className="pp-grid-3" style={{ marginTop: 8 }}>
                 <div className="pp-rate-chip"><div className="l">You'll want to spend</div><div className="v">{fmtMoney(retSpend)}/yr</div><div className="h">today's dollars{n(plan.retSpend) > 0 ? "" : " (≈70% of income)"}</div></div>
-                <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Nest egg you'll need</div><div className="v">{fmtMoney(retNeedToday)}</div><div className="h">25× spending, today's $</div></div>
+                <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}>
+                  <div className="l">Nest egg you'll need</div>
+                  <div className="v">{fmtMoney(retNeedToday)}</div>
+                  <div className="h">{govBenefits > 0 || pensionDBIncome > 0 ? `25× your ${fmtMoney(Math.max(0, retSpend - pensionDBIncome - govBenefits))}/yr gap` : "25× spending, today's $"}</div>
+                </div>
                 <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Reached around age</div><div className="v">{fiYrs != null ? age + fiYrs : "60+"}</div><div className="h">at {fmtMoney(annInv)}/yr</div></div>
               </div>
+
+              {/* Retirement income picture */}
+              <div style={{ marginTop: 14, background: "var(--paper-card)", borderRadius: 12, padding: "12px 16px" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--muted)", marginBottom: 8 }}>Income at retirement</div>
+                <div className="pp-stat">
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--violet)", display: "inline-block", flexShrink: 0 }} />
+                    Investment portfolio (4%/yr)
+                  </span>
+                  <b>{fmtMoney(projInvestIncome)}/yr</b>
+                </div>
+                {govBenefits > 0 && (
+                  <div className="pp-stat">
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: "#5B7EC4", display: "inline-block", flexShrink: 0 }} />
+                      CPP + OAS
+                      <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 400 }}> · estimated</span>
+                    </span>
+                    <b>~{fmtMoney(govBenefits)}/yr</b>
+                  </div>
+                )}
+                {pensionDBIncome > 0 && (
+                  <div className="pp-stat">
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} />
+                      DB Pension
+                    </span>
+                    <b>{fmtMoney(pensionDBIncome)}/yr</b>
+                  </div>
+                )}
+                <div className="pp-stat" style={{ borderBottom: "none", borderTop: "1.5px solid var(--line)", marginTop: 4, paddingTop: 10 }}>
+                  <span style={{ fontWeight: 700, color: "var(--plum)" }}>Total</span>
+                  <span>
+                    <b style={{ color: totalRetIncome >= retSpend ? "var(--green)" : "var(--rose)" }}>{fmtMoney(totalRetIncome)}</b>
+                    <span style={{ color: "var(--muted)", fontSize: 12.5 }}> vs {fmtMoney(retSpend)}/yr target</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Required monthly callout — only if currently underfunded */}
+              {requiredMonthly > effectiveMonthly + 50 && (
+                <div className="pp-callout" style={{ marginTop: 10 }}>
+                  <TrendingUp size={16} style={{ flex: "none" }} />
+                  <span>
+                    To reach your nest egg target by age {retAge}, save <b>{fmtMoney(Math.ceil(requiredMonthly / 25) * 25)}/mo</b>
+                    {effectiveMonthly > 0 ? <> — <b>{fmtMoney(Math.ceil((requiredMonthly - effectiveMonthly) / 25) * 25)}/mo more</b> than you're saving now</> : ""}.
+                  </span>
+                </div>
+              )}
+
               <div className="pp-grid-2" style={{ marginTop: 12 }}>
                 <div className="pp-rate-chip"><div className="l">Projected after-tax at {retAge}</div><div className="v">{fmtMoney(recSim.afterTax)}</div><div className="h">on your recommended path</div></div>
                 <div className="pp-rate-chip"><div className="l">That sustainably pays</div><div className="v">{fmtMoney(recSim.afterTax * 0.04)}/yr</div><div className="h">{recSim.afterTax * 0.04 >= retNeedFuture * 0.04 ? "on track ✓" : "keep building"}</div></div>
               </div>
-              <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>The 4% rule says a nest egg of ~25× your spending — <b>{fmtMoney(retNeedToday)}</b> in today's money — can fund it for life.</p>
+              <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>The 4% rule: withdrawing ~4%/yr from a nest egg of 25× {govBenefits > 0 || pensionDBIncome > 0 ? "your investment gap" : "your spending"} — <b>{fmtMoney(retNeedToday)}</b> — is considered sustainable for life. CPP, OAS, and pensions aren't in this number; they're shown above.</p>
             </div>
           );
         })}
@@ -1226,17 +1325,56 @@ export default function Dashboard({ plan, setPlan }) {
               afterTax={afterTax} retMarginal={retMarginal} rrspShare={rrspShare}
               milestones={chartMilestones}
               stackedSeries={stackedSeries}
+              noContribSeries={noContribSeries}
             />
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 14 }}>
               Hover / tap or use arrow keys to read any year.{" "}
               {stackedSeries
-                ? <>Each coloured band shows one account type — they stack to your total wealth{homeEquityArr.some((v) => v > 0) ? ` (including home equity assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)} annual appreciation)` : ""}. Account balances shown before retirement tax.</>
-                : <>The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}</>
+                ? <>Each coloured band shows one account type — they stack to your total wealth{homeEquityArr.some((v) => v > 0) ? ` (including home equity assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)} annual appreciation)` : ""}. Account balances shown before retirement tax. The dashed line shows your current savings growing without future contributions.</>
+                : <>The line follows your <b>{pct1(ret)}</b> return{fee > 0 ? `, after ${pct1(fee)} fee` : ""} — lower the return and the curve visibly flattens. {goalWithdrawals.length > 0 && `Dips show goal spending (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")} withdrawn). `}{inflation && "Values are discounted to today's dollars. "}{afterTax && (rrspShare > 0 ? `After-tax view taxes only the RRSP/locked-in share (~${pct1(rrspShare)}).` : "")}{noContribSeries && start > 0 ? " The dashed line shows your current savings growing with no new contributions — everything above it is the value of continuing to invest." : ""}</>
               }{" "}Illustrative only.
             </p>
+
+            {/* Milestone snapshot cards */}
+            {(() => {
+              const msYears = [...new Set([5, 10, 20, years].filter((y) => y > 0 && y <= years))];
+              if (msYears.length < 2) return null;
+              return (
+                <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+                  {msYears.map((yr) => {
+                    const isRet = yr === years;
+                    const val = selSeries[Math.min(yr, selSeries.length - 1)];
+                    const nc = noContribSeries ? noContribSeries[Math.min(yr, noContribSeries.length - 1)] : null;
+                    const dv = dispValAt(val, yr);
+                    const dNc = nc != null ? dispValAt(nc, yr) : null;
+                    const gain = dNc != null && dv > dNc + 500 ? dv - dNc : null;
+                    return (
+                      <div key={yr} style={{
+                        background: isRet ? "var(--violet-soft)" : "var(--paper-card)",
+                        border: `1.5px solid ${isRet ? "var(--violet-mid)" : "var(--line)"}`,
+                        borderRadius: 14, padding: "14px 16px",
+                      }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: isRet ? "var(--plum)" : "var(--plum-2)", marginBottom: 2 }}>
+                          {isRet ? "At retirement" : `+${yr} year${yr === 1 ? "" : "s"}`}
+                        </div>
+                        {age > 0 && <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 5 }}>Age {age + yr}</div>}
+                        <div style={{ fontFamily: "var(--display)", fontSize: 21, fontWeight: 600, color: "var(--plum)", lineHeight: 1.1 }}>
+                          {fmtMoney(dv)}
+                        </div>
+                        {gain != null && (
+                          <div style={{ fontSize: 11, color: "var(--green)", marginTop: 5, fontWeight: 700, lineHeight: 1.3 }}>
+                            +{fmtMoney(gain)} from contributing
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
-          {optBoost > 1000 && (
+          {optBoost > 1000 && !stackedSeries && (
             <div className="pp-opt-callout">
               <div className="pp-opt-callout-icon"><TrendingUp size={18} /></div>
               <div>
@@ -1261,7 +1399,7 @@ export default function Dashboard({ plan, setPlan }) {
             <div className="pp-card">
               <span className="pp-eyebrow">Where the money comes from</span>
               <div style={{ marginTop: 12 }}>
-                <div className="pp-stat"><span>What you put in</span><b>{fmtMoney(contributed)}</b></div>
+                <div className="pp-stat"><span>{dcEmployerMonthly > 0 ? "Total invested (incl. employer)" : "What you put in"}</span><b>{fmtMoney(contributed)}</b></div>
                 <div className="pp-stat"><span>Growth from compounding</span><b style={{ color: "var(--violet)" }}>{fmtMoney(growth)}</b></div>
                 <div className="pp-stat"><span>Projected total</span><b style={{ color: "var(--plum)" }}>{fmtMoney(selFinal)}</b></div>
               </div>
@@ -1276,8 +1414,8 @@ export default function Dashboard({ plan, setPlan }) {
                   </>
                 ) : (
                   <>
-                    <div className="pp-acct"><div className="num">{fmtMoney(monthly)}/mo</div></div>
-                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(monthly * 12)} a year going to work for you.</p>
+                    <div className="pp-acct"><div className="num">{fmtMoney(effectiveMonthly)}/mo</div></div>
+                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(effectiveMonthly * 12)} a year going to work for you{dcEmployerMonthly > 0 ? ` — includes ${fmtMoney(dcEmployerMonthly * 12)}/yr employer match` : ""}.</p>
                   </>
                 )}
               </div>

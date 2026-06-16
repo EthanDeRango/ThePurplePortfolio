@@ -185,6 +185,7 @@ export default function Planner({ plan, setPlan }) {
   if (plan.age !== undefined && plan.age !== "" && n(plan.age) <= 0) errors.age = "Age must be a positive number.";
   if (plan.income !== undefined && plan.income !== "" && n(plan.income) < 0) errors.income = "Income cannot be negative.";
   if (plan.retAge !== undefined && plan.retAge !== "" && age > 0 && n(plan.retAge) <= age) errors.retAge = `Retirement age must be greater than your current age (${age}).`;
+  if (plan.buyHome && plan.homeAge !== undefined && plan.homeAge !== "" && age > 0 && n(plan.homeAge) <= age) errors.homeAge = `Home purchase age must be after your current age (${age}).`;
   const customRateNum = parseFloat(plan.customRate);
   const showRateWarn = plan.risk === "custom" && !isNaN(customRateNum) && customRateNum > 15;
 
@@ -355,6 +356,7 @@ export default function Planner({ plan, setPlan }) {
             <>
               <div className="pp-row2">
                 <NumberField id="f-homeage" label="By what age would you like to buy?" placeholder="e.g. 28" value={plan.homeAge} onChange={(v) => set("homeAge", v)} suffix="years old"
+                  error={errors.homeAge}
                   help={yrsHome != null ? <>About <b>{yrsHome} years</b> to save a down payment{yrsHome <= 5 ? " — a short timeline usually means keeping that money safer." : " — enough time to let it grow a little."}</> : <>We'll mark this milestone on your projection.</>} />
                 <CurrencyField id="f-homeprice" label="About how much will the home cost?" placeholder="e.g. 550,000" value={plan.homePrice} onChange={(v) => set("homePrice", v)}
                   help={n(plan.homePrice) > 0 ? <>Minimum down payment: <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>.</> : <>We'll work out your minimum down payment and track progress toward it.</>} />
