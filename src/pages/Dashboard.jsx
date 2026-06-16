@@ -365,14 +365,46 @@ export default function Dashboard({ plan, setPlan }) {
 
   const efTargetAmt = n(plan.livingExpenses) > 0 ? emergencyFundTarget(plan.livingExpenses, plan.incomeStability).amount : 0;
   const efGap = Math.max(0, efTargetAmt - emergencySaved);
+  const hasPendingPriorities = (!emergencyFull && efGap > 0) || debt > 0;
+  const efMonths = monthly > 0 && efGap > 0 ? Math.ceil(efGap / monthly) : null;
+  const debtMonths = monthly > 0 && debt > 0 ? Math.ceil(debt / monthly) : null;
+  const investPrefix = hasPendingPriorities ? "Once your emergency fund and debt are cleared, redirect your savings here. " : "";
+
   const nextSteps = [];
-  nextSteps.push({ key: "ef", label: "Emergency fund", amount: emergencyFull ? 0 : efGap, done: emergencyFull, note: emergencyFull ? "Fully funded — a solid foundation." : (efGap > 0 ? `${fmtMoney(efGap)} more gets you to ~${fmtMoney(efTargetAmt)} in a high-interest savings account.` : (efTargetAmt > 0 ? `Build ${fmtMoney(efTargetAmt)} in a high-interest savings account.` : "A 3–6 month cushion in cash, before investing.")) });
-  if (matchAmt > 0) nextSteps.push({ key: "match", label: "Capture your employer RRSP match", amount: matchAmt, done: false, note: `Contribute enough to collect the full ${fmtMoney(matchAmt)} — an instant ~100% return.` });
-  if (debt > 0) nextSteps.push({ key: "debt", label: "Clear high-interest debt", amount: debt, done: false, note: `Paying off ${fmtMoney(debt)} of high-interest debt is a guaranteed, tax-free return.` });
+  nextSteps.push({
+    key: "ef", label: "Emergency fund", amount: emergencyFull ? 0 : efGap, done: emergencyFull,
+    note: emergencyFull
+      ? "Fully funded — a solid foundation for everything else."
+      : efGap > 0
+        ? `Put your savings here first. You need ${fmtMoney(efGap)} more to reach ${fmtMoney(efTargetAmt)}${efMonths ? ` — about ${efMonths} month${efMonths === 1 ? "" : "s"} of saving at ${fmtMoney(monthly)}/mo` : ""}. Keep it in a high-interest savings account, separate from everyday money.`
+        : efTargetAmt > 0
+          ? `Build ${fmtMoney(efTargetAmt)} in a high-interest savings account (3–6 months of expenses). This comes before investing.`
+          : "A 3–6 month cushion in cash, before investing.",
+  });
+  if (matchAmt > 0) nextSteps.push({
+    key: "match", label: "Capture your employer RRSP match", amount: matchAmt, done: false,
+    note: `Your employer matches up to ${fmtMoney(matchAmt)} in your RRSP — contribute enough to collect it all. It's an instant ~100% return on that money before it even gets invested.`,
+  });
+  if (debt > 0) nextSteps.push({
+    key: "debt", label: "Clear high-interest debt", amount: debt, done: false,
+    note: `After your emergency fund is set, redirect your savings toward this ${fmtMoney(debt)} balance${debtMonths ? ` (about ${debtMonths} month${debtMonths === 1 ? "" : "s"} at ${fmtMoney(monthly)}/mo)` : ""}. Paying off high-interest debt is a guaranteed return — often better than investing.`,
+  });
   const recYr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
   const recCaps = { fhsa: buyingHome ? TAX_CONFIG.fhsa.annual : 0, tfsa: TAX_CONFIG.tfsa.annual, rrsp: Math.min(TAX_CONFIG.rrsp.dollarMax, Math.max(3000, income * 0.18)) };
-  recOrder.forEach((acct) => { if (recYr1[acct] > 0) nextSteps.push({ key: acct, label: `${ACCT_NAME[acct]} contribution`, amount: recYr1[acct], cap: recCaps[acct], done: false, note: acct === "fhsa" ? "Deduction now, tax-free for a first home." : acct === "rrsp" ? "Deductible now; taxed on withdrawal in retirement." : "Tax-free growth and fully flexible withdrawals." }); });
-  if (recYr1.taxable > 0) nextSteps.push({ key: "taxable", label: "Non-registered investing", amount: recYr1.taxable, done: false, note: "Once registered room is full, a taxable account takes over." });
+  recOrder.forEach((acct) => {
+    if (recYr1[acct] > 0) nextSteps.push({
+      key: acct, label: `${ACCT_NAME[acct]} contribution`, amount: recYr1[acct], cap: recCaps[acct], done: false,
+      note: acct === "fhsa"
+        ? `${investPrefix}Tax refund now, and the money comes out completely tax-free when you buy your first home.`
+        : acct === "rrsp"
+          ? `${investPrefix}You get a tax refund now; withdrawals are taxed in retirement — usually at a lower rate than today.`
+          : `${investPrefix}Grows and withdraws completely tax-free. No tax on gains, no tax when you take it out.`,
+    });
+  });
+  if (recYr1.taxable > 0) nextSteps.push({
+    key: "taxable", label: "Non-registered investing", amount: recYr1.taxable, done: false,
+    note: `${investPrefix}Once your registered accounts are maxed out, invest the overflow here. Growth is taxed, but at a lower rate than regular income.`,
+  });
   const firstTodo = nextSteps.findIndex((s) => !s.done);
 
   const rrspSaving = income > 0 && rrspPlan > 0 ? deductionSaving(income, prov, empType, rrspPlan) : 0;
@@ -572,13 +604,13 @@ export default function Dashboard({ plan, setPlan }) {
       {/* ACTION PLAN */}
       <div id="sec-plan" style={{ marginTop: 32 }}>
         <span className="pp-eyebrow"><ListOrdered size={14} /> Your action plan</span>
-        <h3 className="pp-sec-h">What to do with your next dollar</h3>
-        <p className="pp-sec-lead">A personalised priority order for your {goal === "house" ? "home" : goal === "number" ? "target" : goal === "save" ? "savings" : "retirement"} goal, your {pct1(marginal)} tax bracket{buyingHome ? ", and your home plans" : ""}. Fund each step, then move to the next.</p>
+        <h3 className="pp-sec-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
+        <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside — not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
         {restOfYearInvestable > 0 && (
           <div className="pp-invest-banner">
-            <div className="l">Based on what you told us, here's what you can invest before {TAX_YEAR + 1}:</div>
-            <div className="v">{fmtMoney(restOfYearInvestable)}<span className="u"> over the rest of {TAX_YEAR}</span></div>
-            <div className="h">{startMonth > 0 ? `That's ${fmtMoney(annInv / 12)}/mo across the ${12 - startMonth} months left this year` : `That's ${fmtMoney(annInv)} across the full year`} — here's the order to put it to work.</div>
+            <div className="l">You said you can set aside {fmtMoney(monthly)}/month — here's how every dollar works:</div>
+            <div className="v">{fmtMoney(restOfYearInvestable)}<span className="u"> to save in {TAX_YEAR}</span></div>
+            <div className="h">{startMonth > 0 ? `${12 - startMonth} months left in the year — ` : ""}fund each step below in order, then move to the next.</div>
           </div>
         )}
         <div className="pp-plan">
@@ -612,7 +644,7 @@ export default function Dashboard({ plan, setPlan }) {
           </div>
         )}
 
-        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>This is a widely used Canadian priority framework applied to your inputs — a strong default, not personal advice. Your situation may justify a different order.</p>
+        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>All steps above draw from the same {monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"} pool — it's one budget, in priority order. This is a widely used Canadian priority framework applied to your situation — sensible defaults, not personal advice. Your circumstances may justify a different order.</p>
       </div>
 
       {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}

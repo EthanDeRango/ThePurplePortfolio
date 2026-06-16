@@ -402,8 +402,8 @@ export default function Planner({ plan, setPlan }) {
             <input id="f-asof" type="date" className="pp-input" style={{ maxWidth: 230 }} value={plan.asOf || todayISO()} onChange={(e) => set("asOf", e.target.value)} />
             <div className="pp-help">We project forward from this date. If it's partway through the year, your first year only counts the months you have left.</div>
           </div>
-          <CurrencyField id="f-monthly" label="How much can you invest each month?" placeholder="e.g. 300" value={plan.monthly} onChange={(v) => set("monthly", v)}
-            help={<>Your steady, recurring contribution — applied to every month, every year. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</>} />
+          <CurrencyField id="f-monthly" label="How much can you set aside each month?" placeholder="e.g. 300" value={plan.monthly} onChange={(v) => set("monthly", v)}
+            help={<>Your total monthly savings — this one number covers everything: building your emergency fund, paying off debt, <em>and</em> investing. Your action plan shows exactly where each dollar goes first. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</>} />
           <CurrencyField id="f-lump" label="One-time lump sum to invest now (optional)" placeholder="e.g. 5,000" value={plan.lumpSum} onChange={(v) => set("lumpSum", v)}
             help={<>A single amount you can add today — a bonus, gift, or tax refund.</>} />
           <div className="pp-field">
