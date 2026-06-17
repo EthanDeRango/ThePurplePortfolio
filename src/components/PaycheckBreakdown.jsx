@@ -61,11 +61,12 @@ export default function PaycheckBreakdown({ tax, marginal }) {
         </tbody>
       </table>
 
-      {tax.isQC && (
-        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
-          Quebec figures include QPP/QPP2, QPIP, Quebec provincial tax, and the 16.5% federal abatement applied to your federal tax.
-        </p>
-      )}
+      <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10, lineHeight: 1.55 }}>
+        {tax.isQC
+          ? <>Quebec Pension Plan (QPP / QPP2) funds your government pension; Quebec Parental Insurance Plan (QPIP) funds parental leave. Figures also include Quebec provincial tax and the 16.5% federal abatement applied to your federal tax.</>
+          : <>Canada Pension Plan (CPP / CPP2) funds your government retirement pension; Employment Insurance (EI) covers you if you lose your job. Both are mandatory payroll deductions.</>}
+        {" "}Your <b>marginal rate</b> is the tax you&apos;d pay on your next dollar earned.
+      </p>
     </div>
   );
 }

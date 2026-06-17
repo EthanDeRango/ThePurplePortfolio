@@ -736,7 +736,28 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   background: var(--violet-soft);
   box-shadow: 0 0 0 2px rgba(112,68,190,.16), 0 4px 14px rgba(112,68,190,.12);
 }
+.pp-step.urgent {
+  border-color: rgba(183,55,55,.45);
+  background: #FBEEEC;
+  box-shadow: 0 0 0 2px rgba(183,55,55,.12), 0 4px 14px rgba(183,55,55,.10);
+}
+.pp-step.urgent .pp-step-ic { background: #B73737; color: #fff; border-color: #B73737; box-shadow: 0 3px 10px rgba(183,55,55,.35); }
 .pp-step.done { opacity: .6; }
+.pp-thismonth {
+  margin: 14px 0 4px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--plum) 0%, #2E1A40 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(30,17,40,.18);
+}
+.pp-thismonth-lbl {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--gold-2); margin-bottom: 4px;
+}
+.pp-thismonth-line { font-size: 16px; line-height: 1.5; color: #F2EAFA; }
+.pp-thismonth-line b { font-family: var(--display); color: #fff; font-weight: 700; }
+.pp-thismonth-line b.urgent { color: #FFB4A8; }
 .pp-step-ic {
   width: 32px;
   height: 32px;
@@ -760,6 +781,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-step-b p { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
 .pp-step-tag { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: var(--violet); padding: 3px 9px; border-radius: 999px; box-shadow: 0 2px 6px rgba(112,68,190,.3); }
 .pp-step-tag.ok { background: var(--green); }
+.pp-step-tag.urgent { background: #B73737; box-shadow: 0 2px 6px rgba(183,55,55,.3); }
 .pp-pbar { height: 5px; border-radius: 999px; background: var(--panel); overflow: hidden; margin-top: 9px; }
 .pp-pbar > i { display: block; height: 100%; background: var(--violet); border-radius: 999px; }
 
@@ -948,6 +970,42 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-savegoal { padding: 12px 0; border-top: 1px solid var(--line); }
 .pp-savegoal:first-child { border-top: none; padding-top: 4px; }
 .pp-savegoal .nm { font-weight: 700; color: var(--plum); font-family: var(--display); font-size: 16px; }
+
+.pp-tog-state {
+  margin-top: 10px; padding: 9px 14px; border-radius: 10px;
+  font-size: 13px; line-height: 1.5; color: #5C400A;
+  background: #F8F0E0; border: 1px solid rgba(168,118,30,.25);
+}
+.pp-tog-state b { color: var(--gold); }
+.pp-tog-state.today { color: #245A24; background: #EAF5EA; border-color: rgba(45,122,43,.25); }
+.pp-tog-state.today b { color: var(--green); }
+
+.pp-seewhy { margin-bottom: 14px; }
+.pp-seewhy > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13.5px; font-weight: 700; color: var(--violet);
+  padding: 9px 16px; border: 1px solid var(--violet); border-radius: 999px;
+  background: var(--violet-soft); transition: background .15s ease;
+}
+.pp-seewhy > summary:hover { background: #EDE3FA; }
+.pp-seewhy > summary::-webkit-details-marker { display: none; }
+.pp-seewhy > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
+.pp-seewhy[open] > summary::before { transform: rotate(90deg); }
+.pp-seewhy-body { margin-top: 16px; }
+
+.pp-resp-detail { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.pp-resp-detail > summary {
+  cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; color: var(--violet);
+  display: flex; align-items: center; gap: 6px; user-select: none;
+}
+.pp-resp-detail > summary::-webkit-details-marker { display: none; }
+.pp-resp-detail > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
+.pp-resp-detail[open] > summary::before { transform: rotate(90deg); }
+.pp-resp-detail-body { margin-top: 8px; }
+.pp-resp-detail-body p { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-top: 8px; }
+.pp-resp-detail-body p:first-child { margin-top: 0; }
+.pp-resp-detail-body b { color: var(--plum); font-weight: 700; }
 
 /* slider with typed input */
 .pp-slider .top .vwrap { display: inline-flex; align-items: center; gap: 6px; }
