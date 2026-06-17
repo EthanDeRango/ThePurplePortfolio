@@ -64,13 +64,21 @@ export default function Dashboard({ plan, setPlan }) {
   const [inflation, setInflation] = useState(false);
   const [afterTax, setAfterTax] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [activeTab, setActiveTab] = useState("sec-plan");
+  const [activeTabs, setActiveTabs] = useState(() => new Set(["sec-plan"]));
   const switchTab = (id) => {
-    setActiveTab(id);
-    setTimeout(() => {
-      const el = document.getElementById("pp-secnav-anchor");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
+    setActiveTabs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        setTimeout(() => {
+          const el = document.getElementById(id);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+      return next;
+    });
   };
 
 
@@ -543,8 +551,8 @@ export default function Dashboard({ plan, setPlan }) {
           ["sec-accounts", "Account types"],
         ].map(([id, label]) => (
           <button key={id} type="button"
-            className={activeTab === id ? "active" : ""}
-            aria-pressed={activeTab === id}
+            className={activeTabs.has(id) ? "active" : ""}
+            aria-pressed={activeTabs.has(id)}
             onClick={() => switchTab(id)}
           >
             {label}
@@ -624,7 +632,7 @@ export default function Dashboard({ plan, setPlan }) {
       </div>
 
       {/* ACTION PLAN */}
-      {activeTab === "sec-plan" && <div id="sec-plan" style={{ marginTop: 32 }}>
+      {activeTabs.has("sec-plan") && <div id="sec-plan" style={{ marginTop: 32 }}>
         <span className="pp-eyebrow"><ListOrdered size={14} /> Your action plan</span>
         <h3 className="pp-sec-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
         <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside — not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
@@ -670,7 +678,7 @@ export default function Dashboard({ plan, setPlan }) {
       </div>}
 
       {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}
-      {activeTab === "sec-compare" && <div id="sec-compare" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-compare") && <div id="sec-compare" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Scale size={14} /> Account breakdown</span>
         <h3 className="pp-sec-h">What each account does for you</h3>
         <p className="pp-sec-lead">Same money, different wrappers — the difference is when and how much tax you pay.</p>
@@ -826,7 +834,7 @@ export default function Dashboard({ plan, setPlan }) {
       </div>}
 
       {/* OPTIMIZED TAX PLAN */}
-      {income > 0 && activeTab === "sec-taxplan" && (
+      {income > 0 && activeTabs.has("sec-taxplan") && (
         <div id="sec-taxplan" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
           <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
@@ -984,7 +992,7 @@ export default function Dashboard({ plan, setPlan }) {
       )}
 
       {/* GOAL TRACKER + SCORECARD */}
-      {activeTab === "sec-goal" && <><div id="sec-goal" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-goal") && <><div id="sec-goal" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Sparkles size={14} /> Goal tracker</span>
         <h3 className="pp-sec-h">{goals.length > 1 ? "Your goals" : "Your goal"}</h3>
         {goals.map((k) => {
@@ -1241,7 +1249,7 @@ export default function Dashboard({ plan, setPlan }) {
       </>}
 
       {/* PAYCHEQUE */}
-      {income > 0 && activeTab === "sec-pay" && (
+      {income > 0 && activeTabs.has("sec-pay") && (
         <div id="sec-pay" style={{ marginTop: 30 }}>
           <span className="pp-eyebrow"><Receipt size={14} /> Your paycheque, decoded</span>
           <h3 className="pp-sec-h">Where your {fmtMoney(income)} actually goes</h3>
@@ -1255,7 +1263,7 @@ export default function Dashboard({ plan, setPlan }) {
       )}
 
       {/* TAX SAVINGS */}
-      {income > 0 && activeTab === "sec-tax" && (
+      {income > 0 && activeTabs.has("sec-tax") && (
         <div id="sec-tax" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Tax savings &amp; brackets</span>
           <h3 className="pp-sec-h">Your bracket, and what a deduction does to it</h3>
@@ -1290,7 +1298,7 @@ export default function Dashboard({ plan, setPlan }) {
       )}
 
       {/* TFSA vs RRSP */}
-      {income > 0 && activeTab === "sec-vs" && (() => {
+      {income > 0 && activeTabs.has("sec-vs") && (() => {
         const claw = oasClawback(retTaxableIncome);
         const nearClaw = retTaxableIncome > TAX_CONFIG.oas.thresholdMin - 15000 && retTaxableIncome <= TAX_CONFIG.oas.thresholdMin;
         const lowIncomeRet = retTaxableIncome > 0 && retTaxableIncome < 32000;
@@ -1348,7 +1356,7 @@ export default function Dashboard({ plan, setPlan }) {
       })()}
 
       {/* ROOM + FHSA DEADLINE */}
-      {activeTab === "sec-room" && <><div id="sec-room" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-room") && <><div id="sec-room" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Wallet size={14} /> Contribution limits</span>
         <h3 className="pp-sec-h">How much you can still put in each account this year</h3>
         <div className="pp-room">
@@ -1412,7 +1420,7 @@ export default function Dashboard({ plan, setPlan }) {
       </>}
 
       {/* GROWTH CHART + WHAT-IF */}
-      {hasData && activeTab === "sec-grow" && (
+      {hasData && activeTabs.has("sec-grow") && (
         <div id="sec-grow">
           <div className="pp-card pp-noprint" style={{ marginTop: 34 }}>
             <span className="pp-eyebrow">Play with the numbers</span>
@@ -1584,7 +1592,7 @@ export default function Dashboard({ plan, setPlan }) {
       )}
 
       {/* ACCOUNTS */}
-      {activeTab === "sec-accounts" && <div id="sec-accounts" style={{ marginTop: 38 }}>
+      {activeTabs.has("sec-accounts") && <div id="sec-accounts" style={{ marginTop: 38 }}>
         <span className="pp-eyebrow">Accounts that may fit your goal</span>
         <h3 style={{ fontSize: 26, margin: "10px 0 20px" }}>Where to hold your investments</h3>
         <div className="pp-grid-3">
