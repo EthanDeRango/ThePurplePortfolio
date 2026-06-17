@@ -703,12 +703,6 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   border-color: var(--violet);
   box-shadow: 0 2px 8px rgba(112,68,190,.14);
 }
-.pp-secnav button.active {
-  background: var(--plum);
-  color: #fff;
-  border-color: var(--plum);
-  box-shadow: 0 2px 8px rgba(30,17,40,.20);
-}
 
 /* ── Goal selector ────────────────────────────────────────────────────────── */
 .pp-goalgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 6px 0 14px; }
