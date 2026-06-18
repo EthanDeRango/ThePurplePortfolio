@@ -17,6 +17,7 @@ import {
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
 import { TAX_CONFIG, TAX_YEAR, RISK, MONTH_NAMES } from "../lib/tax-config.js";
+import { netWorthBenchmark, savingsRateVerdict, SAVINGS_RATE } from "../data/benchmarks.js";
 import { LADDER } from "../data/constants.js";
 import { GOALS } from "../data/goals.jsx";
 import PaycheckBreakdown from "../components/PaycheckBreakdown.jsx";
@@ -126,6 +127,16 @@ export default function Dashboard({ plan, setPlan }) {
     () => projectFinal(0.10, years, start, effectiveMonthly, monthsArr, startMonth),
     [years, start, effectiveMonthly, monthsArr, startMonth]
   );
+  // Sequence-of-returns stress test: the SAME long-run average return, but with a poor stretch
+  // in the final years before retirement (the dangerous timing — a 2008/2000-style downturn just
+  // as you stop contributing). This is genuinely path-dependent, unlike a lower constant rate.
+  const stressFinal = useMemo(() => {
+    const stressYears = Math.min(5, years);
+    const calmYears = Math.max(0, years - stressYears);
+    const v1 = projectFinal(ret - fee, calmYears, start, effectiveMonthly, monthsArr, startMonth);
+    // Final stretch: a flat-to-negative run (~-3%/yr) while still contributing.
+    return projectFinal(-0.03, stressYears, v1, effectiveMonthly, null, 0);
+  }, [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth]);
 
   const contributed = totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
   const growth = Math.max(0, selFinal - contributed);
@@ -168,16 +179,30 @@ export default function Dashboard({ plan, setPlan }) {
     const startAge = n(plan.pensionDBStartAge) > 0 ? n(plan.pensionDBStartAge) : retAge;
     return startAge <= retAge ? mo * 12 : 0;
   })();
-  // Rough CPP + OAS estimate — CPP from income/age, OAS starts at 65
-  const govBenefits = (() => {
-    if (retAge < 60) return 0;
-    const oas = retAge >= 65 ? 8800 : 0;
+  // Rough CPP + OAS estimate — CPP from income/age, OAS starts at 65.
+  // OAS is reduced (clawed back) at higher retirement incomes; we apply it using planned
+  // retirement spending as the income proxy so the projected benefit isn't overstated.
+  const { govBenefits, oasClawApplied } = (() => {
+    if (retAge < 60) return { govBenefits: 0, oasClawApplied: 0 };
+    const oasGross = retAge >= 65 ? 8800 : 0;
     const cppFull = income > 0 ? Math.min(17400, Math.max(4000, income * 0.18)) : 8500;
     const yearsEarly = Math.max(0, 65 - retAge);
     const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
-    return Math.max(0, cpp) + oas;
+    const oasClaw = oasGross > 0 ? Math.min(oasGross, Math.round(oasClawback(retSpend))) : 0;
+    const oasNet = Math.max(0, oasGross - oasClaw);
+    return { govBenefits: Math.max(0, cpp) + oasNet, oasClawApplied: oasClaw };
   })();
-  const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) * 25;
+  // Safe-withdrawal rate scales DOWN as retirement lengthens — the 4% rule is a ~30-year,
+  // US-equity heuristic. A 55-year-old planning to ~95 needs a lower, safer rate (a nod to
+  // sequence-of-returns risk). Planning horizon: age 95.
+  const retLengthYears = Math.max(10, 95 - retAge);
+  const safeWithdrawalRate =
+    retLengthYears <= 25 ? 0.045 :
+    retLengthYears <= 30 ? 0.040 :
+    retLengthYears <= 35 ? 0.037 :
+    retLengthYears <= 40 ? 0.035 : 0.033;
+  const nestEggMultiple = Math.round(1 / safeWithdrawalRate);
+  const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) / safeWithdrawalRate;
   const retNeedFuture = Math.round(retNeedToday * Math.pow(1 + inflRate, years));
   // INFLATION FIX: when inflation toggle is on, the displayed balance is in today's $,
   // so compare it against retNeedToday (also today's $), not retNeedFuture (nominal $).
@@ -199,7 +224,7 @@ export default function Dashboard({ plan, setPlan }) {
   const retMarginal = n(plan.retTaxRate) > 0 ? Math.min(0.6, n(plan.retTaxRate) / 100) : retMarginalAuto;
   const dispVal = (v) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x = x / Math.pow(1 + inflRate, years); return x; };
   const dispValAt = (v, yr) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x /= Math.pow(1 + inflRate, yr); return x; };
-  const projInvestIncome = Math.round(dispVal(selFinal) * 0.04);
+  const projInvestIncome = Math.round(dispVal(selFinal) * safeWithdrawalRate);
   const totalRetIncome = projInvestIncome + govBenefits + pensionDBIncome;
 
   const annInv = annualInvestable(plan);
@@ -369,7 +394,7 @@ export default function Dashboard({ plan, setPlan }) {
     }));
 
   const downNeed = buyingHome ? (n(plan.homePrice) > 0 ? minDownPayment(n(plan.homePrice)) : 0) : 0;
-  const health = healthScore({ hasEmergency: emergencyFull, income, annualInvest: annInv, buyHome: buyingHome, marginal, projRetIncome: recSim.afterTax * 0.04, targetSpend: retSpend, downProj: recSim.downAtHome || 0, downNeed });
+  const health = healthScore({ hasEmergency: emergencyFull, income, annualInvest: annInv, buyHome: buyingHome, marginal, projRetIncome: recSim.afterTax * safeWithdrawalRate, targetSpend: retSpend, downProj: recSim.downAtHome || 0, downNeed });
   const scoreColor = (s) => s >= 7 ? "var(--green)" : s >= 4 ? "var(--gold)" : "var(--rose)";
 
   const goalProgress = (k) => {
@@ -529,12 +554,11 @@ export default function Dashboard({ plan, setPlan }) {
             <div className="big">{fmtMoney(dispVal(selFinal))}</div>
             <div className="cap">Projected by age {retAge} ({years} years) on your <b style={{ color: "var(--gold-2)" }}>{sel.name.toLowerCase()}</b> path{fee > 0 ? `, after ~${pct1(fee)} fees` : ""}{inflation ? ", in today's dollars" : ""}{afterTax ? ", after estimated retirement tax" : ""}.</div>
             <div style={{ marginTop: 10, fontSize: 13.5, color: "rgba(220,205,240,.9)", background: "rgba(255,255,255,.09)", borderRadius: 10, padding: "8px 14px", display: "inline-block" }}>
-              In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * 0.04)}/yr</b> throughout retirement without running out.
+              In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * safeWithdrawalRate)}/yr</b> throughout retirement without running out.
             </div>
             <div style={{ marginTop: 12, fontSize: 13.5, color: "rgba(220,205,240,.92)", lineHeight: 1.55 }}>
-              Markets are never a straight line. A rougher stretch of returns could land you nearer{" "}
-              <b style={{ color: "#fff" }}>{fmtMoney(dispVal(finals.conservative))}</b>; a strong one, closer to{" "}
-              <b style={{ color: "#fff" }}>{fmtMoney(dispVal(finals.aggressive))}</b>. Plan for the range, not the single number.
+              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at 6%/yr → {fmtMoney(dispVal(finals.aggressive))} at 10%/yr) — they are not a downturn simulation.
+              {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk — the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at an 8% long-run average.</>} Plan for a range, not one number.
             </div>
             <div className="pp-scn">
               {RISK.map((r) => (
@@ -552,6 +576,16 @@ export default function Dashboard({ plan, setPlan }) {
           </>
         )}
       </div>
+
+      {/* Empty state — deliberate welcome for someone just starting (e.g. 19, $0, no income yet) */}
+      {!hasData && income <= 0 && (
+        <div className="pp-emptyguide pp-noprint">
+          <div className="pp-emptyguide-ic"><Sparkles size={22} /></div>
+          <h3>Just starting out? You&apos;re in the perfect spot.</h3>
+          <p>You don&apos;t need savings or a big income to start — just a starting point. Add your age, any income, and even <b>$25/month</b> in your numbers, and this dashboard fills in: your real take-home pay, which accounts to open first, and how small, steady amounts snowball over time.</p>
+          <button className="pp-btn pp-btn-primary" onClick={edit}>Add my numbers <ArrowRight size={16} /></button>
+        </div>
+      )}
 
       {/* This year's contribution impact */}
       {thisYearInvest > 0 && thisYearFV > 0 && (
@@ -586,6 +620,13 @@ export default function Dashboard({ plan, setPlan }) {
       {/* Snapshot */}
       <div className="pp-snap">
         {hasData && <div className="pp-snapc"><div className="l">Projected total</div><div className="v">{fmtMoney(dispVal(selFinal))}</div><div className="h">by age {retAge}</div></div>}
+        {buyingHome && homeIdx != null && homeDown > 0 && (recSim.downAtHome || 0) > 0 && (
+          <div className="pp-snapc" style={recSim.downAtHome >= homeDown ? { borderColor: "var(--green)" } : {}}>
+            <div className="l">Home down payment</div>
+            <div className="v">{fmtMoney(recSim.downAtHome)}</div>
+            <div className="h">{recSim.downAtHome >= homeDown ? `covers the ${fmtMoney(homeDown)} needed by age ${homeAge} ✓` : `${fmtMoney(homeDown - recSim.downAtHome)} short of ${fmtMoney(homeDown)} by age ${homeAge}`}</div>
+          </div>
+        )}
         {income > 0 && <div className="pp-snapc"><div className="l">Take-home pay</div><div className="v">{fmtMoney(tax.netMonthly)}</div><div className="h">per month, after tax</div></div>}
         {income > 0 && <div className="pp-snapc"><div className="l">Your tax rate</div><div className="v">{pct1(marginal)}</div><div className="h">on each extra dollar you earn</div></div>}
         <div className="pp-snapc"><div className="l">Next priority</div><div className="v" style={{ fontSize: 16, lineHeight: 1.2 }}>{firstTodo >= 0 && nextSteps[firstTodo] ? nextSteps[firstTodo].label : "Keep investing"}</div><div className="h">{firstTodo >= 0 && nextSteps[firstTodo] && nextSteps[firstTodo].amount > 0 ? fmtMoney(nextSteps[firstTodo].amount) + (["ef","debt","match"].includes(nextSteps[firstTodo].key) ? "" : "/yr") : "your action plan below"}</div></div>
@@ -593,11 +634,26 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* Section tab nav */}
       <div id="pp-secnav-anchor" style={{ scrollMarginTop: 80 }} />
+      <div className="pp-secnav-guide pp-noprint">
+        <b>New here? Start with your Action plan</b> — it tells you exactly what to do next. Open <b>Accounts</b> and <b>Goals &amp; score</b> when you want the reasoning. Everything under <b>Go deeper</b> is optional — there when you're curious, ignorable when you're not.
+      </div>
       <nav className="pp-secnav pp-noprint" aria-label="Dashboard sections">
+        <span className="pp-secnav-label">Start here</span>
         {[
-          ["sec-plan", "Action plan"], ["sec-compare", "Accounts"],
+          ["sec-plan", "1 · Action plan"], ["sec-compare", "2 · Accounts"], ["sec-goal", "3 · Goals & score"],
+        ].map(([id, label]) => (
+          <button key={id} type="button"
+            className={"core" + (activeTabs.has(id) ? " active" : "")}
+            aria-pressed={activeTabs.has(id)}
+            onClick={() => switchTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="pp-secnav-divider" aria-hidden="true" />
+        <span className="pp-secnav-label">Go deeper</span>
+        {[
           ...(income > 0 ? [["sec-taxplan", "Tax plan"]] : []),
-          ["sec-goal", "Goals & score"],
           ...(income > 0 ? [["sec-pay", "Paycheque"], ["sec-tax", "Tax savings"], ["sec-vs", "TFSA vs RRSP"]] : []),
           ["sec-room", "Contribution limits"],
           ...(hasData ? [["sec-grow", "Growth"]] : []),
@@ -666,9 +722,9 @@ export default function Dashboard({ plan, setPlan }) {
                 {[
                   { term: `Tax refund on investing`, def: `When you contribute to an RRSP or FHSA, the government refunds some of the income tax you already paid — because you're saving for your future. At your current rate of ${pct1(marginal)}, every $1,000 you put in returns about ${fmtMoney(marginal * 1000)} at tax time. It shows up like a bonus cheque when you file.` },
                   { term: `Your tax rate — ${pct1(marginal)}`, def: `If you earned one more dollar of income today, ${pct1(marginal)} of it would go to tax. This is called your "marginal rate." It's why RRSP and FHSA contributions are valuable — every dollar you contribute saves you ${pct1(marginal)} in tax right now.` },
-                  { term: `4% rule`, def: `A widely-used retirement guideline: if you withdraw 4% of your savings each year, it should last your entire lifetime without running out. ${fmtMoney(dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000)} in savings → ${fmtMoney((dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000) * 0.04)}/yr to live on.` },
+                  { term: `Safe-withdrawal rate — ${pct1(safeWithdrawalRate)}`, def: `A widely-used retirement guideline (the "4% rule") says you can withdraw about 4% of your savings each year for ~30 years without running out. ${safeWithdrawalRate < 0.04 ? `We use ${pct1(safeWithdrawalRate)} for you, because your ${retLengthYears}-year retirement to age 95 needs a lower, safer rate to survive a rough run of early returns.` : safeWithdrawalRate > 0.04 ? `We use ${pct1(safeWithdrawalRate)} for you, because your shorter ${retLengthYears}-year retirement can support a slightly higher rate.` : `That fits your ${retLengthYears}-year retirement, so we use the standard 4%.`} ${fmtMoney(dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000)} in savings → ${fmtMoney((dispVal(selFinal) > 0 ? dispVal(selFinal) : 500000) * safeWithdrawalRate)}/yr to live on.` },
                   { term: `After-tax value`, def: `RRSP money gets taxed when you take it out in retirement. "After-tax" shows the amount left after that future tax — your actual spending power. TFSA withdrawals are always after-tax (because they're never taxed at all).` },
-                  { term: `Sustainable income`, def: `The annual amount you could pay yourself from your savings without ever running out of money — calculated using the 4% rule above. Think of it like a salary you pay yourself from your investment pot.` },
+                  { term: `Sustainable income`, def: `The annual amount you could pay yourself from your savings without ever running out of money — calculated using the ${pct1(safeWithdrawalRate)} safe-withdrawal rate above. Think of it like a salary you pay yourself from your investment pot.` },
                 ].map(({ term, def }) => (
                   <div key={term} style={{ display: "flex", gap: 14, alignItems: "flex-start", paddingBottom: 11, borderBottom: "1px solid var(--line-soft)" }}>
                     <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--plum)", minWidth: 185, flexShrink: 0, lineHeight: 1.5, paddingTop: 1 }}>{term}</div>
@@ -744,6 +800,11 @@ export default function Dashboard({ plan, setPlan }) {
         )}
 
         <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>All steps above draw from the same {monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"} pool — it's one budget, in priority order. This is a widely used Canadian priority framework applied to your situation — sensible defaults, not personal advice. Your circumstances may justify a different order.</p>
+        {!activeTabs.has("sec-compare") && (
+          <button type="button" className="pp-next-link pp-noprint" onClick={() => switchTab("sec-compare")}>
+            Next: see which accounts to use, and why <ArrowRight size={15} />
+          </button>
+        )}
       </div>}
 
       {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}
@@ -771,7 +832,9 @@ export default function Dashboard({ plan, setPlan }) {
                   Fund in this order: <b style={{ color: "var(--plum)" }}>{recOrder.filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}</b>
                 </div>
                 <p style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.65, margin: "0 0 18px" }}>
-                  {marginal >= 0.30
+                  {recKey === "home"
+                    ? <>You're buying a first home, so the <b>FHSA comes first</b>: you get a tax refund now <i>and</i> the money comes out completely tax-free for the purchase — the only account that does both. Then TFSA for flexibility, and RRSP{income > 0 ? <> (its Home Buyers' Plan can top up your down payment too)</> : ""}.</>
+                    : marginal >= 0.30
                     ? <>At your <b>{pct1(marginal)}</b> tax rate, putting money into an RRSP gives you a real cash refund today — and you'll likely pay only <b>~{pct1(retMarginal)}</b> when you take it out in retirement. That gap of {pct1(Math.max(0, marginal - retMarginal))} per dollar is money you keep.</>
                     : marginal - retMarginal > 0.02
                     ? <>Your tax rate today (<b>{pct1(marginal)}</b>) is higher than what you're likely to pay in retirement (<b>~{pct1(retMarginal)}</b>). That makes RRSP contributions worthwhile — you save at a higher rate than you'll pay.</>
@@ -780,8 +843,11 @@ export default function Dashboard({ plan, setPlan }) {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                   <div className="pp-rate-chip"><div className="l">Tax refund, year 1</div><div className="v">{fmtMoney(recS.sim.refundYr1)}</div><div className="h">cash back at tax time</div></div>
                   <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">What you can spend at {retAge}</div><div className="v">{fmtMoney(recS.sim.afterTax)}</div><div className="h">after estimated retirement tax</div></div>
-                  <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Yearly income in retirement</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">withdrawing 4%/yr — the safe-withdrawal rule</div></div>
+                  <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Yearly income in retirement</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">withdrawing {pct1(safeWithdrawalRate)}/yr — the safe-withdrawal rule</div></div>
                 </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>
+                  <b>Key assumptions:</b> spendable figures assume ~{pct1(retMarginal)} tax on registered (RRSP) withdrawals in retirement{n(plan.retTaxRate) > 0 ? " (your override)" : " — estimated from your spending"}, and a {pct1(safeWithdrawalRate)}/yr safe-withdrawal rate over a ~{retLengthYears}-year retirement (to age 95). <button className="pp-inlinelink" onClick={edit}>Adjust in your numbers →</button>
+                </p>
               </div>
 
               {/* See why — the full comparison, revealed on demand */}
@@ -804,7 +870,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize TFSA first</div>
                     <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{tfsaS ? fmtMoney(tfsaS.sim.afterTax) : "—"}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {tfsaS ? fmtMoney(tfsaS.sim.afterTax * 0.04) + "/yr to spend" : "—"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {tfsaS ? fmtMoney(tfsaS.sim.afterTax * safeWithdrawalRate) + "/yr to spend" : "—"}</div>
                   </div>
                   <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
                     <div className="pp-stat" style={{ padding: "3px 0" }}><span>Tax refund now</span><span style={{ fontWeight: 700, color: "var(--muted)" }}>None</span></div>
@@ -828,7 +894,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 3 }}>If you prioritize RRSP first</div>
                     <div style={{ fontFamily: "var(--display)", fontSize: 32, fontWeight: 600, color: "var(--plum)", lineHeight: 1.05 }}>{rrspS ? fmtMoney(rrspS.sim.afterTax) : "—"}</div>
-                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {rrspS ? fmtMoney(rrspS.sim.afterTax * 0.04) + "/yr to spend" : "—"}</div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>after tax at {retAge} · {rrspS ? fmtMoney(rrspS.sim.afterTax * safeWithdrawalRate) + "/yr to spend" : "—"}</div>
                   </div>
                   <div style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
                     {income > 0 && <div className="pp-stat" style={{ padding: "3px 0" }}><span>Refund on {fmtMoney(rrspPlan)}</span><span style={{ fontWeight: 700, color: "var(--green)" }}>+{fmtMoney(rrspSaving)}</span></div>}
@@ -890,7 +956,7 @@ export default function Dashboard({ plan, setPlan }) {
                         <td style={{ fontSize: 12, color: "var(--muted)" }}>{(s.order || ["tfsa","rrsp"]).filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}{s.mode === "balanced" ? " (50/50)" : ""}</td>
                         <td>{fmtMoney(s.sim.refundYr1)}</td>
                         <td className={s.sim.afterTax === bestAfterTax ? "best" : ""}>{fmtMoney(s.sim.afterTax)}</td>
-                        <td>{fmtMoney(s.sim.afterTax * 0.04)}/yr</td>
+                        <td>{fmtMoney(s.sim.afterTax * safeWithdrawalRate)}/yr</td>
                         {buyingHome && <td className={(s.sim.downAtHome || 0) === bestDown && bestDown > 0 ? "best" : ""}>{s.sim.downAtHome != null ? fmtMoney(s.sim.downAtHome) : "—"}</td>}
                       </tr>
                     ))}
@@ -1071,6 +1137,31 @@ export default function Dashboard({ plan, setPlan }) {
       {activeTabs.has("sec-goal") && <><div id="sec-goal" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Sparkles size={14} /> Goal tracker</span>
         <h3 className="pp-sec-h">{goals.length > 1 ? "Your goals" : "Your goal"}</h3>
+        {income > 0 && (() => {
+          const savingsRate = monthly > 0 ? (monthly * 12) / income : 0;
+          const v = savingsRateVerdict(savingsRate);
+          const nw = netWorthBenchmark(age);
+          return (
+            <div className="pp-card" style={{ marginBottom: 14 }}>
+              <span className="pp-eyebrow"><Scale size={13} /> How you compare</span>
+              <div className="pp-grid-2" style={{ marginTop: 8 }}>
+                <div className="pp-rate-chip">
+                  <div className="l">Your savings rate</div>
+                  <div className="v" style={{ color: v.color }}>{pct1(savingsRate)}</div>
+                  <div className="h"><b style={{ color: v.color }}>{v.label}</b> · most Canadians save ~{pct1(SAVINGS_RATE.typical)}; 15%+ is strong</div>
+                </div>
+                <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}>
+                  <div className="l">Median net worth · age {nw.label}</div>
+                  <div className="v">{fmtMoney(nw.median)}</div>
+                  <div className="h">for context — includes home equity &amp; pensions</div>
+                </div>
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>
+                Your <b>savings rate</b> is the cleanest &quot;am I ahead?&quot; gauge — it&apos;s the part you control, and at {pct1(savingsRate)} you&apos;re {v.tier === "below" ? "below the pace that builds real wealth" : v.tier === "typical" ? "around the typical Canadian" : "ahead of most Canadians"}. The net-worth figure is population <i>context</i> (it counts homes and pensions), not a score of your investments. Source: Statistics Canada, Survey of Financial Security 2019 &amp; household saving rate.
+              </p>
+            </div>
+          );
+        })()}
         {goals.map((k) => {
           if (k === "house") return (
             <div className="pp-card" style={{ marginBottom: 14 }} key={k}>
@@ -1212,7 +1303,7 @@ export default function Dashboard({ plan, setPlan }) {
                 <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}>
                   <div className="l">Nest egg you'll need</div>
                   <div className="v">{fmtMoney(retNeedToday)}</div>
-                  <div className="h">{govBenefits > 0 || pensionDBIncome > 0 ? `25× your ${fmtMoney(Math.max(0, retSpend - pensionDBIncome - govBenefits))}/yr gap` : "25× spending, today's $"}</div>
+                  <div className="h">{govBenefits > 0 || pensionDBIncome > 0 ? `${nestEggMultiple}× your ${fmtMoney(Math.max(0, retSpend - pensionDBIncome - govBenefits))}/yr gap` : `${nestEggMultiple}× spending, today's $`}</div>
                 </div>
                 <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Reached around age</div><div className="v">{fiYrs != null ? age + fiYrs : "60+"}</div><div className="h">at {fmtMoney(annInv)}/yr</div></div>
               </div>
@@ -1223,7 +1314,7 @@ export default function Dashboard({ plan, setPlan }) {
                 <div className="pp-stat">
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--violet)", display: "inline-block", flexShrink: 0 }} />
-                    <span>Savings &amp; investments <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— drawing 4%/yr from your portfolio</span></span>
+                    <span>Savings &amp; investments <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— drawing {pct1(safeWithdrawalRate)}/yr from your portfolio</span></span>
                   </span>
                   <b>{fmtMoney(projInvestIncome)}/yr</b>
                 </div>
@@ -1254,7 +1345,9 @@ export default function Dashboard({ plan, setPlan }) {
                 </div>
                 {govBenefits > 0 && (
                   <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>
-                    The <b>~{fmtMoney(govBenefits)}/yr</b> CPP + OAS figure is a rough estimate. Your actual CPP depends on your full work and contribution history, and OAS is reduced (clawed back) once income passes ~{fmtMoney(TAX_CONFIG.oas.thresholdMin)}. Check your real numbers at <b>My Service Canada Account</b>.
+                    The <b>~{fmtMoney(govBenefits)}/yr</b> CPP + OAS figure is a rough estimate. Your actual CPP depends on your full work and contribution history.{oasClawApplied > 0
+                      ? <> At your planned {fmtMoney(retSpend)}/yr retirement income, we&apos;ve already reduced OAS by <b>~{fmtMoney(oasClawApplied)}/yr</b> for the clawback (income above ~{fmtMoney(TAX_CONFIG.oas.thresholdMin)}). TFSA withdrawals don&apos;t count toward it, so the real figure may be higher.</>
+                      : <> OAS is reduced (clawed back) once income passes ~{fmtMoney(TAX_CONFIG.oas.thresholdMin)} — not a factor at your projected income.</>} Check your real numbers at <b>My Service Canada Account</b>.
                   </p>
                 )}
               </div>
@@ -1272,9 +1365,9 @@ export default function Dashboard({ plan, setPlan }) {
 
               <div className="pp-grid-2" style={{ marginTop: 12 }}>
                 <div className="pp-rate-chip"><div className="l">Projected after-tax at {retAge}</div><div className="v">{fmtMoney(recSim.afterTax)}</div><div className="h">on your recommended path</div></div>
-                <div className="pp-rate-chip"><div className="l">That sustainably pays</div><div className="v">{fmtMoney(recSim.afterTax * 0.04)}/yr</div><div className="h">{recSim.afterTax * 0.04 >= retNeedFuture * 0.04 ? "on track ✓" : "keep building"}</div></div>
+                <div className="pp-rate-chip"><div className="l">That sustainably pays</div><div className="v">{fmtMoney(recSim.afterTax * safeWithdrawalRate)}/yr</div><div className="h">{recSim.afterTax >= retNeedFuture ? "on track ✓" : "keep building"}</div></div>
               </div>
-              <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>The 4% rule: withdrawing ~4%/yr from a nest egg of 25× {govBenefits > 0 || pensionDBIncome > 0 ? "your investment gap" : "your spending"} — <b>{fmtMoney(retNeedToday)}</b> — is considered sustainable for life. CPP, OAS, and pensions aren't in this number; they're shown above.</p>
+              <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>Safe-withdrawal rule: withdrawing ~{pct1(safeWithdrawalRate)}/yr from a nest egg of {nestEggMultiple}× {govBenefits > 0 || pensionDBIncome > 0 ? "your investment gap" : "your spending"} — <b>{fmtMoney(retNeedToday)}</b> — should last a {retLengthYears}-year retirement to age 95.{safeWithdrawalRate < 0.04 ? ` We use ${pct1(safeWithdrawalRate)} rather than the textbook 4% because a ${retLengthYears}-year retirement must survive a rough run of early returns.` : ""} CPP, OAS, and pensions aren't in this number; they're shown above.</p>
             </div>
           );
         })}
@@ -1346,6 +1439,7 @@ export default function Dashboard({ plan, setPlan }) {
           <span className="pp-eyebrow"><Receipt size={14} /> Your paycheque, decoded</span>
           <h3 className="pp-sec-h">Where your {fmtMoney(income)} actually goes</h3>
           <p className="pp-sec-lead">Your gross income in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
+          <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
           <div className="pp-card">
             <PaycheckBreakdown tax={tax} marginal={marginal} />
           </div>
@@ -1359,6 +1453,7 @@ export default function Dashboard({ plan, setPlan }) {
         <div id="sec-tax" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Tax savings &amp; brackets</span>
           <h3 className="pp-sec-h">Your bracket, and what a deduction does to it</h3>
+          <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
           {brk && (
             <div className="pp-brackets" style={{ marginBottom: 16 }}>
               <div className="pp-brk"><div className="l">Your marginal tax rate</div><div className="v">{pct1(brk.cur)}</div><div className="h">Combined federal + {brk && tax.isQC ? "Quebec" : "provincial"} — the rate on each extra dollar you earn.</div></div>
@@ -1535,11 +1630,28 @@ export default function Dashboard({ plan, setPlan }) {
               <button className={"pp-tog" + (inflation ? " on" : "")} onClick={() => setInflation((v) => !v)} title="Adjusts projected numbers down so they reflect what that money would actually buy in today's world, not tomorrow's inflated prices."><Check size={14} /> Inflation-adjusted (show in today's $)</button>
               <button className={"pp-tog" + (afterTax ? " on" : "")} onClick={() => setAfterTax((v) => !v)} title="Estimates the tax you'd owe when withdrawing from registered accounts in retirement, showing your real spendable amount."><Check size={14} /> After retirement tax (show spendable $)</button>
             </div>
-            <div className={"pp-tog-state" + (inflation ? " today" : "")}>
-              {inflation
-                ? <><b>Showing what it&apos;s worth in today&apos;s money.</b> A smaller number for the same buying power — you didn&apos;t lose anything.</>
-                : <><b>Showing tomorrow&apos;s dollars.</b> The future sticker price — bigger, but inflation means it buys the same as a smaller amount does today.</>}
-            </div>
+            {(() => {
+              const nominalFinal = afterTax ? selFinal * (1 - retMarginal * rrspShare) : selFinal;
+              const todayFinal = nominalFinal / Math.pow(1 + inflRate, years);
+              const futureYear = TAX_YEAR + years;
+              if (!hasData || nominalFinal <= 0) {
+                return (
+                  <div className={"pp-tog-state" + (inflation ? " today" : "")}>
+                    {inflation
+                      ? <><b>Showing what it&apos;s worth in today&apos;s money.</b> Same buying power, smaller number — you didn&apos;t lose anything.</>
+                      : <><b>Showing tomorrow&apos;s dollars.</b> The future sticker price, before inflation.</>}
+                  </div>
+                );
+              }
+              return (
+                <div className={"pp-tog-state" + (inflation ? " today" : "")}>
+                  <b>{fmtMoney(nominalFinal)} in {futureYear} = {fmtMoney(todayFinal)} in today&apos;s money.</b>{" "}
+                  {inflation
+                    ? <>You&apos;re seeing the <b>today&apos;s-money</b> figure — same buying power, not less money.</>
+                    : <>You&apos;re seeing the <b>{futureYear}</b> figure — bigger, but inflation means it buys what {fmtMoney(todayFinal)} buys now.</>}
+                </div>
+              );
+            })()}
             <p style={{ fontSize: 11.5, color: "var(--muted)", margin: "6px 0 0", lineHeight: 1.5 }}>
               <b>Inflation adjustment:</b> {inflation ? <>On — the numbers are shrunk to reflect today's purchasing power. {fmtMoney(Math.pow(1 + inflRate, years) * 1000 | 0)} in {years} years ≈ {fmtMoney(1000)} today.</> : <>Off — numbers are in future dollars (bigger, but buys the same stuff).</>}
               {" "}<b>Retirement tax:</b> {afterTax ? <>On — showing what you can actually spend after estimated ~{pct1(retMarginal)} tax on RRSP/registered withdrawals.</> : <>Off — raw portfolio value before any future tax is deducted.</>}
@@ -1568,6 +1680,58 @@ export default function Dashboard({ plan, setPlan }) {
                 : <>The curve grows at your chosen return of <b>{pct1(ret)}/yr</b> — drag the slider lower and you'll see it visibly flatten. {goalWithdrawals.length > 0 && `The dip${goalWithdrawals.length > 1 ? "s" : ""} show money being taken out for goals (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")}). `}{noContribSeries && start > 0 ? "The dashed line shows your current savings growing with zero new contributions — everything above it is the extra wealth built by staying invested." : ""}</>
               }{" "}Illustrative projections only — real returns vary.
             </p>
+
+            {/* Sequence-of-returns stress test */}
+            {stressFinal > 0 && hasData && selFinal > 0 && (
+              <div className="pp-stress">
+                <div className="pp-stress-hd"><AlertTriangle size={15} /> What a badly-timed downturn would do</div>
+                <div className="pp-stress-row">
+                  <div className="pp-stress-col">
+                    <div className="pp-stress-lbl">Smooth {pct1(ret)}/yr</div>
+                    <div className="pp-stress-val">{fmtMoney(dispVal(selFinal))}</div>
+                  </div>
+                  <div className="pp-stress-arrow">→</div>
+                  <div className="pp-stress-col down">
+                    <div className="pp-stress-lbl">Rough last {Math.min(5, years)} years</div>
+                    <div className="pp-stress-val">{fmtMoney(dispVal(stressFinal))}</div>
+                    <div className="pp-stress-delta">−{fmtMoney(dispVal(selFinal) - dispVal(stressFinal))} ({pct1((dispVal(selFinal) - dispVal(stressFinal)) / dispVal(selFinal))})</div>
+                  </div>
+                </div>
+                <p>
+                  Both paths average the same {pct1(ret)}/yr — but the second hits a 2008/2000-style slump (~−3%/yr) in your final {Math.min(5, years)} years before {retAge}, just as you stop adding new money. That timing, not the average, is <b>sequence-of-returns risk</b> — the single biggest threat to anyone near retirement. The closer you are, the more it matters, and the more a cash cushion and steadier mix help.
+                </p>
+              </div>
+            )}
+
+            {/* Net-worth milestone forecasts — "first $100k around age 29" */}
+            {(() => {
+              if (!hasData || selFinal < 100000) return null;
+              const thresholds = [100000, 250000, 500000, 1000000, 2000000, 5000000];
+              const hits = [];
+              for (const t of thresholds) {
+                if (selFinal < t) break;
+                const idx = selSeries.findIndex((v) => v >= t);
+                if (idx < 0) continue;
+                hits.push({ t, yearsAway: idx, age: age > 0 ? age + idx : null, reached: idx === 0 });
+              }
+              if (hits.length === 0) return null;
+              return (
+                <div style={{ marginTop: 22 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--plum-2)", marginBottom: 10 }}>Milestones to look forward to</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                    {hits.slice(0, 5).map((h) => (
+                      <div key={h.t} style={{ background: "var(--paper-card)", border: "1.5px solid var(--line)", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ fontFamily: "var(--display)", fontSize: 23, fontWeight: 600, color: "var(--violet)", lineHeight: 1.1 }}>{fmtShort(h.t)}</div>
+                        <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                          {h.reached ? "you're already here ✓" : h.age != null ? <>around <b style={{ color: "var(--plum)" }}>age {h.age}</b> · {h.yearsAway} yr{h.yearsAway === 1 ? "" : "s"} away</> : <>in <b>{h.yearsAway}</b> years</>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Your invested portfolio crossing each mark, on the {sel.name.toLowerCase()} path (future dollars).</p>
+                </div>
+              );
+            })()}
 
             {/* Milestone snapshot cards */}
             {(() => {

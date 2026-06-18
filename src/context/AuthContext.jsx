@@ -56,6 +56,15 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase?.auth.signOut();
 
+  // Permanently removes the user's saved plan (and newsletter row) from the server.
+  // The plan in the current browser session is untouched — only cloud data is deleted.
+  const deleteCloudData = async () => {
+    if (!user || !supabase) return { error: new Error("Not signed in") };
+    const { error: planErr } = await supabase.from("plans").delete().eq("user_id", user.id);
+    await supabase.from("newsletter_subscribers").delete().eq("user_id", user.id);
+    return { error: planErr ?? null };
+  };
+
   const signInWithGoogle = () =>
     supabase?.auth.signInWithOAuth({
       provider: "google",
@@ -75,7 +84,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, loading,
-      signIn, signUp, signOut, signInWithGoogle,
+      signIn, signUp, signOut, signInWithGoogle, deleteCloudData,
       showNewsletterPrompt,
       resolveNewsletterPrompt,
       dismissNewsletterPrompt: () => setShowNewsletterPrompt(false),

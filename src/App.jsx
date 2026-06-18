@@ -33,9 +33,19 @@ const NAV_LINKS = [
 function TopNav({ onReset, hasSaved, onSignIn }) {
   const location  = useLocation();
   const navigate  = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteCloudData } = useAuth();
   const [showCleared, setShowCleared] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteState, setDeleteState] = useState("idle"); // idle | working | done
   const isActive = (to) => to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
+
+  const handleDeleteData = async () => {
+    setDeleteState("working");
+    const { error } = await deleteCloudData();
+    if (error) { setDeleteState("idle"); setConfirmDelete(false); return; }
+    setDeleteState("done");
+    setTimeout(() => { setConfirmDelete(false); setDeleteState("idle"); }, 2200);
+  };
 
   const handleReset = () => {
     onReset();
@@ -76,7 +86,26 @@ function TopNav({ onReset, hasSaved, onSignIn }) {
             <div className="pp-auth-user">
               <div className="pp-auth-avatar">{user.email[0].toUpperCase()}</div>
               <span className="pp-auth-email">{user.email}</span>
-              <button className="pp-auth-signout-btn" onClick={() => signOut()}>Sign out</button>
+              {confirmDelete ? (
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {deleteState === "done" ? (
+                    <span style={{ fontSize: 12.5, color: "var(--green)", fontWeight: 700 }}>Deleted ✓</span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>Delete saved plan from our servers?</span>
+                      <button className="pp-auth-delete-confirm" disabled={deleteState === "working"} onClick={handleDeleteData}>
+                        {deleteState === "working" ? "Deleting…" : "Delete"}
+                      </button>
+                      <button className="pp-auth-signout-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                    </>
+                  )}
+                </span>
+              ) : (
+                <>
+                  <button className="pp-auth-signout-btn" onClick={() => setConfirmDelete(true)} title="Permanently delete your saved plan from our servers">Delete data</button>
+                  <button className="pp-auth-signout-btn" onClick={() => signOut()}>Sign out</button>
+                </>
+              )}
             </div>
           ) : (
             <button className="pp-auth-signin-btn" onClick={onSignIn}>
@@ -111,7 +140,7 @@ function Footer() {
         </div>
         <div>
           <h5>About</h5>
-          <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6 }}>Built for Canadians. Runs in your browser — your numbers never leave your device.</p>
+          <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6 }}>Built for Canadians. Private by default — your numbers stay in your browser unless you sign in to save across devices.</p>
         </div>
         <div>
           <h5>Contact</h5>

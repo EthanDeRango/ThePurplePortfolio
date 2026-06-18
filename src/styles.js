@@ -282,6 +282,39 @@ const STYLES = `
   margin-bottom: 20px;
   box-shadow: var(--shadow-sm);
 }
+
+/* ── Planner progress bar ─────────────────────────────────────────────────── */
+.pp-progress { display: flex; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 4px 0; }
+.pp-progress-step { display: flex; align-items: center; flex: 1; min-width: 0; }
+.pp-progress-dot {
+  width: 26px; height: 26px; border-radius: 999px; flex: none;
+  display: grid; place-items: center; font-size: 12.5px; font-weight: 700;
+  background: #fff; border: 1.5px solid var(--line); color: var(--muted);
+  transition: all .2s ease;
+}
+.pp-progress-step.done .pp-progress-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.pp-progress-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin: 0 8px; white-space: nowrap; }
+.pp-progress-step.done .pp-progress-label { color: var(--plum); }
+.pp-progress-line { flex: 1; height: 2px; background: var(--line); min-width: 12px; }
+.pp-progress-step.done .pp-progress-line { background: var(--green); }
+
+/* ── Planner early-value teaser ───────────────────────────────────────────── */
+.pp-teaser {
+  background: linear-gradient(135deg, var(--plum) 0%, #2E1A40 100%);
+  color: #fff; border-radius: 18px; padding: 20px 24px; margin-bottom: 20px;
+  box-shadow: 0 6px 20px rgba(30,17,40,.18);
+}
+.pp-teaser-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--gold-2); margin-bottom: 10px;
+}
+.pp-teaser-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.pp-teaser-big { font-family: var(--display); font-size: 38px; font-weight: 600; line-height: 1; }
+.pp-teaser-big span { font-size: 17px; font-weight: 500; color: #C9B4E4; }
+.pp-teaser-sub { font-size: 13.5px; color: #D9C9EE; margin-top: 5px; }
+.pp-teaser-aside { font-size: 13.5px; color: #C9B4E4; line-height: 1.55; max-width: 22em; }
+@media (max-width: 560px) { .pp-progress-label { display: none; } }
 .pp-fs-head { display: flex; gap: 14px; align-items: center; }
 .pp-fs-num {
   width: 32px;
@@ -682,7 +715,30 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 @media (max-width: 760px) { .pp-snap { grid-template-columns: repeat(2, 1fr); } }
 
 /* ── Section-jump nav ─────────────────────────────────────────────────────── */
-.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; margin: 8px 0 6px; }
+.pp-secnav-guide {
+  font-size: 13px; color: var(--muted); line-height: 1.55;
+  background: var(--violet-soft); border: 1px solid var(--violet-mid);
+  border-radius: 12px; padding: 11px 16px; margin: 14px 0 10px;
+}
+.pp-secnav-guide b { color: var(--plum); }
+.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin: 8px 0 6px; }
+.pp-secnav-label {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin-right: 2px;
+}
+.pp-secnav-divider { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+.pp-next-link {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 16px;
+  font-size: 13.5px; font-weight: 700; color: var(--violet);
+  background: var(--violet-soft); border: 1px solid var(--violet);
+  border-radius: 999px; padding: 9px 18px; cursor: pointer; font-family: var(--sans);
+  transition: background .15s ease;
+}
+.pp-next-link:hover { background: #EDE3FA; }
+.pp-secnav button.core {
+  background: #fff; border-color: var(--violet); color: var(--plum);
+}
+.pp-secnav button.core.active { background: var(--plum); color: #fff; border-color: var(--plum); }
 .pp-secnav a, .pp-secnav button {
   font-size: 12.5px;
   font-weight: 700;
@@ -970,6 +1026,42 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-savegoal { padding: 12px 0; border-top: 1px solid var(--line); }
 .pp-savegoal:first-child { border-top: none; padding-top: 4px; }
 .pp-savegoal .nm { font-weight: 700; color: var(--plum); font-family: var(--display); font-size: 16px; }
+
+.pp-emptyguide {
+  margin-top: 16px; text-align: center; padding: 32px 28px;
+  background: var(--paper-card); border: 1.5px dashed var(--violet-mid); border-radius: 18px;
+}
+.pp-emptyguide-ic {
+  width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px;
+  display: grid; place-items: center; color: var(--violet); background: var(--violet-soft);
+}
+.pp-emptyguide h3 { font-size: 22px; color: var(--plum); margin-bottom: 8px; }
+.pp-emptyguide p { font-size: 14.5px; color: var(--muted); line-height: 1.6; max-width: 40em; margin: 0 auto 18px; }
+
+.pp-stress {
+  margin-top: 16px; padding: 16px 18px; border-radius: 14px;
+  background: #FBEEEC; border: 1px solid rgba(183,55,55,.28);
+}
+.pp-stress-hd {
+  display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 800;
+  color: #B73737; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 12px;
+}
+.pp-stress-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pp-stress-col { flex: 1; min-width: 120px; }
+.pp-stress-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.pp-stress-val { font-family: var(--display); font-size: 28px; font-weight: 600; color: var(--plum); line-height: 1.1; }
+.pp-stress-col.down .pp-stress-val { color: #B73737; }
+.pp-stress-delta { font-size: 12.5px; font-weight: 700; color: #B73737; margin-top: 2px; }
+.pp-stress-arrow { font-size: 22px; color: var(--muted); flex: none; }
+.pp-stress p { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-top: 12px; }
+.pp-stress p b { color: #B73737; }
+
+.pp-cra-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; color: var(--teal, #1B7A6E);
+  background: #E9F4F1; border: 1px solid rgba(27,122,110,.22);
+  padding: 5px 11px; border-radius: 999px; margin-bottom: 14px;
+}
 
 .pp-tog-state {
   margin-top: 10px; padding: 9px 14px; border-radius: 10px;
@@ -1310,6 +1402,12 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   cursor: pointer; padding: 0; text-decoration: underline; font-family: var(--sans);
 }
 .pp-auth-signout-btn:hover { color: var(--ink); }
+.pp-auth-delete-confirm {
+  font-size: 12px; color: #fff; background: #B73737; border: none;
+  cursor: pointer; padding: 4px 10px; border-radius: 6px; font-family: var(--sans); font-weight: 700;
+}
+.pp-auth-delete-confirm:hover { background: #9d2e2e; }
+.pp-auth-delete-confirm:disabled { opacity: .6; cursor: default; }
 
 /* ── Newsletter prompt banner ─────────────────────────────────────────────── */
 .pp-newsletter-banner {

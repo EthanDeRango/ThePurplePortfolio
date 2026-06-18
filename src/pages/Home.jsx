@@ -31,7 +31,7 @@ export default function Home() {
               <button className="pp-btn pp-btn-ghost" onClick={() => navigate("/library")}>Browse the library</button>
             </div>
             <div className="pp-hero-fine">
-              <Shield size={15} /> Nothing is stored or shared — everything runs privately in your browser.
+              <Shield size={15} /> Private by default — your numbers stay in your browser. Sign in only if you want to save across devices.
             </div>
           </div>
           <Orb />
@@ -77,7 +77,7 @@ export default function Home() {
             <div className="pp-grid-2" style={{ gap: 14 }}>
               {[
                 { ic: <Receipt size={18} />,       t: "Tax-aware",       d: "Real CPP, EI, and bracket math for every province." },
-                { ic: <Shield size={18} />,         t: "Private by design", d: "No accounts, no tracking of your finances." },
+                { ic: <Shield size={18} />,         t: "Private by design", d: "Runs in your browser. Accounts are optional — no tracking, no selling." },
                 { ic: <Percent size={18} />,        t: "Honest on fees",  d: "We show the costs others gloss over." },
                 { ic: <GraduationCap size={18} />,  t: "Beginner-friendly", d: "Plain language, with depth when you want it." },
               ].map((c) => (

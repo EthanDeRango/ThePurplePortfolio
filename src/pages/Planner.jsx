@@ -10,6 +10,7 @@ import { NumberField, CurrencyField, SelectField } from "../components/InputFiel
 import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget } from "../lib/calculations.js";
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
+import { taxEngine } from "../lib/tax-engine.js";
 import { GOALS } from "../data/goals.jsx";
 
 // ─── Canadian account definitions ────────────────────────────────────────────
@@ -209,16 +210,45 @@ export default function Planner({ plan, setPlan }) {
   if (yrsRet == null) retHelp = <>Many Canadians target <b>60–65</b>. We've pre-filled 65 — adjust it to your own plan.</>;
   else retHelp = <>That's about <b>{yrsRet} years</b> of investing from now — {yrsRet >= 30 ? "plenty of runway for compounding to do the heavy lifting." : yrsRet >= 15 ? "a solid runway to grow steadily." : "a shorter runway, so steadier choices matter more."}</>;
 
+  // ── Progress across the 4 sections ──────────────────────────────────────────
+  const step1Done = age > 0 && plan.income !== undefined && plan.income !== "" && !!plan.province;
+  const step2Done = Array.isArray(plan.goals) && plan.goals.length > 0;
+  const step3Done = n(plan.monthly) > 0 || n(plan.lumpSum) > 0 || n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg) > 0;
+  const step4Done = openAccts.length > 0;
+  const steps = [
+    { n: 1, label: "About you", done: step1Done },
+    { n: 2, label: "Goals", done: step2Done },
+    { n: 3, label: "Your money", done: step3Done },
+    { n: 4, label: "Accounts", done: step4Done },
+  ];
+  const stepsComplete = steps.filter((s) => s.done).length;
+
+  // ── Early value teaser: take-home pay, the moment income + province are in ───
+  const teaserTax = (n(plan.income) > 0 && plan.province)
+    ? taxEngine(n(plan.income), plan.province, plan.employmentType || "employed")
+    : null;
+
   return (
     <div className="pp-wrap">
       <div className="pp-planner">
         <button className="pp-back" onClick={onExit}><ArrowLeft size={16} /> Home</button>
         <span className="pp-eyebrow" style={{ marginTop: 14, display: "block" }}><Sparkles size={14} /> Build your plan</span>
         <h1 style={{ fontSize: 38, margin: "10px 0 8px" }}>Your numbers, your plan.</h1>
-        <p style={{ color: "var(--muted)", fontSize: 16, marginBottom: 28, maxWidth: "40em" }}>
+        <p style={{ color: "var(--muted)", fontSize: 16, marginBottom: 20, maxWidth: "40em" }}>
           Enter your own estimates below — there are no wrong answers, and you can change anything later.
           We'll decode your paycheque, your room, and your projection.
         </p>
+
+        {/* Progress across the 4 sections */}
+        <div className="pp-progress" role="list" aria-label="Plan progress">
+          {steps.map((s, i) => (
+            <div key={s.n} className={"pp-progress-step" + (s.done ? " done" : "")} role="listitem">
+              <span className="pp-progress-dot">{s.done ? <Check size={13} /> : s.n}</span>
+              <span className="pp-progress-label">{s.label}</span>
+              {i < steps.length - 1 && <span className="pp-progress-line" aria-hidden="true" />}
+            </div>
+          ))}
+        </div>
 
         {/* 1 — About you */}
         <div className="pp-fs">
@@ -240,6 +270,9 @@ export default function Planner({ plan, setPlan }) {
                 <button className={plan.employmentType === "self" ? "on" : ""} onClick={() => set("employmentType", "self")}>Self-employed</button>
               </div>
               <div className="pp-help">{plan.employmentType === "self" ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan) — roughly double the normal deduction. No EI (Employment Insurance) typically applies.</> : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
+              <div className="pp-help" style={{ marginTop: 6 }}>
+                <b>Own an incorporated business?</b> Enter the salary and/or dividends you pay <i>yourself personally</i> — that's what this tool models. It does <b>not</b> model corporate tax, retained earnings held in the company, or salary-vs-dividend optimization — your accountant handles those.
+              </div>
             </div>
           </div>
 
@@ -288,6 +321,22 @@ export default function Planner({ plan, setPlan }) {
             <div className="pp-help">Those percentages are illustrative long-run averages — real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
           </div>
         </div>
+
+        {/* Early value teaser — a win before we ask for everything */}
+        {teaserTax && (
+          <div className="pp-teaser">
+            <div className="pp-teaser-eyebrow"><Sparkles size={13} /> Already worth it</div>
+            <div className="pp-teaser-row">
+              <div>
+                <div className="pp-teaser-big">{fmtMoney(teaserTax.netMonthly)}<span>/mo</span></div>
+                <div className="pp-teaser-sub">your real take-home in {TAX_CONFIG.prov[plan.province].name}, after tax{teaserTax.cppTotal > 0 ? ", CPP" : ""}{teaserTax.ei > 0 ? " & EI" : ""}</div>
+              </div>
+              <div className="pp-teaser-aside">
+                Keep going — next we&apos;ll show your contribution room, tax savings, and a full projection to retirement.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 2 — Your goals */}
         <div className="pp-fs">
@@ -380,7 +429,7 @@ export default function Planner({ plan, setPlan }) {
             return (
               <div className="pp-subcard">
                 <p className="pp-sub-h">What are you saving for?</p>
-                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like — a child's education, a car, a wedding, a big trip. Each gets its own plan.</div>
+                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like — a car, a wedding, a big trip, or <b>helping your kids with a home down payment</b>. Each gets its own plan, and the money is set aside from your projection at the right time.</div>
                 {list.map((g, i) => (
                   <div key={i} className="pp-savedit">
                     <input className="pp-input" placeholder="What for? e.g. Maya's university" value={g.name || ""} onChange={(e) => upd(i, "name", e.target.value)} />
