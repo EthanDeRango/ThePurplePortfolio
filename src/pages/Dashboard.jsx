@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import {
   n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
-  totalContributed, monthIndexOf, riskBy, planRate, fv,
+  projectSeriesSchedule, contributedSeriesSchedule,
+  totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
   yearsToTarget, fiTarget, simulateStrategy,
@@ -38,6 +39,21 @@ export default function Dashboard({ plan, setPlan }) {
   const income = n(plan.income);
   const prov = plan.province || "ON";
   const empType = plan.employmentType || "employed";
+
+  // Incorporated owners: split total pay into salary vs dividends (personal-side modeling).
+  // Only salary is "earned income" that creates RRSP room and carries CPP; dividends do neither.
+  const incorporated = empType === "incorporated";
+  const dividendType = plan.dividendType === "eligible" ? "eligible" : "nonEligible";
+  const { salaryIncome, dividendIncome } = (() => {
+    if (!incorporated) return { salaryIncome: income, dividendIncome: 0 };
+    const mix = plan.payMix || "salary";
+    if (mix === "dividends") return { salaryIncome: 0, dividendIncome: income };
+    if (mix === "mix") { const s = Math.min(100, Math.max(0, n(plan.salaryShare) || 50)) / 100; return { salaryIncome: income * s, dividendIncome: income * (1 - s) }; }
+    return { salaryIncome: income, dividendIncome: 0 };
+  })();
+  const divObj = incorporated && dividendIncome > 0 ? { [dividendType]: dividendIncome } : null;
+  const divKey = divObj ? `${dividendType}:${Math.round(dividendIncome)}` : "";
+  const earnedIncome = incorporated ? salaryIncome : income; // RRSP room is based on earned income only
   const lumpSum = n(plan.lumpSum);
   const startBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg)
     + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp);
@@ -50,9 +66,18 @@ export default function Dashboard({ plan, setPlan }) {
   const buyingHome = plan.buyHome || goals.includes("house");
 
   // tax (cheap — no memoization needed; taxEngine is O(brackets))
-  const tax = useMemo(() => taxEngine(income, prov, empType), [income, prov, empType]);
-  const marginal = useMemo(() => income > 0 ? marginalRate(income, prov, empType) : 0, [income, prov, empType]);
-  const brk = useMemo(() => income > 0 ? bracketInfo(income, prov, empType) : null, [income, prov, empType]);
+  const tax = useMemo(() => taxEngine(salaryIncome, prov, empType, 0, divObj), [salaryIncome, prov, empType, divKey]);
+  const marginal = useMemo(() => {
+    if (income <= 0) return 0;
+    if (incorporated && dividendIncome > salaryIncome) {
+      // marginal on the next dollar of dividends (their dominant pay type)
+      const a = taxEngine(salaryIncome, prov, empType, 0, { [dividendType]: dividendIncome }).totalTax;
+      const b = taxEngine(salaryIncome, prov, empType, 0, { [dividendType]: dividendIncome + 100 }).totalTax;
+      return Math.max(0, (b - a) / 100);
+    }
+    return salaryIncome > 0 ? marginalRate(salaryIncome, prov, empType) : 0;
+  }, [income, prov, empType, incorporated, salaryIncome, dividendIncome, dividendType]);
+  const brk = useMemo(() => salaryIncome > 0 ? bracketInfo(salaryIncome, prov, empType) : null, [salaryIncome, prov, empType]);
 
   // what-if controls
   const [monthly, setMonthly] = useState(n(plan.monthly));
@@ -83,7 +108,12 @@ export default function Dashboard({ plan, setPlan }) {
   };
 
 
-  const rrspLimit = n(plan.rrspLimitNOA) > 0 ? n(plan.rrspLimitNOA) : rrspEstimatedLimit(income);
+  const rrspRoomKnown = n(plan.rrspLimitNOA) > 0;
+  const rrspLimit = rrspRoomKnown ? n(plan.rrspLimitNOA) : rrspEstimatedLimit(earnedIncome);
+  // A workplace pension reduces RRSP room via a pension adjustment — so the 18%-of-income
+  // estimate OVERSTATES room for pension members. We never hard-cap on the estimate; we warn.
+  const hasWorkplacePension = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0 || n(plan.pensionDBMonthly) > 0;
+  const rrspRoomUncertain = !rrspRoomKnown && income > 0;
   const [rrspPlan, setRrspPlan] = useState(() => Math.round(Math.min(6000, Math.max(0, rrspLimit))));
   const [fhsaPlan, setFhsaPlan] = useState(TAX_CONFIG.fhsa.annual);
 
@@ -97,31 +127,66 @@ export default function Dashboard({ plan, setPlan }) {
   const homePrice = n(plan.homePrice);
   const homeDown = minDownPayment(homePrice);
 
+  // A custom goal's timeline: prefer an explicit due date, fall back to "years from now".
+  const goalYears = (g) => {
+    if (g.date) { const y = yearsUntil(g.date); return y != null && y > 0 ? Math.max(1, Math.round(y)) : 0; }
+    return n(g.years);
+  };
   // Withdrawal events: home down payment + custom savings goals
   const goalWithdrawals = [
     ...(homeIdx != null && homeDown > 0 ? [{ year: homeIdx, amount: homeDown }] : []),
     ...(Array.isArray(plan.customGoals) ? plan.customGoals : [])
-      .filter((g) => n(g.years) >= 1 && n(g.years) <= years && n(g.amount) > 0)
-      .map((g) => ({ year: n(g.years), amount: n(g.amount) })),
+      .filter((g) => goalYears(g) >= 1 && goalYears(g) <= years && n(g.amount) > 0)
+      .map((g) => ({ year: goalYears(g), amount: n(g.amount) })),
   ];
   const gwKey = JSON.stringify(goalWithdrawals);
+
+  // ── Life events → a per-year savings schedule ───────────────────────────────
+  // Savings-affecting events (expenses free up cash, or a new ongoing cost) shift the
+  // monthly amount invested from a given age onward, so the projection reflects real life.
+  const lifeEvents = Array.isArray(plan.lifeEvents) ? plan.lifeEvents : [];
+  const savingsEvents = lifeEvents
+    .filter((e) => (e.type === "invest-more" || e.type === "invest-less") && n(e.amount) > 0 && n(e.age) > age && n(e.age) <= retAge)
+    .sort((a, b) => n(a.age) - n(b.age));
+  const hasLifeEvents = savingsEvents.length > 0;
+  const monthlyByYear = useMemo(() => {
+    const arr = new Array(Math.max(1, years)).fill(0);
+    for (let y = 0; y < arr.length; y++) {
+      let m = effectiveMonthly;
+      const atAge = age + y;
+      for (const e of savingsEvents) {
+        if (atAge >= n(e.age)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);
+      }
+      arr[y] = Math.max(0, m);
+    }
+    return arr;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [years, age, effectiveMonthly, JSON.stringify(savingsEvents)]);
 
   // memoized expensive computations
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const selSeries = useMemo(
-    () => projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly, monthsArr, startMonth, goalWithdrawals),
+    () => hasLifeEvents
+      ? projectSeriesSchedule(ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals)
+      : projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly, monthsArr, startMonth, goalWithdrawals),
     // gwKey serializes goalWithdrawals so the memo only re-runs when goal data actually changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey]
+    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, hasLifeEvents, JSON.stringify(monthlyByYear)]
   );
   const selFinal = selSeries[selSeries.length - 1];
   const contribSeries = useMemo(
-    () => contributedSeries(years, start, effectiveMonthly, monthsArr, startMonth),
-    [years, start, effectiveMonthly, monthsArr, startMonth]
+    () => hasLifeEvents
+      ? contributedSeriesSchedule(years, start, monthlyByYear, startMonth)
+      : contributedSeries(years, start, effectiveMonthly, monthsArr, startMonth),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [years, start, effectiveMonthly, monthsArr, startMonth, hasLifeEvents, JSON.stringify(monthlyByYear)]
   );
   const finals = useMemo(
-    () => Object.fromEntries(RISK.map((r) => [r.key, projectFinal(r.ret - fee, years, start, effectiveMonthly, monthsArr, startMonth)])),
-    [fee, years, start, effectiveMonthly, monthsArr, startMonth]
+    () => Object.fromEntries(RISK.map((r) => [r.key, hasLifeEvents
+      ? projectSeriesSchedule(r.ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals).slice(-1)[0]
+      : projectFinal(r.ret - fee, years, start, effectiveMonthly, monthsArr, startMonth)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fee, years, start, effectiveMonthly, monthsArr, startMonth, hasLifeEvents, JSON.stringify(monthlyByYear), gwKey]
   );
   const scaleRef = useMemo(
     () => projectFinal(0.10, years, start, effectiveMonthly, monthsArr, startMonth),
@@ -138,7 +203,9 @@ export default function Dashboard({ plan, setPlan }) {
     return projectFinal(-0.03, stressYears, v1, effectiveMonthly, null, 0);
   }, [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth]);
 
-  const contributed = totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
+  const contributed = hasLifeEvents
+    ? contributedSeriesSchedule(years, start, monthlyByYear, startMonth).slice(-1)[0]
+    : totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
   const growth = Math.max(0, selFinal - contributed);
   const hasData = start > 0 || effectiveMonthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0));
 
@@ -262,10 +329,10 @@ export default function Dashboard({ plan, setPlan }) {
   const optRefundMonthly = (recSim.refundYr1 || 0) / 12;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const optSeries = useMemo(() => {
-    if (optRefundMonthly < 1 || !hasData) return null;
+    if (optRefundMonthly < 1 || !hasData || hasLifeEvents) return null;
     return projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ret, fee, years, start, effectiveMonthly, optRefundMonthly, monthsArr, startMonth, gwKey]);
+  }, [ret, fee, years, start, effectiveMonthly, optRefundMonthly, monthsArr, startMonth, gwKey, hasLifeEvents]);
   const optFinal = optSeries ? optSeries[optSeries.length - 1] : null;
   const optBoost = optFinal != null ? Math.max(0, optFinal - selFinal) : 0;
 
@@ -297,6 +364,9 @@ export default function Dashboard({ plan, setPlan }) {
   );
   const stackedSeries = useMemo(() => {
     if (!byAcct) return null;
+    // When life events change savings over time, the per-account breakdown (steady contributions)
+    // would disagree with the schedule-aware projection line — show the line view instead.
+    if (hasLifeEvents) return null;
     const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0;
     const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
     const hasResp     = (Array.isArray(plan.resps) && plan.resps.some(r => n(r.balance) > 0 || n(r.monthlyContrib) > 0)) || n(plan.bResp) > 0;
@@ -315,7 +385,7 @@ export default function Dashboard({ plan, setPlan }) {
     ].filter(Boolean).filter((l) => l.values.some((v) => v > 0));
     return layers.length > 1 ? layers : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byAcct, plan.bFhsa, plan.fhsaYearOpened, plan.bPensionDC, plan.bDpsp, plan.bNonreg, plan.bResp, plan.bRdsp, plan.pensionDCEmployerPct, monthly, homeEquityArr]);
+  }, [byAcct, plan.bFhsa, plan.fhsaYearOpened, plan.bPensionDC, plan.bDpsp, plan.bNonreg, plan.bResp, plan.bRdsp, plan.pensionDCEmployerPct, monthly, homeEquityArr, hasLifeEvents]);
 
   // "If I stopped today" — starting balance compounding with zero future contributions
   // Uses the same withdrawal events as selSeries so the gap purely reflects contribution value
@@ -373,14 +443,15 @@ export default function Dashboard({ plan, setPlan }) {
   const numYrs = targetNumber > 0 ? yearsToTarget(targetNumber, ret - fee, start, annInv) : null;
   const customGoals = Array.isArray(plan.customGoals) ? plan.customGoals : [];
   const customGoalCalc = customGoals.map((g) => {
-    const amt = n(g.amount), yrs = n(g.years);
+    const amt = n(g.amount), yrs = goalYears(g);
+    const dueLabel = g.date ? new Date(`${g.date}T00:00:00`).toLocaleDateString("en-CA", { month: "short", year: "numeric" }) : null;
     const reqMonthly = (() => {
       const N = yrs * 12, i = (ret - fee) / 12;
       if (N <= 0 || amt <= 0) return null;
       if (i <= 0) return amt / N;
       return Math.max(0, amt * i / (Math.pow(1 + i, N) - 1));
     })();
-    return { ...g, amt, yrs, reqMonthly, yToReach: amt > 0 ? yearsToTarget(amt, ret - fee, 0, annInv) : null };
+    return { ...g, amt, yrs, dueLabel, reqMonthly, yToReach: amt > 0 ? yearsToTarget(amt, ret - fee, 0, annInv) : null };
   });
 
   // Milestone dots on the growth chart for each custom savings goal
@@ -460,12 +531,18 @@ export default function Dashboard({ plan, setPlan }) {
       const ongoingNote = yrAmt === 0 && recSteadyYr1[acct] > 0
         ? ` Aim for up to ${fmtMoney(recSteadyYr1[acct])}/yr once you're ready.`
         : "";
+      const rrspRoomNote = acct === "rrsp" && rrspRoomUncertain
+        ? (hasWorkplacePension
+            ? ` ⚠ We can only estimate your RRSP room (~${fmtMoney(rrspLimit)}) from income. Because you have a workplace pension, your real room is reduced by a pension adjustment and is likely lower — check your latest Notice of Assessment before contributing this much.`
+            : ` Heads up: this assumes ~${fmtMoney(rrspLimit)} of room (18% of income). Your exact limit — including unused room carried forward — is on your Notice of Assessment. Enter it in your numbers to be sure.`)
+        : "";
       nextSteps.push({
         key: acct, label: `${ACCT_NAME[acct]} contribution`, amount: yrAmt, cap: recCaps[acct], done: false,
+        warn: acct === "rrsp" && rrspRoomUncertain && hasWorkplacePension,
         note: acct === "fhsa"
           ? `${investPrefix}Tax refund now, and the money comes out completely tax-free when you buy your first home.${ongoingNote}`
           : acct === "rrsp"
-            ? `${investPrefix}You get a tax refund now; withdrawals are taxed in retirement — usually at a lower rate than today.${ongoingNote}`
+            ? `${investPrefix}You get a tax refund now; withdrawals are taxed in retirement — usually at a lower rate than today.${ongoingNote}${rrspRoomNote}`
             : `${investPrefix}Grows and withdraws completely tax-free. No tax on gains, no tax when you take it out.${ongoingNote}`,
       });
     }
@@ -505,8 +582,8 @@ export default function Dashboard({ plan, setPlan }) {
     return parts.length ? parts : null;
   })();
 
-  const rrspSaving = income > 0 && rrspPlan > 0 ? deductionSaving(income, prov, empType, rrspPlan) : 0;
-  const fhsaSaving = income > 0 && fhsaPlan > 0 ? deductionSaving(income, prov, empType, fhsaPlan) : 0;
+  const rrspSaving = income > 0 && rrspPlan > 0 ? deductionSaving(salaryIncome, prov, empType,rrspPlan) : 0;
+  const fhsaSaving = income > 0 && fhsaPlan > 0 ? deductionSaving(salaryIncome, prov, empType,fhsaPlan) : 0;
 
   const tfsaCum = tfsaCumulativeRoom(n(plan.birthYear));
   const tfsaUsed = n(plan.tfsaUsed);
@@ -632,6 +709,35 @@ export default function Dashboard({ plan, setPlan }) {
         <div className="pp-snapc"><div className="l">Next priority</div><div className="v" style={{ fontSize: 16, lineHeight: 1.2 }}>{firstTodo >= 0 && nextSteps[firstTodo] ? nextSteps[firstTodo].label : "Keep investing"}</div><div className="h">{firstTodo >= 0 && nextSteps[firstTodo] && nextSteps[firstTodo].amount > 0 ? fmtMoney(nextSteps[firstTodo].amount) + (["ef","debt","match"].includes(nextSteps[firstTodo].key) ? "" : "/yr") : "your action plan below"}</div></div>
       </div>
 
+      {/* What changes over time — life events timeline */}
+      {(() => {
+        const evs = lifeEvents
+          .filter((e) => n(e.age) > age && n(e.age) <= retAge && n(e.amount) > 0)
+          .sort((a, b) => n(a.age) - n(b.age));
+        if (evs.length === 0) return null;
+        const describe = (e) => e.type === "income"
+          ? <>income changes to <b>{fmtMoney(n(e.amount))}/yr</b></>
+          : e.type === "invest-more"
+            ? <>invest <b style={{ color: "var(--green)" }}>+{fmtMoney(n(e.amount))}/mo</b></>
+            : <>redirect <b style={{ color: "var(--rose)" }}>−{fmtMoney(n(e.amount))}/mo</b> to a new cost</>;
+        return (
+          <div className="pp-timeline pp-noprint">
+            <div className="pp-timeline-hd"><CalendarClock size={14} /> What changes over time</div>
+            <div className="pp-timeline-track">
+              <div className="pp-timeline-node now"><div className="age">Now · {age}</div><div className="lbl">{fmtMoney(monthly)}/mo</div></div>
+              {evs.map((e) => (
+                <div key={e.id} className="pp-timeline-node"><div className="age">Age {n(e.age)}</div><div className="lbl">{e.label || "Change"}</div><div className="chg">{describe(e)}</div></div>
+              ))}
+            </div>
+            <p className="pp-timeline-note">{evs.some((e) => e.type !== "income")
+              ? <>Your projection above already reflects the savings changes. </>
+              : ""}{evs.some((e) => e.type === "income")
+              ? <>Income changes are shown for context — to reflect one in your plan, add a matching “free up money” or “new cost” change. </>
+              : ""}Edit these in <button className="pp-inlinelink" onClick={edit}>your numbers</button>.</p>
+          </div>
+        );
+      })()}
+
       {/* Section tab nav */}
       <div id="pp-secnav-anchor" style={{ scrollMarginTop: 80 }} />
       <div className="pp-secnav-guide pp-noprint">
@@ -653,11 +759,9 @@ export default function Dashboard({ plan, setPlan }) {
         <span className="pp-secnav-divider" aria-hidden="true" />
         <span className="pp-secnav-label">Go deeper</span>
         {[
-          ...(income > 0 ? [["sec-taxplan", "Tax plan"]] : []),
-          ...(income > 0 ? [["sec-pay", "Paycheque"], ["sec-tax", "Tax savings"], ["sec-vs", "TFSA vs RRSP"]] : []),
+          ...(income > 0 ? [["sec-pay", "Paycheque & tax"]] : []),
           ["sec-room", "Contribution limits"],
           ...(hasData ? [["sec-grow", "Growth"]] : []),
-          ["sec-accounts", "Account types"],
         ].map(([id, label]) => (
           <button key={id} type="button"
             className={activeTabs.has(id) ? "active" : ""}
@@ -774,6 +878,7 @@ export default function Dashboard({ plan, setPlan }) {
               <div className="pp-step-b">
                 <h4>{s.label} {s.amount > 0 && <span className="amt">{["ef","debt","match"].includes(s.key) ? fmtMoney(s.amount) : fmtMoney(s.amount) + "/yr"}</span>}
                   {s.urgent && !s.done && <span className="pp-step-tag urgent">Highest guaranteed return</span>}
+                  {s.warn && <span className="pp-step-tag warn">Check your NOA room</span>}
                   {i === firstTodo && <span className="pp-step-tag">Start here</span>}
                   {s.done && <span className="pp-step-tag ok">Done</span>}
                 </h4>
@@ -975,8 +1080,8 @@ export default function Dashboard({ plan, setPlan }) {
         )}
       </div>}
 
-      {/* OPTIMIZED TAX PLAN */}
-      {income > 0 && activeTabs.has("sec-taxplan") && (
+      {/* OPTIMIZED TAX PLAN — merged into the Accounts tab */}
+      {income > 0 && activeTabs.has("sec-compare") && (
         <div id="sec-taxplan" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
           <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
@@ -984,7 +1089,7 @@ export default function Dashboard({ plan, setPlan }) {
           {(() => {
             const yr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
             const deductibleTotal = (yr1.rrsp || 0) + (yr1.fhsa || 0);
-            const totalTaxSaved = deductibleTotal > 0 ? deductionSaving(income, prov, empType, deductibleTotal) : 0;
+            const totalTaxSaved = deductibleTotal > 0 ? deductionSaving(salaryIncome, prov, empType,deductibleTotal) : 0;
             const netInvested = (yr1.rrsp || 0) + (yr1.fhsa || 0) + (yr1.tfsa || 0) + (yr1.taxable || 0);
 
             const taxSteps = [];
@@ -1015,20 +1120,20 @@ export default function Dashboard({ plan, setPlan }) {
               detail: `Clearing ${fmtMoney(debt)} of high-interest debt is better than most investment returns.`,
             });
             if ((yr1.rrsp || 0) > 0) {
-              const rrspSave = deductionSaving(income, prov, empType, yr1.rrsp || 0);
+              const rrspSave = deductionSaving(salaryIncome, prov, empType,yr1.rrsp || 0);
               taxSteps.push({
                 key: "rrsp", done: false,
                 icon: <Landmark size={16} />, accentColor: "var(--gold)", accentBg: "#F8F0E0",
                 label: `RRSP — ${fmtMoney(yr1.rrsp)}/yr`,
                 badge: rrspSave > 0 ? `+${fmtMoney(rrspSave)} refund` : null,
                 math: `${fmtMoney(yr1.rrsp)} × ${pct1(marginal)} = ${fmtMoney(rrspSave)} tax back → your net cost is ${fmtMoney(Math.max(0, (yr1.rrsp || 0) - rrspSave))}`,
-                detail: `The government sends you a refund cheque at tax time — your real cost to have $${(yr1.rrsp||0).toLocaleString()} invested is just ${fmtMoney(Math.max(0,(yr1.rrsp||0)-deductionSaving(income,prov,empType,yr1.rrsp||0)))}. The money then grows until retirement, when you pay ~${pct1(retMarginal)} tax on withdrawals — lower than today's ${pct1(marginal)}, so you come out ahead.`,
+                detail: `The government sends you a refund cheque at tax time — your real cost to have $${(yr1.rrsp||0).toLocaleString()} invested is just ${fmtMoney(Math.max(0,(yr1.rrsp||0)-deductionSaving(salaryIncome,prov,empType,yr1.rrsp||0)))}. The money then grows until retirement, when you pay ~${pct1(retMarginal)} tax on withdrawals — lower than today's ${pct1(marginal)}, so you come out ahead.`,
               });
             }
             if ((yr1.fhsa || 0) > 0 && buyingHome) {
               const rrspAlready = yr1.rrsp || 0;
-              const combinedSave = deductionSaving(income, prov, empType, rrspAlready + (yr1.fhsa || 0));
-              const rrspSaveAlone = rrspAlready > 0 ? deductionSaving(income, prov, empType, rrspAlready) : 0;
+              const combinedSave = deductionSaving(salaryIncome, prov, empType,rrspAlready + (yr1.fhsa || 0));
+              const rrspSaveAlone = rrspAlready > 0 ? deductionSaving(salaryIncome, prov, empType,rrspAlready) : 0;
               const fhsaInc = combinedSave - rrspSaveAlone;
               taxSteps.push({
                 key: "fhsa", done: false,
@@ -1270,9 +1375,9 @@ export default function Dashboard({ plan, setPlan }) {
                 <div style={{ marginTop: 8 }}>
                   {customGoalCalc.map((g, gi) => (
                     <div key={gi} className="pp-savegoal">
-                      <div className="nm">{g.name || "Goal " + (gi + 1)}</div>
+                      <div className="nm">{g.name || "Goal " + (gi + 1)}{g.dueLabel && <span style={{ fontWeight: 500, fontSize: 13, color: "var(--muted)", marginLeft: 8 }}>· due {g.dueLabel}</span>}</div>
                       <div className="pp-grid-3" style={{ marginTop: 6 }}>
-                        <div className="pp-rate-chip"><div className="l">Target</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
+                        <div className="pp-rate-chip"><div className="l">Target</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.dueLabel ? `by ${g.dueLabel}` : g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
                         <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Monthly · with growth</div><div className="v">{g.reqMonthly != null ? fmtMoney(g.reqMonthly) + "/mo" : "—"}</div><div className="h">at {pct1(ret)}</div></div>
                         <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly · as cash</div><div className="v">{g.yrs > 0 && g.amt > 0 ? fmtMoney(g.amt / (g.yrs * 12)) + "/mo" : "—"}</div><div className="h">no growth</div></div>
                       </div>
@@ -1438,7 +1543,7 @@ export default function Dashboard({ plan, setPlan }) {
         <div id="sec-pay" style={{ marginTop: 30 }}>
           <span className="pp-eyebrow"><Receipt size={14} /> Your paycheque, decoded</span>
           <h3 className="pp-sec-h">Where your {fmtMoney(income)} actually goes</h3>
-          <p className="pp-sec-lead">Your gross income in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
+          <p className="pp-sec-lead">Your {incorporated ? "personal pay" : "gross income"} in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : incorporated ? "incorporated owner" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
           <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
           <div className="pp-card">
             <PaycheckBreakdown tax={tax} marginal={marginal} />
@@ -1448,8 +1553,8 @@ export default function Dashboard({ plan, setPlan }) {
         </div>
       )}
 
-      {/* TAX SAVINGS */}
-      {income > 0 && activeTabs.has("sec-tax") && (
+      {/* TAX SAVINGS — merged into the Paycheque & tax tab */}
+      {income > 0 && activeTabs.has("sec-pay") && (
         <div id="sec-tax" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Tax savings &amp; brackets</span>
           <h3 className="pp-sec-h">Your bracket, and what a deduction does to it</h3>
@@ -1465,7 +1570,13 @@ export default function Dashboard({ plan, setPlan }) {
             <div className="pp-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><h4 style={{ fontSize: 19 }}>RRSP deduction</h4><PiggyBank size={20} style={{ color: "var(--violet)" }} /></div>
               <CurrencyField id="d-rrspplan" label="Amount you'd contribute" value={rrspPlan} onChange={(v) => setRrspPlan(n(v))} placeholder="e.g. 6,000"
-                help={rrspLimit > 0 ? <>Your estimated room is about <b>{fmtMoney(rrspLimit)}</b>.</> : null} />
+                help={rrspLimit > 0 ? <>Your {rrspRoomKnown ? "" : "estimated "}room is about <b>{fmtMoney(rrspLeft)}</b>{rrspRoomKnown ? "" : " — confirm on your Notice of Assessment"}.</> : null} />
+              {rrspPlan > rrspLeft && rrspLeft >= 0 && (
+                <div className="pp-overwarn" style={{ marginTop: 8 }}>
+                  <AlertTriangle size={15} style={{ flex: "none" }} />
+                  <span>{fmtMoney(rrspPlan)} is <b>more than your {rrspRoomKnown ? "" : "estimated "}room</b> of {fmtMoney(rrspLeft)}. {rrspRoomKnown ? <>Contributing over your limit triggers a <b>1%/month</b> penalty on the excess.</> : <>Check your Notice of Assessment before contributing this much — over-contributing triggers a <b>1%/month</b> penalty.</>}</span>
+                </div>
+              )}
               <div className="pp-stat" style={{ marginTop: 6 }}><span>Estimated tax saved</span><b style={{ color: "var(--green)" }}>{fmtMoney(rrspSaving)}</b></div>
               <div className="pp-stat"><span>Net cost to you</span><b>{fmtMoney(Math.max(0, rrspPlan - rrspSaving))}</b></div>
               <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Defers tax — you'll pay income tax when you withdraw in retirement, ideally at a lower rate.</p>
@@ -1474,6 +1585,12 @@ export default function Dashboard({ plan, setPlan }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><h4 style={{ fontSize: 19 }}>FHSA deduction</h4><HomeIcon size={20} style={{ color: "var(--gold)" }} /></div>
               <CurrencyField id="d-fhsaplan" label="Amount you'd contribute" value={fhsaPlan} onChange={(v) => setFhsaPlan(n(v))} placeholder="e.g. 8,000"
                 help={<>Up to {fmtMoney(TAX_CONFIG.fhsa.annual)}/year ({fmtMoney(TAX_CONFIG.fhsa.maxYear)} with carry-forward).</>} />
+              {fhsaPlan > TAX_CONFIG.fhsa.maxYear && (
+                <div className="pp-overwarn" style={{ marginTop: 8 }}>
+                  <AlertTriangle size={15} style={{ flex: "none" }} />
+                  <span>{fmtMoney(fhsaPlan)} is over the {fmtMoney(TAX_CONFIG.fhsa.maxYear)} most you can deduct in one year (this year's {fmtMoney(TAX_CONFIG.fhsa.annual)} plus one year carried forward).</span>
+                </div>
+              )}
               <div className="pp-stat" style={{ marginTop: 6 }}><span>Estimated tax saved</span><b style={{ color: "var(--green)" }}>{fmtMoney(fhsaSaving)}</b></div>
               <div className="pp-stat"><span>Net cost to you</span><b>{fmtMoney(Math.max(0, fhsaPlan - fhsaSaving))}</b></div>
               <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Unlike the RRSP, a qualifying first-home FHSA withdrawal is <b>never</b> taxed — the deduction is permanent if used for a home.</p>
@@ -1484,8 +1601,8 @@ export default function Dashboard({ plan, setPlan }) {
         </div>
       )}
 
-      {/* TFSA vs RRSP */}
-      {income > 0 && activeTabs.has("sec-vs") && (() => {
+      {/* TFSA vs RRSP — merged into the Paycheque & tax tab */}
+      {income > 0 && activeTabs.has("sec-pay") && (() => {
         const claw = oasClawback(retTaxableIncome);
         const nearClaw = retTaxableIncome > TAX_CONFIG.oas.thresholdMin - 15000 && retTaxableIncome <= TAX_CONFIG.oas.thresholdMin;
         const lowIncomeRet = retTaxableIncome > 0 && retTaxableIncome < 32000;
@@ -1563,11 +1680,19 @@ export default function Dashboard({ plan, setPlan }) {
           </div>
           <div className="pp-roomc">
             <h4>RRSP <Landmark size={18} style={{ color: "var(--gold)" }} /></h4>
-            <div className="pp-room-big">{fmtMoney(rrspLeft)}</div>
-            <div className="pp-room-sub">Room left {n(plan.rrspLimitNOA) > 0 ? "(from your Notice of Assessment)" : "(estimated from income)"}</div>
+            <div className="pp-room-big">{fmtMoney(rrspLeft)}{rrspRoomUncertain && <span style={{ fontSize: 15, color: "var(--gold)", fontWeight: 600 }}> · est.</span>}</div>
+            <div className="pp-room-sub">Room left {rrspRoomKnown ? "(from your Notice of Assessment)" : "(rough estimate from income)"}</div>
             <Bar used={rrspUsed} total={rrspLimit} color="var(--gold)" />
-            <div className="pp-room-legend"><span>Limit: {fmtMoney(rrspLimit)}</span><span>Used: {fmtMoney(rrspUsed)}</span></div>
+            <div className="pp-room-legend"><span>{rrspRoomKnown ? "Limit" : "Est. limit"}: {fmtMoney(rrspLimit)}</span><span>Used: {fmtMoney(rrspUsed)}</span></div>
             {rrspOver && <div className="pp-overwarn"><AlertTriangle size={15} style={{ flex: "none" }} /><span>Over your limit by more than the {fmtMoney(TAX_CONFIG.rrsp.overBuffer)} buffer — <b>1%/month</b> penalty.</span></div>}
+            {rrspRoomUncertain && (
+              <div className="pp-roomnote">
+                <Info size={14} style={{ flex: "none", marginTop: 1 }} />
+                <span>{hasWorkplacePension
+                  ? <>This is an <b>estimate</b> and is probably <b>too high</b> — your workplace pension reduces RRSP room through a pension adjustment we can't see. Use the exact figure on your latest <b>Notice of Assessment</b> before contributing.</>
+                  : <>This is a rough <b>estimate</b> (18% of income, this year only). Your real limit includes unused room carried forward from past years — find the exact number on your <b>Notice of Assessment</b> or in CRA My Account.</>}</span>
+              </div>
+            )}
           </div>
           <div className="pp-roomc">
             <h4>FHSA <HomeIcon size={18} style={{ color: "var(--rose)" }} /></h4>
@@ -1852,9 +1977,9 @@ export default function Dashboard({ plan, setPlan }) {
         </div>
       )}
 
-      {/* ACCOUNTS */}
-      {activeTabs.has("sec-accounts") && <div id="sec-accounts" style={{ marginTop: 38 }}>
-        <span className="pp-eyebrow">Accounts that may fit your goal</span>
+      {/* ACCOUNT TYPES — merged into the Accounts tab (reference) */}
+      {activeTabs.has("sec-compare") && <div id="sec-accounts" style={{ marginTop: 38 }}>
+        <span className="pp-eyebrow">Reference · account types</span>
         <h3 style={{ fontSize: 26, margin: "10px 0 20px" }}>Where to hold your investments</h3>
         <div className="pp-grid-3">
           {accts.map((ac) => (

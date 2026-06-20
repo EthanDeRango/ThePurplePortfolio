@@ -51,7 +51,28 @@ export const TAX_CONFIG = {
   rrsp: { pct: 0.18, dollarMax: 33810, overBuffer: 2000 },
   fhsa: { annual: 8000, lifetime: 40000, carryMax: 8000, maxYear: 16000, participationYears: 15, closeAge: 71 },
   capGainsInclusion: 0.50, // SOURCE: 66.67% proposal CANCELLED Mar 2025 — flat 50% for individuals
+  // Dividend gross-up + federal dividend tax credit (as a fraction of the grossed-up taxable dividend).
+  // SOURCE: CRA — eligible: 38% gross-up, 15.0198% fed DTC; non-eligible: 15% gross-up, 9.0301% fed DTC.
   eligDividend: { grossUp: 0.38, fedDTC: 0.150198 },
+  nonEligDividend: { grossUp: 0.15, fedDTC: 0.090301 },
+  // Provincial/territorial dividend tax credit, as a fraction of the grossed-up taxable dividend.
+  // SOURCE: 2025 provincial DTC rates (EY/KPMG dividend tax tables) used as 2026 estimates — these
+  // move little year to year. Dividend results are presented as ESTIMATES in the UI.
+  provDivDTC: {
+    AB: { elig: 0.0812, nonElig: 0.0218 },
+    BC: { elig: 0.1200, nonElig: 0.0196 },
+    MB: { elig: 0.0800, nonElig: 0.007835 },
+    NB: { elig: 0.1400, nonElig: 0.0275 },
+    NL: { elig: 0.0630, nonElig: 0.0320 },
+    NS: { elig: 0.0885, nonElig: 0.0299 },
+    NT: { elig: 0.1150, nonElig: 0.0600 },
+    NU: { elig: 0.0551, nonElig: 0.0261 },
+    ON: { elig: 0.1000, nonElig: 0.029863 },
+    PE: { elig: 0.1050, nonElig: 0.0130 },
+    QC: { elig: 0.1170, nonElig: 0.0342 },
+    SK: { elig: 0.1100, nonElig: 0.0210 },
+    YT: { elig: 0.12017, nonElig: 0.0067 },
+  },
   // SOURCE: OAS recovery tax ("clawback"), 2026 — threshold $95,323, 15% recovery, full clawback ~$155k
   oas: { thresholdMin: 95323, rate: 0.15, maxPension: 8988 },
 };

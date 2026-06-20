@@ -20,7 +20,15 @@ function fedBPA(net) {
   return f.bpaMax - (f.bpaMax - f.bpaBase) * frac;
 }
 
-export function contributions(gross, prov, selfEmployed) {
+const num = (x) => { const v = typeof x === "number" ? x : parseFloat(x); return isNaN(v) ? 0 : v; };
+
+// employmentType: "employed" | "self" | "incorporated"
+// - self: pays both halves of CPP, no EI
+// - incorporated (owner-manager on salary): employee CPP only (corp pays the employer half),
+//   and EI-exempt (controlling owners don't pay EI). Dividends carry no CPP/EI at all.
+export function contributions(gross, prov, employmentType) {
+  const selfEmployed = employmentType === "self" || employmentType === true; // accept legacy boolean
+  const incorporated = employmentType === "incorporated";
   const isQC = prov === "QC";
   const C = isQC ? TAX_CONFIG.qpp : TAX_CONFIG.cpp;
   const pen = Math.max(0, Math.min(gross, C.ympe) - C.exemption);
@@ -29,9 +37,9 @@ export function contributions(gross, prov, selfEmployed) {
   let cpp2 = cpp2Earn * C.cpp2Rate;
   if (selfEmployed) { base *= 2; cpp2 *= 2; }
   let ei = 0;
-  if (!selfEmployed) ei = Math.min(gross, TAX_CONFIG.ei.mie) * (isQC ? TAX_CONFIG.ei.qcRate : TAX_CONFIG.ei.rate);
+  if (!selfEmployed && !incorporated) ei = Math.min(gross, TAX_CONFIG.ei.mie) * (isQC ? TAX_CONFIG.ei.qcRate : TAX_CONFIG.ei.rate);
   let qpip = 0;
-  if (isQC) qpip = Math.min(gross, TAX_CONFIG.qpip.mie) * (selfEmployed ? TAX_CONFIG.qpip.selfRate : TAX_CONFIG.qpip.rate);
+  if (isQC && !incorporated) qpip = Math.min(gross, TAX_CONFIG.qpip.mie) * (selfEmployed ? TAX_CONFIG.qpip.selfRate : TAX_CONFIG.qpip.rate);
   return { isQC, pen, cppBase: base, cpp2, ei, qpip, cppTotal: base + cpp2, creditRate: C.creditRate, enhRate: C.enhRate };
 }
 
@@ -50,39 +58,54 @@ export function ontarioHealthPremium(t) {
   return Math.min(900, 750 + 0.25 * (t - 200000));
 }
 
-export function taxEngine(gross, prov, employmentType, deductions = 0) {
+// dividends (optional): { eligible, nonEligible } — CASH dividend amounts paid to the person.
+// They carry NO CPP/EI, are grossed up for tax, then a dividend tax credit is applied.
+export function taxEngine(gross, prov, employmentType, deductions = 0, dividends = null) {
   const selfEmployed = employmentType === "self";
   const F = TAX_CONFIG.federal;
   const P = TAX_CONFIG.prov[prov] || TAX_CONFIG.prov.ON;
-  const con = contributions(gross, prov, selfEmployed);
+  const con = contributions(gross, prov, employmentType);
   const cppDed = cppDeduction(con, selfEmployed);
-  const taxable = Math.max(0, gross - cppDed - deductions);
+
+  // Dividends: gross-up + dividend tax credit (personal-side, for incorporated owners)
+  const eligCash    = dividends ? num(dividends.eligible) : 0;
+  const nonEligCash = dividends ? num(dividends.nonEligible) : 0;
+  const eligGross    = eligCash * (1 + TAX_CONFIG.eligDividend.grossUp);
+  const nonEligGross = nonEligCash * (1 + TAX_CONFIG.nonEligDividend.grossUp);
+  const divTaxable   = eligGross + nonEligGross;
+  const ddtc = TAX_CONFIG.provDivDTC[prov] || TAX_CONFIG.provDivDTC.ON;
+  const fedDivCredit  = eligGross * TAX_CONFIG.eligDividend.fedDTC + nonEligGross * TAX_CONFIG.nonEligDividend.fedDTC;
+  const provDivCredit = eligGross * ddtc.elig + nonEligGross * ddtc.nonElig;
+
+  const taxable = Math.max(0, gross - cppDed - deductions) + divTaxable;
 
   let fed = bracketTax(taxable, F.brackets);
   const fedCredits =
     fedBPA(taxable) * F.lowRate +
     con.pen * con.creditRate * F.lowRate +
     con.ei * F.lowRate +
-    (!selfEmployed ? F.cea * F.lowRate : 0);
-  fed = Math.max(0, fed - fedCredits);
+    (!selfEmployed && employmentType !== "incorporated" ? F.cea * F.lowRate : 0);
+  fed = Math.max(0, fed - fedCredits - fedDivCredit);
   if (con.isQC) fed = fed * (1 - F.qcAbatement);
 
   let prv = bracketTax(taxable, P.brackets);
   let provCredits = P.bpa * P.low + (con.pen * con.creditRate + con.ei + (con.isQC ? con.qpip : 0)) * P.low;
-  prv = Math.max(0, prv - provCredits);
+  prv = Math.max(0, prv - provCredits - provDivCredit);
   if (P.surtax) { let s = 0; for (const x of P.surtax) if (prv > x.over) s += (prv - x.over) * x.rate; prv += s; }
   if (P.healthPremium) prv += ontarioHealthPremium(taxable);
 
   const totalTax = fed + prv;
   const stat = con.cppTotal + con.ei + con.qpip;
-  const net = gross - stat - totalTax;
+  const cashIncome = gross + eligCash + nonEligCash;
+  const net = cashIncome - stat - totalTax;
   return {
-    gross, prov, taxable, cppDed,
+    gross: cashIncome, salary: gross, prov, taxable, cppDed,
+    eligDiv: eligCash, nonEligDiv: nonEligCash, divTaxable, divCredit: fedDivCredit + provDivCredit,
     cppBase: con.cppBase, cpp2: con.cpp2, cppTotal: con.cppTotal, ei: con.ei, qpip: con.qpip,
     fedTax: fed, provTax: prv, totalTax, statutory: stat,
     net, netMonthly: net / 12,
-    avgRate: gross > 0 ? totalTax / gross : 0,
-    avgRateAll: gross > 0 ? (stat + totalTax) / gross : 0,
+    avgRate: cashIncome > 0 ? totalTax / cashIncome : 0,
+    avgRateAll: cashIncome > 0 ? (stat + totalTax) / cashIncome : 0,
     isQC: con.isQC, selfEmployed,
   };
 }

@@ -20,6 +20,13 @@ export const monthIndexOf = (iso) => {
   const mi = parseInt(p[1], 10) - 1;
   return isNaN(mi) ? 0 : Math.max(0, Math.min(11, mi));
 };
+// Fractional years from today to an ISO date (negative if in the past); null if unparseable.
+export const yearsUntil = (iso) => {
+  if (!iso) return null;
+  const t = new Date(`${iso}T00:00:00`);
+  if (isNaN(t.getTime())) return null;
+  return (t.getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
+};
 
 // ── Risk / return ─────────────────────────────────────────────────────────────
 export const riskBy   = (k) => RISK.find((r) => r.key === k) || RISK[1];
@@ -85,6 +92,45 @@ export function projectSeriesWithWithdrawals(rate, years, startBal, monthly, mon
 export function projectFinal(rate, years, startBal, monthly, monthsArr, startMonth) {
   const s = projectSeries(rate, years, startBal, monthly, monthsArr, startMonth);
   return s[s.length - 1];
+}
+
+// Projection where the monthly contribution changes by year (life events / variable savings).
+// monthlyByYear[y] = monthly contribution applied during year y (0 = first year from now).
+// startMonth applies only to year 0; withdrawals: [{year, amount}] (1-indexed) as elsewhere.
+export function projectSeriesSchedule(rate, years, startBal, monthlyByYear, startMonth, withdrawals) {
+  const i  = rate / 12;
+  const sm = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
+  let bal  = startBal;
+  const out = [bal];
+  const wMap = {};
+  if (withdrawals) for (const w of withdrawals) {
+    if (w.year >= 1 && w.year <= years && w.amount > 0) wMap[w.year] = (wMap[w.year] || 0) + w.amount;
+  }
+  for (let y = 0; y < years; y++) {
+    const m = n(monthlyByYear[y] != null ? monthlyByYear[y] : monthlyByYear[monthlyByYear.length - 1]);
+    for (let mo = 0; mo < 12; mo++) {
+      if (y === 0 && mo < sm) continue;
+      bal = bal * (1 + i);
+      bal += m;
+    }
+    if (wMap[y + 1]) bal = Math.max(0, bal - wMap[y + 1]);
+    out.push(bal);
+  }
+  return out;
+}
+
+// Cumulative contributions when the monthly amount changes by year (matches projectSeriesSchedule).
+export function contributedSeriesSchedule(years, startBal, monthlyByYear, startMonth) {
+  const sm = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
+  const out = [startBal];
+  let total = startBal;
+  for (let y = 0; y < years; y++) {
+    const m = n(monthlyByYear[y] != null ? monthlyByYear[y] : monthlyByYear[monthlyByYear.length - 1]);
+    const months = y === 0 ? (12 - sm) : 12;
+    total += m * months;
+    out.push(total);
+  }
+  return out;
 }
 
 export function totalContributed(years, startBal, monthly, monthsArr, startMonth) {

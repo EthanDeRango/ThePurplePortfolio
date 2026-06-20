@@ -268,13 +268,45 @@ export default function Planner({ plan, setPlan }) {
               <div className="pp-toggle">
                 <button className={plan.employmentType === "employed" ? "on" : ""} onClick={() => set("employmentType", "employed")}>Employed</button>
                 <button className={plan.employmentType === "self" ? "on" : ""} onClick={() => set("employmentType", "self")}>Self-employed</button>
+                <button className={plan.employmentType === "incorporated" ? "on" : ""} onClick={() => set("employmentType", "incorporated")}>Incorporated</button>
               </div>
-              <div className="pp-help">{plan.employmentType === "self" ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan) — roughly double the normal deduction. No EI (Employment Insurance) typically applies.</> : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
-              <div className="pp-help" style={{ marginTop: 6 }}>
-                <b>Own an incorporated business?</b> Enter the salary and/or dividends you pay <i>yourself personally</i> — that's what this tool models. It does <b>not</b> model corporate tax, retained earnings held in the company, or salary-vs-dividend optimization — your accountant handles those.
-              </div>
+              <div className="pp-help">{plan.employmentType === "self"
+                ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan) — roughly double the normal deduction. No EI (Employment Insurance) typically applies.</>
+                : plan.employmentType === "incorporated"
+                  ? <>We model how you pay <i>yourself</i> personally — salary (with CPP) and/or dividends (no CPP/EI, taxed with the dividend tax credit). We do <b>not</b> model corporate tax, retained earnings, or salary-vs-dividend optimization inside the company — your accountant handles those.</>
+                  : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
             </div>
           </div>
+
+          {plan.employmentType === "incorporated" && (
+            <div className="pp-subcard" style={{ marginTop: 8 }}>
+              <p className="pp-sub-h">How do you pay yourself?</p>
+              <div className="pp-toggle">
+                <button className={(plan.payMix || "salary") === "salary" ? "on" : ""} onClick={() => set("payMix", "salary")}>All salary</button>
+                <button className={plan.payMix === "dividends" ? "on" : ""} onClick={() => set("payMix", "dividends")}>All dividends</button>
+                <button className={plan.payMix === "mix" ? "on" : ""} onClick={() => set("payMix", "mix")}>A mix</button>
+              </div>
+              {plan.payMix === "mix" && (
+                <div className="pp-field" style={{ marginTop: 12 }}>
+                  <label className="pp-label2" htmlFor="f-salaryshare">Share taken as salary: <b>{n(plan.salaryShare) || 50}%</b> salary · {100 - (n(plan.salaryShare) || 50)}% dividends</label>
+                  <input id="f-salaryshare" className="pp-range" type="range" min="0" max="100" step="5" value={n(plan.salaryShare) || 50} onChange={(e) => set("salaryShare", e.target.value)} />
+                </div>
+              )}
+              {plan.payMix !== "salary" && (
+                <div className="pp-field" style={{ marginTop: 12 }}>
+                  <label className="pp-label2">Dividend type</label>
+                  <div className="pp-toggle">
+                    <button className={(plan.dividendType || "noneligible") === "noneligible" ? "on" : ""} onClick={() => set("dividendType", "noneligible")}>Non-eligible (small business)</button>
+                    <button className={plan.dividendType === "eligible" ? "on" : ""} onClick={() => set("dividendType", "eligible")}>Eligible</button>
+                  </div>
+                  <div className="pp-help">Most owner-managers pay <b>non-eligible</b> dividends (from small-business-rate income). Eligible dividends come from income taxed at the general corporate rate.</div>
+                </div>
+              )}
+              <div className="pp-help" style={{ marginTop: 10 }}>
+                Heads up: <b>dividends don't create RRSP room</b> (only salary does) and don't count toward CPP. Tax figures here are <b>estimates</b> — confirm with your accountant.
+              </div>
+            </div>
+          )}
 
           <div className="pp-field" style={{ marginTop: 18 }}>
             <label className="pp-label2">How do you want to invest?</label>
@@ -424,21 +456,35 @@ export default function Planner({ plan, setPlan }) {
           {(plan.goals || []).includes("save") && (() => {
             const list = Array.isArray(plan.customGoals) ? plan.customGoals : [];
             const upd = (i, key, val) => { const next = list.map((g, gi) => gi === i ? { ...g, [key]: val } : g); set("customGoals", next); };
-            const add = () => set("customGoals", [...list, { name: "", amount: "", years: "" }]);
+            const add = () => set("customGoals", [...list, { name: "", amount: "", years: "", date: "" }]);
             const rm = (i) => set("customGoals", list.filter((_, gi) => gi !== i));
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const yrsFromDate = (d) => { const t = new Date(d + "T00:00:00"); if (isNaN(t)) return null; return (t - new Date()) / (365.25 * 24 * 3600 * 1000); };
             return (
               <div className="pp-subcard">
                 <p className="pp-sub-h">What are you saving for?</p>
-                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like — a car, a wedding, a big trip, or <b>helping your kids with a home down payment</b>. Each gets its own plan, and the money is set aside from your projection at the right time.</div>
-                {list.map((g, i) => (
-                  <div key={i} className="pp-savedit">
-                    <input className="pp-input" placeholder="What for? e.g. Maya's university" value={g.name || ""} onChange={(e) => upd(i, "name", e.target.value)} />
-                    <div className="pp-input-wrap" style={{ maxWidth: 150 }}><span className="pp-adorn">$</span><input className="pp-input" inputMode="numeric" placeholder="amount" value={g.amount || ""} onChange={(e) => upd(i, "amount", e.target.value.replace(/[^0-9]/g, ""))} /></div>
-                    <div className="pp-input-wrap" style={{ maxWidth: 130 }}><input className="pp-input" inputMode="numeric" placeholder="years" value={g.years || ""} onChange={(e) => upd(i, "years", e.target.value.replace(/[^0-9]/g, ""))} /><span className="pp-adorn r">yrs</span></div>
-                    <button className="pp-savedit-rm" onClick={() => rm(i)} aria-label="Remove goal">✕</button>
-                  </div>
-                ))}
-                <button className="pp-btn pp-btn-ghost" style={{ marginTop: 4 }} onClick={add}>+ Add a goal</button>
+                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like — a car, a wedding, a big trip, or <b>helping your kids with a home down payment</b>. Set a target amount and a due date, and the money is set aside from your projection at the right time.</div>
+                {list.map((g, i) => {
+                  const yd = g.date ? yrsFromDate(g.date) : null;
+                  return (
+                    <div key={i} className="pp-lifeevent">
+                      <input className="pp-input" placeholder="What for? e.g. Maya's university" value={g.name || ""} onChange={(e) => upd(i, "name", e.target.value)} />
+                      <div className="pp-lifeevent-row">
+                        <div className="pp-input-wrap" style={{ maxWidth: 140 }}><span className="pp-adorn">$</span><input className="pp-input" inputMode="numeric" placeholder="amount" value={g.amount || ""} onChange={(e) => upd(i, "amount", e.target.value.replace(/[^0-9]/g, ""))} /></div>
+                        <div className="pp-field" style={{ flex: 1, minWidth: 170, marginBottom: 0 }}>
+                          <input type="date" className="pp-input" min={todayStr} value={g.date || ""} onChange={(e) => upd(i, "date", e.target.value)} aria-label="Due date" />
+                        </div>
+                        <button type="button" className="pp-lifeevent-rm" onClick={() => rm(i)} aria-label="Remove goal">✕</button>
+                      </div>
+                      {yd != null && (
+                        <div className="pp-help" style={{ marginTop: 6 }}>
+                          {yd < 0 ? "That date is in the past — pick a future date." : yd < 3 ? <>Due in about <b>{Math.max(0, Math.round(yd))} year{Math.round(yd) === 1 ? "" : "s"}</b>. For goals under ~3 years, keeping the money in cash usually beats investing it.</> : <>Due in about <b>{Math.round(yd)} years</b> — we'll show the monthly amount to get there.</>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }} onClick={add}>+ Add a goal</button>
               </div>
             );
           })()}
@@ -599,6 +645,48 @@ export default function Planner({ plan, setPlan }) {
             <CurrencyField id="f-debt" label="High-interest debt (optional)" placeholder="e.g. 5,000" value={plan.highInterestDebt} onChange={(v) => set("highInterestDebt", v)}
               help={<>Credit cards or other debt above ~10%. Paying it off is a guaranteed, tax-free return.</>} />
           </div>
+
+          {/* Life changes over time (optional) */}
+          {(() => {
+            const events = Array.isArray(plan.lifeEvents) ? plan.lifeEvents : [];
+            const upd = (id, key, val) => set("lifeEvents", events.map((e) => e.id === id ? { ...e, [key]: val } : e));
+            const add = () => set("lifeEvents", [...events, { id: String(Date.now()), type: "invest-more", amount: "", age: "", label: "" }]);
+            const rm = (id) => set("lifeEvents", events.filter((e) => e.id !== id));
+            const TYPES = [
+              { v: "invest-more", label: "Free up money to invest (+$/mo)" },
+              { v: "invest-less", label: "New ongoing cost (−$/mo)" },
+              { v: "income", label: "Income changes to ($/yr)" },
+            ];
+            return (
+              <div className="pp-subcard" style={{ marginTop: 16 }}>
+                <p className="pp-sub-h">Life changes over time <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></p>
+                <div className="pp-help" style={{ marginTop: 0 }}>
+                  Know something will shift? Add it and your projection follows along. For example: a child finishes university so you can invest <b>$1,200/mo more</b> at age 52, a new cost begins, or your income changes.
+                </div>
+                {events.map((e) => (
+                  <div key={e.id} className="pp-lifeevent">
+                    <input className="pp-input" placeholder="What changes? e.g. Maya finishes university"
+                      value={e.label || ""} onChange={(ev) => upd(e.id, "label", ev.target.value)} />
+                    <div className="pp-lifeevent-row">
+                      <select className="pp-input" value={e.type} onChange={(ev) => upd(e.id, "type", ev.target.value)} aria-label="Change type">
+                        {TYPES.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+                      </select>
+                      <div className="pp-input-wrap" style={{ maxWidth: 130 }}><span className="pp-adorn">$</span>
+                        <input className="pp-input" inputMode="numeric" placeholder={e.type === "income" ? "new income" : "amount"}
+                          value={e.amount || ""} onChange={(ev) => upd(e.id, "amount", ev.target.value.replace(/[^0-9]/g, ""))} /></div>
+                      <div className="pp-input-wrap" style={{ maxWidth: 120 }}>
+                        <input className="pp-input" inputMode="numeric" placeholder="age" value={e.age || ""} onChange={(ev) => upd(e.id, "age", ev.target.value.replace(/[^0-9]/g, ""))} />
+                        <span className="pp-adorn r">at age</span></div>
+                      <button type="button" className="pp-lifeevent-rm" onClick={() => rm(e.id)} aria-label="Remove">✕</button>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }} onClick={add}>
+                  + Add a change
+                </button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* 4 — Your accounts */}

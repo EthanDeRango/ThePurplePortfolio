@@ -3,6 +3,8 @@ import { fmtMoney, pct1 } from "../lib/calculations.js";
 export default function PaycheckBreakdown({ tax, marginal }) {
   const g = Math.max(1, tax.gross);
   const cppLabel = tax.isQC ? "QPP / QPP2" : "CPP / CPP2";
+  const divCash = (tax.eligDiv || 0) + (tax.nonEligDiv || 0);
+  const hasDiv = divCash > 0;
   const rows = [
     { key: "net",  label: "Net take-home",   val: tax.net,      color: "var(--violet)" },
     { key: "fed",  label: "Federal tax",      val: tax.fedTax,   color: "var(--plum)" },
@@ -46,9 +48,16 @@ export default function PaycheckBreakdown({ tax, marginal }) {
         </div>
       </div>
 
+      {hasDiv && (
+        <div style={{ marginTop: 14, padding: "10px 12px", background: "#F8F0E0", border: "1px solid rgba(168,118,30,.25)", borderRadius: 10, fontSize: 12.5, color: "#5C400A", lineHeight: 1.5 }}>
+          You pay yourself <b>{fmtMoney(tax.salary)}</b> salary{tax.salary > 0 ? " (carries CPP)" : ""} + <b>{fmtMoney(divCash)}</b> dividends (no CPP/EI). Dividends are taxed with the dividend tax credit — these figures are <b>estimates</b>; confirm with your accountant.
+        </div>
+      )}
       <table className="pp-taxtable" style={{ marginTop: 18 }}>
         <tbody>
-          <tr><td><span className="pp-swatch" style={{ background: "var(--ink)" }} />Gross income</td><td>{fmtMoney(tax.gross)}</td></tr>
+          <tr><td><span className="pp-swatch" style={{ background: "var(--ink)" }} />{hasDiv ? "Total pay (salary + dividends)" : "Gross income"}</td><td>{fmtMoney(tax.gross)}</td></tr>
+          {hasDiv && tax.salary > 0 && <tr><td style={{ paddingLeft: 22, color: "var(--muted)" }}>· Salary</td><td style={{ color: "var(--muted)" }}>{fmtMoney(tax.salary)}</td></tr>}
+          {hasDiv && <tr><td style={{ paddingLeft: 22, color: "var(--muted)" }}>· Dividends</td><td style={{ color: "var(--muted)" }}>{fmtMoney(divCash)}</td></tr>}
           <tr><td><span className="pp-swatch" style={{ background: "var(--teal)" }} />{cppLabel}{tax.selfEmployed ? " (both halves)" : ""}</td><td>−{fmtMoney(tax.cppTotal)}</td></tr>
           {tax.ei > 0 && <tr><td><span className="pp-swatch" style={{ background: "var(--blue)" }} />EI premiums</td><td>−{fmtMoney(tax.ei)}</td></tr>}
           {tax.qpip > 0 && <tr><td><span className="pp-swatch" style={{ background: "var(--rose)" }} />QPIP</td><td>−{fmtMoney(tax.qpip)}</td></tr>}

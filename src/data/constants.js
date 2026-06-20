@@ -28,6 +28,13 @@ export const PLAN_DEFAULTS = {
   pensionDBMonthly: "", pensionDBStartAge: "",
   // Home purchase projection assumptions (optional overrides)
   mortgageRate: "", homeAppreciation: "",
+  // Life events — future changes to savings/income at a given age.
+  // [{ id, age, type: 'invest-more'|'invest-less'|'income', amount, label }]
+  lifeEvents: [],
+  // Incorporated business owner: how they pay themselves (personal-side modeling only)
+  payMix: "salary", // 'salary' | 'dividends' | 'mix'
+  dividendType: "noneligible", // 'eligible' | 'noneligible' — small-biz dividends are usually non-eligible
+  salaryShare: 50, // when payMix === 'mix', % of income taken as salary
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";
