@@ -166,6 +166,70 @@ export function oasClawback(retIncome) {
   return Math.min(o.maxPension, over * o.rate);
 }
 
+// ── Derived planning inputs (extracted from the dashboard so they're unit-testable) ──
+
+// Incorporated owners split their total pay into salary vs dividends. Only salary is
+// "earned income" (creates RRSP room, carries CPP). Non-incorporated → all salary.
+export function splitIncome(income, empType, payMix, salaryShare) {
+  const inc = n(income);
+  if (empType !== "incorporated") return { salaryIncome: inc, dividendIncome: 0 };
+  const mix = payMix || "salary";
+  if (mix === "dividends") return { salaryIncome: 0, dividendIncome: inc };
+  if (mix === "mix") {
+    const s = Math.min(100, Math.max(0, n(salaryShare) || 50)) / 100;
+    return { salaryIncome: inc * s, dividendIncome: inc * (1 - s) };
+  }
+  return { salaryIncome: inc, dividendIncome: 0 };
+}
+
+// Rough CPP + OAS estimate. OAS starts at 65 and is clawed back at higher retirement
+// incomes — we apply the clawback (using planned spend as the income proxy) so the
+// projected benefit isn't overstated.
+export function govBenefitsEstimate(income, retAge, retSpend) {
+  if (retAge < 60) return { govBenefits: 0, oasClawApplied: 0 };
+  const oasGross = retAge >= 65 ? 8800 : 0;
+  const cppFull = n(income) > 0 ? Math.min(17400, Math.max(4000, n(income) * 0.18)) : 8500;
+  const yearsEarly = Math.max(0, 65 - retAge);
+  const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
+  const oasClaw = oasGross > 0 ? Math.min(oasGross, Math.round(oasClawback(retSpend))) : 0;
+  const oasNet = Math.max(0, oasGross - oasClaw);
+  return { govBenefits: Math.max(0, cpp) + oasNet, oasClawApplied: oasClaw };
+}
+
+// Safe-withdrawal rate scales down as retirement lengthens (sequence-of-returns risk).
+// Planning horizon: age 95. Returns the rate, the nest-egg multiple (1/rate), and length.
+export function retirementWithdrawal(retAge) {
+  const lengthYears = Math.max(10, 95 - retAge);
+  const rate =
+    lengthYears <= 25 ? 0.045 :
+    lengthYears <= 30 ? 0.040 :
+    lengthYears <= 35 ? 0.037 :
+    lengthYears <= 40 ? 0.035 : 0.033;
+  return { rate, multiple: Math.round(1 / rate), lengthYears };
+}
+
+// The savings-affecting life events (expenses free up cash, or a new ongoing cost),
+// filtered to those that land between now and retirement, sorted by age.
+export function savingsEventsFor(lifeEvents, age, retAge) {
+  return (Array.isArray(lifeEvents) ? lifeEvents : [])
+    .filter((e) => (e.type === "invest-more" || e.type === "invest-less") && n(e.amount) > 0 && n(e.age) > age && n(e.age) <= retAge)
+    .sort((a, b) => n(a.age) - n(b.age));
+}
+
+// Per-year monthly contribution, shifting at each savings event's age (drives the projection).
+export function savingsSchedule(effectiveMonthly, age, years, savingsEvents) {
+  const arr = new Array(Math.max(1, years)).fill(0);
+  for (let y = 0; y < arr.length; y++) {
+    let m = effectiveMonthly;
+    const atAge = age + y;
+    for (const e of (savingsEvents || [])) {
+      if (atAge >= n(e.age)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);
+    }
+    arr[y] = Math.max(0, m);
+  }
+  return arr;
+}
+
 // ── TFSA / RRSP / FHSA room ───────────────────────────────────────────────────
 export function tfsaCumulativeRoom(birthYear) {
   const h = TAX_CONFIG.tfsa.history;

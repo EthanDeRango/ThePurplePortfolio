@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, n } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, n } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -95,6 +95,59 @@ export function runSelfTest() {
     ["pensionTax $50k ON > 0",           pensionTax(50000, "ON") > 0],
     ["retirementMarginal $0 = 0",        retirementMarginal(0, "ON") === 0],
     ["retirementMarginal increases",     retirementMarginal(80000, "ON") > retirementMarginal(30000, "ON")],
+
+    // ── Dividends / incorporated (personal-side) ──────────────────────────────
+    ["non-elig gross-up config = 15%",   C.nonEligDividend.grossUp === 0.15],
+    ["elig $100k → taxable $138k",       nearAbs(taxEngine(0, "ON", "incorporated", 0, { eligible: 100000 }).taxable, 138000, 0.01)],
+    ["non-elig $100k → taxable $115k",   nearAbs(taxEngine(0, "ON", "incorporated", 0, { nonEligible: 100000 }).taxable, 115000, 0.01)],
+    ["dividends carry no CPP",           taxEngine(0, "ON", "incorporated", 0, { nonEligible: 80000 }).cppTotal === 0],
+    ["dividends carry no EI",            taxEngine(0, "ON", "incorporated", 0, { nonEligible: 80000 }).ei === 0],
+    ["incorporated salary: no EI",       taxEngine(80000, "ON", "incorporated").ei === 0],
+    ["incorporated salary: has CPP",     taxEngine(80000, "ON", "incorporated").cppBase > 0],
+    ["~$50k eligible div ≈ $0 federal",  taxEngine(0, "ON", "incorporated", 0, { eligible: 50000 }).fedTax < 1],
+    ["non-elig taxed more than eligible",taxEngine(0, "ON", "incorporated", 0, { nonEligible: 100000 }).totalTax > taxEngine(0, "ON", "incorporated", 0, { eligible: 100000 }).totalTax],
+    ["dividend net > salary net @100k",  taxEngine(0, "ON", "incorporated", 0, { nonEligible: 100000 }).net > taxEngine(100000, "ON", "employed").net],
+    ["QC has its own dividend credit",   C.provDivDTC.QC.elig > 0 && C.provDivDTC.ON.elig > 0],
+
+    // ── Schedule-aware projection (life events) ───────────────────────────────
+    ["constant schedule == projectFinal", nearAbs(projectSeriesSchedule(0.08, 30, 0, new Array(30).fill(300), 0, null).slice(-1)[0], projectFinal(0.08, 30, 0, 300), 1)],
+    ["rising schedule beats flat",        projectSeriesSchedule(0.08, 10, 0, [100,100,100,100,100,500,500,500,500,500], 0, null).slice(-1)[0] > projectSeriesSchedule(0.08, 10, 0, new Array(10).fill(100), 0, null).slice(-1)[0]],
+    ["schedule withdrawal reduces total", projectSeriesSchedule(0.08, 10, 0, new Array(10).fill(300), 0, [{ year: 5, amount: 10000 }]).slice(-1)[0] < projectSeriesSchedule(0.08, 10, 0, new Array(10).fill(300), 0, null).slice(-1)[0]],
+    ["contributed schedule $300×12×10",   contributedSeriesSchedule(10, 0, new Array(10).fill(300), 0).slice(-1)[0] === 36000],
+
+    // ── yearsUntil (goal due dates) ───────────────────────────────────────────
+    ["yearsUntil(null) = null",          yearsUntil(null) === null],
+    ["yearsUntil(garbage) = null",       yearsUntil("not-a-date") === null],
+    ["yearsUntil future > 0",            yearsUntil("2099-12-31") > 50],
+    ["yearsUntil past < 0",              yearsUntil("2000-01-01") < 0],
+
+    // ── splitIncome (extracted dashboard logic) ───────────────────────────────
+    ["employed → all salary",            splitIncome(100000, "employed").salaryIncome === 100000 && splitIncome(100000, "employed").dividendIncome === 0],
+    ["incorporated all dividends",       splitIncome(100000, "incorporated", "dividends").dividendIncome === 100000 && splitIncome(100000, "incorporated", "dividends").salaryIncome === 0],
+    ["incorporated all salary",          splitIncome(100000, "incorporated", "salary").salaryIncome === 100000],
+    ["incorporated 60/40 mix",           splitIncome(100000, "incorporated", "mix", 60).salaryIncome === 60000 && splitIncome(100000, "incorporated", "mix", 60).dividendIncome === 40000],
+    ["incorporated mix defaults 50/50",  splitIncome(100000, "incorporated", "mix").salaryIncome === 50000],
+
+    // ── retirementWithdrawal (horizon → rate) ─────────────────────────────────
+    ["retire 65 → 4.0% / 25×",           retirementWithdrawal(65).rate === 0.040 && retirementWithdrawal(65).multiple === 25],
+    ["retire 70 → 4.5% / 22×",           retirementWithdrawal(70).rate === 0.045 && retirementWithdrawal(70).multiple === 22],
+    ["retire 55 → 3.5%",                 retirementWithdrawal(55).rate === 0.035],
+    ["retire 50 → 3.3%",                 retirementWithdrawal(50).rate === 0.033],
+    ["earlier retirement, lower rate",   retirementWithdrawal(55).rate < retirementWithdrawal(65).rate],
+
+    // ── govBenefitsEstimate (CPP/OAS + clawback) ──────────────────────────────
+    ["gov benefits before 60 = 0",       govBenefitsEstimate(80000, 55, 50000).govBenefits === 0],
+    ["gov benefits @65 $80k = $23,200",  govBenefitsEstimate(80000, 65, 50000).govBenefits === 23200],
+    ["no OAS clawback at modest spend",  govBenefitsEstimate(80000, 65, 50000).oasClawApplied === 0],
+    ["full OAS clawback at $200k spend", govBenefitsEstimate(300000, 65, 200000).oasClawApplied === 8800],
+    ["retiring at 60 lowers CPP",        govBenefitsEstimate(80000, 60, 50000).govBenefits < govBenefitsEstimate(80000, 65, 50000).govBenefits],
+
+    // ── savingsSchedule / savingsEventsFor (life events) ──────────────────────
+    ["flat schedule when no events",     savingsSchedule(1000, 40, 5, []).every((m) => m === 1000)],
+    ["invest-more bumps from its age",   (() => { const ev = savingsEventsFor([{ type: "invest-more", amount: 500, age: 42 }], 40, 65); const s = savingsSchedule(1000, 40, 5, ev); return s[0] === 1000 && s[2] === 1500; })()],
+    ["invest-less floors at 0",          savingsSchedule(300, 40, 3, [{ type: "invest-less", amount: 1000, age: 41 }])[1] === 0],
+    ["event at current age excluded",    savingsEventsFor([{ type: "invest-more", amount: 500, age: 40 }], 40, 65).length === 0],
+    ["event after retirement excluded",  savingsEventsFor([{ type: "invest-more", amount: 500, age: 70 }], 40, 65).length === 0],
   ];
 
   const failed = checks.filter(([, ok]) => !ok);

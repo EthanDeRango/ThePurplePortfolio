@@ -10,6 +10,7 @@ import {
   n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
   projectSeriesSchedule, contributedSeriesSchedule,
   totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
+  splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
   yearsToTarget, fiTarget, simulateStrategy,
@@ -44,13 +45,7 @@ export default function Dashboard({ plan, setPlan }) {
   // Only salary is "earned income" that creates RRSP room and carries CPP; dividends do neither.
   const incorporated = empType === "incorporated";
   const dividendType = plan.dividendType === "eligible" ? "eligible" : "nonEligible";
-  const { salaryIncome, dividendIncome } = (() => {
-    if (!incorporated) return { salaryIncome: income, dividendIncome: 0 };
-    const mix = plan.payMix || "salary";
-    if (mix === "dividends") return { salaryIncome: 0, dividendIncome: income };
-    if (mix === "mix") { const s = Math.min(100, Math.max(0, n(plan.salaryShare) || 50)) / 100; return { salaryIncome: income * s, dividendIncome: income * (1 - s) }; }
-    return { salaryIncome: income, dividendIncome: 0 };
-  })();
+  const { salaryIncome, dividendIncome } = splitIncome(income, empType, plan.payMix, plan.salaryShare);
   const divObj = incorporated && dividendIncome > 0 ? { [dividendType]: dividendIncome } : null;
   const divKey = divObj ? `${dividendType}:${Math.round(dividendIncome)}` : "";
   const earnedIncome = incorporated ? salaryIncome : income; // RRSP room is based on earned income only
@@ -145,23 +140,13 @@ export default function Dashboard({ plan, setPlan }) {
   // Savings-affecting events (expenses free up cash, or a new ongoing cost) shift the
   // monthly amount invested from a given age onward, so the projection reflects real life.
   const lifeEvents = Array.isArray(plan.lifeEvents) ? plan.lifeEvents : [];
-  const savingsEvents = lifeEvents
-    .filter((e) => (e.type === "invest-more" || e.type === "invest-less") && n(e.amount) > 0 && n(e.age) > age && n(e.age) <= retAge)
-    .sort((a, b) => n(a.age) - n(b.age));
+  const savingsEvents = savingsEventsFor(lifeEvents, age, retAge);
   const hasLifeEvents = savingsEvents.length > 0;
-  const monthlyByYear = useMemo(() => {
-    const arr = new Array(Math.max(1, years)).fill(0);
-    for (let y = 0; y < arr.length; y++) {
-      let m = effectiveMonthly;
-      const atAge = age + y;
-      for (const e of savingsEvents) {
-        if (atAge >= n(e.age)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);
-      }
-      arr[y] = Math.max(0, m);
-    }
-    return arr;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [years, age, effectiveMonthly, JSON.stringify(savingsEvents)]);
+  const monthlyByYear = useMemo(
+    () => savingsSchedule(effectiveMonthly, age, years, savingsEvents),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [years, age, effectiveMonthly, JSON.stringify(savingsEvents)]
+  );
 
   // memoized expensive computations
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,29 +231,10 @@ export default function Dashboard({ plan, setPlan }) {
     const startAge = n(plan.pensionDBStartAge) > 0 ? n(plan.pensionDBStartAge) : retAge;
     return startAge <= retAge ? mo * 12 : 0;
   })();
-  // Rough CPP + OAS estimate — CPP from income/age, OAS starts at 65.
-  // OAS is reduced (clawed back) at higher retirement incomes; we apply it using planned
-  // retirement spending as the income proxy so the projected benefit isn't overstated.
-  const { govBenefits, oasClawApplied } = (() => {
-    if (retAge < 60) return { govBenefits: 0, oasClawApplied: 0 };
-    const oasGross = retAge >= 65 ? 8800 : 0;
-    const cppFull = income > 0 ? Math.min(17400, Math.max(4000, income * 0.18)) : 8500;
-    const yearsEarly = Math.max(0, 65 - retAge);
-    const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
-    const oasClaw = oasGross > 0 ? Math.min(oasGross, Math.round(oasClawback(retSpend))) : 0;
-    const oasNet = Math.max(0, oasGross - oasClaw);
-    return { govBenefits: Math.max(0, cpp) + oasNet, oasClawApplied: oasClaw };
-  })();
-  // Safe-withdrawal rate scales DOWN as retirement lengthens — the 4% rule is a ~30-year,
-  // US-equity heuristic. A 55-year-old planning to ~95 needs a lower, safer rate (a nod to
-  // sequence-of-returns risk). Planning horizon: age 95.
-  const retLengthYears = Math.max(10, 95 - retAge);
-  const safeWithdrawalRate =
-    retLengthYears <= 25 ? 0.045 :
-    retLengthYears <= 30 ? 0.040 :
-    retLengthYears <= 35 ? 0.037 :
-    retLengthYears <= 40 ? 0.035 : 0.033;
-  const nestEggMultiple = Math.round(1 / safeWithdrawalRate);
+  // Rough CPP + OAS estimate (with OAS clawback applied) — see govBenefitsEstimate.
+  const { govBenefits, oasClawApplied } = govBenefitsEstimate(income, retAge, retSpend);
+  // Safe-withdrawal rate scales down as retirement lengthens (sequence-of-returns risk).
+  const { rate: safeWithdrawalRate, multiple: nestEggMultiple, lengthYears: retLengthYears } = retirementWithdrawal(retAge);
   const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) / safeWithdrawalRate;
   const retNeedFuture = Math.round(retNeedToday * Math.pow(1 + inflRate, years));
   // INFLATION FIX: when inflation toggle is on, the displayed balance is in today's $,
