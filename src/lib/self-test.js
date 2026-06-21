@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, n } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -30,7 +30,7 @@ export function runSelfTest() {
     ["max CPP base $4,230.45",    nearAbs(contributions(120000, "ON", false).cppBase, 4230.45, 0.5)],
     ["max EI $1,123.07",          nearAbs(contributions(120000, "ON", false).ei,      1123.07, 0.5)],
     ["CPP base at exemption = 0", contributions(3500,   "ON", false).cppBase === 0],
-    ["CPP base ON $50k",          nearAbs(contributions(50000, "ON", false).cppBase, 50000 >= 3500 ? (Math.min(50000, C.cpp.ympe) - C.cpp.exemption) * C.cpp.baseRate : 0, 1)],
+    ["CPP base ON $50k",          nearAbs(contributions(50000, "ON", false).cppBase, (Math.min(50000, C.cpp.ympe) - C.cpp.exemption) * C.cpp.baseRate, 1)],
     ["QPP rate higher than CPP",  contributions(60000, "QC", false).cppBase > contributions(60000, "ON", false).cppBase],
     ["EI = 0 for self-employed",  contributions(80000, "ON", true).ei === 0],
     ["QC EI rate lower than ON",  contributions(60000, "QC", false).ei < contributions(60000, "ON", false).ei],

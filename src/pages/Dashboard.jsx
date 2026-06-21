@@ -7,13 +7,13 @@ import {
   Info, Home as HomeIcon, TrendingUp, GraduationCap,
 } from "lucide-react";
 import {
-  n, fmtMoney, fmtShort, pct1, projectSeries, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
+  n, fmtMoney, fmtShort, pct1, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
   projectSeriesSchedule, contributedSeriesSchedule,
   totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
-  yearsToTarget, fiTarget, simulateStrategy,
+  yearsToTarget, simulateStrategy,
   recommendOrder, healthScore, annualInvestable, insights, accounts,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
@@ -149,7 +149,7 @@ export default function Dashboard({ plan, setPlan }) {
   );
 
   // memoized expensive computations
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const selSeries = useMemo(
     () => hasLifeEvents
       ? projectSeriesSchedule(ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals)
@@ -293,7 +293,7 @@ export default function Dashboard({ plan, setPlan }) {
 
   // Optimal-path series: current monthly + reinvested tax refund from RRSP/FHSA contributions
   const optRefundMonthly = (recSim.refundYr1 || 0) / 12;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const optSeries = useMemo(() => {
     if (optRefundMonthly < 1 || !hasData || hasLifeEvents) return null;
     return projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
@@ -313,7 +313,7 @@ export default function Dashboard({ plan, setPlan }) {
     fhsaYearOpened: plan.fhsaYearOpened, income: plan.income,
     pensionDCEmployerPct: plan.pensionDCEmployerPct,
   });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   const byAcct = useMemo(
     () => hasData ? projectByAccount(plan, ret - fee, years, monthly, monthsArr, startMonth, homeIdx, fhsaCloseIdx) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,7 +325,7 @@ export default function Dashboard({ plan, setPlan }) {
     () => (buyingHome && homePrice > 0 && homeIdx != null)
       ? mortgageEquitySeries(homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx)
       : new Array(years + 1).fill(0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [buyingHome, homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx]
   );
   const stackedSeries = useMemo(() => {

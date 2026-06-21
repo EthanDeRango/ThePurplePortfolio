@@ -7,10 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint .",
     "test": "node run-tests.mjs && vitest run",
     "test:engine": "node run-tests.mjs",
     "test:ui": "vitest run",
     "test:watch": "vitest"
+  },
+  "//overrides": "esbuild pinned to the patched 0.28.1 to clear the dev-server-only advisory GHSA-g7r4-m6w7-qqqr; verified compatible with vite 8.",
+  "overrides": {
+    "esbuild": "^0.28.1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
@@ -20,12 +25,17 @@
     "react-router-dom": "^7.17.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
     "jsdom": "^25.0.1",
-    "vite": "^5.4.2",
-    "vitest": "^2.1.9"
+    "vite": "^8.0.16",
+    "vitest": "^3.2.6"
   }
 }

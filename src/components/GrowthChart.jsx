@@ -156,7 +156,6 @@ export default function GrowthChart({
         )}
       </div>
 
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         className="pp-chartfocus"
         tabIndex={0}
