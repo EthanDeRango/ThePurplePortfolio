@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Check, Info, Shield, Sparkles,
@@ -5,7 +6,7 @@ import {
   GraduationCap, Heart, TrendingDown, Lock, Building2,
   Briefcase, Gift, TrendingUp,
 } from "lucide-react";
-import { NumberField, CurrencyField, SelectField } from "../components/InputFields.jsx";
+import { NumberField, CurrencyField, SelectField, Accordion } from "../components/InputFields.jsx";
 import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget } from "../lib/calculations.js";
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
@@ -17,7 +18,7 @@ const CANADIAN_ACCOUNTS = [
   {
     key: "tfsa", name: "TFSA", full: "Tax-Free Savings Account",
     Icon: PiggyBank, accent: "#3D7A3B",
-    blurb: "Tax-free growth. Withdraw any time — no tax ever.",
+    blurb: "Tax-free growth. Withdraw any time, no tax ever.",
     renderDetail: (plan, set, fmt, TC) => (
       <>
         <CurrencyField id="ab-btfsa" label="Current balance" placeholder="0" value={plan.bTfsa} onChange={(v) => set("bTfsa", v)} />
@@ -42,7 +43,7 @@ const CANADIAN_ACCOUNTS = [
         <CurrencyField id="ab-brrsp" label="Current balance" placeholder="0" value={plan.bRrsp} onChange={(v) => set("bRrsp", v)} />
         <div className="pp-row2" style={{ marginTop: 8 }}>
           <CurrencyField id="ab-rrsplimit" label="How much room you have left (optional)" placeholder="e.g. 12,000" value={plan.rrspLimitNOA} onChange={(v) => set("rrspLimitNOA", v)}
-            help="Find this on your Notice of Assessment (NOA) — the tax summary CRA mails after you file — or at CRA My Account online." />
+            help="Find this on your Notice of Assessment (NOA), the tax summary CRA mails after you file, or at CRA My Account online." />
           <CurrencyField id="ab-rrspused" label="Contributed this year" placeholder="0" value={plan.rrspUsed} onChange={(v) => set("rrspUsed", v)} />
         </div>
       </>
@@ -75,7 +76,7 @@ const CANADIAN_ACCOUNTS = [
       if (hasEducationGoal && hasResps) {
         return (
           <div className="pp-help" style={{ marginTop: 0, fontStyle: "italic" }}>
-            Your children's RESPs are managed in <b>Step 2 — Your goals</b> above. Each child has their own entry there.
+            Your children's RESPs are managed in <b>Step 2, Your goals</b> above. Each child has their own entry there.
           </div>
         );
       }
@@ -83,7 +84,7 @@ const CANADIAN_ACCOUNTS = [
         <>
           <CurrencyField id="ab-bresp" label="Current balance" placeholder="0" value={plan.bResp} onChange={(v) => set("bResp", v)} />
           <NumberField id="ab-respage" label="Beneficiary's current age" placeholder="e.g. 3" value={plan.respBeneficiaryAge} onChange={(v) => set("respBeneficiaryAge", v)}
-            suffix="yrs" help="The child who will use the funds. The government education grant (CESG) matches 20% of contributions up to $2,500/yr — it stops at age 17." />
+            suffix="yrs" help="The child who will use the funds. The government education grant (CESG) matches 20% of contributions up to $2,500/yr. It stops at age 17." />
         </>
       );
     },
@@ -117,7 +118,7 @@ const CANADIAN_ACCOUNTS = [
   {
     key: "pension_db", name: "DB Pension", full: "Defined Benefit Pension",
     Icon: Building2, accent: "#2A7A5E",
-    blurb: "A guaranteed monthly income from your employer in retirement — not market-based.",
+    blurb: "A guaranteed monthly income from your employer in retirement, not market-based.",
     renderDetail: (plan, set) => (
       <>
         <CurrencyField id="ab-dbmonthly" label="Expected monthly income at retirement" placeholder="e.g. 2,500" value={plan.pensionDBMonthly} onChange={(v) => set("pensionDBMonthly", v)}
@@ -160,6 +161,7 @@ const CANADIAN_ACCOUNTS = [
 export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
   const set = (k, v) => setPlan((p) => ({ ...p, [k]: v }));
+  const [showAssumptions, setShowAssumptions] = useState(false);
 
 
   const age = n(plan.age), retAge = n(plan.retAge), homeAge = n(plan.homeAge);
@@ -206,8 +208,8 @@ export default function Planner({ plan, setPlan }) {
   const onExit = () => navigate("/");
 
   let retHelp;
-  if (yrsRet == null) retHelp = <>Many Canadians target <b>60–65</b>. We've pre-filled 65 — adjust it to your own plan.</>;
-  else retHelp = <>That's about <b>{yrsRet} years</b> of investing from now — {yrsRet >= 30 ? "plenty of runway for compounding to do the heavy lifting." : yrsRet >= 15 ? "a solid runway to grow steadily." : "a shorter runway, so steadier choices matter more."}</>;
+  if (yrsRet == null) retHelp = <>Many Canadians target <b>60–65</b>. We've pre-filled 65; adjust it to your own plan.</>;
+  else retHelp = <>That's about <b>{yrsRet} years</b> of investing from now, {yrsRet >= 30 ? "plenty of runway for compounding to do the heavy lifting." : yrsRet >= 15 ? "a solid runway to grow steadily." : "a shorter runway, so steadier choices matter more."}</>;
 
   // ── Progress across the 4 sections ──────────────────────────────────────────
   const step1Done = age > 0 && plan.income !== undefined && plan.income !== "" && !!plan.province;
@@ -233,10 +235,15 @@ export default function Planner({ plan, setPlan }) {
         <button className="pp-back" onClick={onExit}><ArrowLeft size={16} /> Home</button>
         <span className="pp-eyebrow" style={{ marginTop: 14, display: "block" }}><Sparkles size={14} /> Build your plan</span>
         <h1 style={{ fontSize: 38, margin: "10px 0 8px" }}>Your numbers, your plan.</h1>
-        <p style={{ color: "var(--muted)", fontSize: 16, marginBottom: 20, maxWidth: "40em" }}>
-          Enter your own estimates below — there are no wrong answers, and you can change anything later.
+        <p style={{ color: "var(--muted)", fontSize: 16, marginBottom: 16, maxWidth: "40em" }}>
+          Enter your own estimates below. There are no wrong answers, and you can change anything later.
           We'll decode your paycheque, your room, and your projection.
         </p>
+
+        <div className="pp-privacy-note">
+          <Lock size={15} />
+          <span><b>Private by default.</b> Everything you enter stays on this device, in your browser. Nothing is sent anywhere unless you create a free account to sync across your devices.</span>
+        </div>
 
         {/* Progress across the 4 sections */}
         <div className="pp-progress" role="list" aria-label="Plan progress">
@@ -254,14 +261,13 @@ export default function Planner({ plan, setPlan }) {
           <div className="pp-fs-head"><div className="pp-fs-num">1</div><h3>About you</h3></div>
           <p className="pp-fs-sub">The basics that set your tax picture and time horizon.</p>
           <div className="pp-row2">
-            <NumberField id="f-age" label="Your age" placeholder="e.g. 19" value={plan.age} onChange={(v) => set("age", v)} suffix="years" error={errors.age}
-              help={<>Your age is the single biggest factor in long-term growth — earlier means more time to compound.</>} />
+            <NumberField id="f-age" label="Your age" placeholder="e.g. 19" value={plan.age} onChange={(v) => set("age", v)} suffix="years" error={errors.age} />
             <CurrencyField id="f-income" label="Annual income (CAD)" placeholder="e.g. 45,000" value={plan.income} onChange={(v) => set("income", v)} error={errors.income}
-              help={<>Your total yearly pay <b>before</b> any taxes or deductions. Used to calculate your tax rate, RRSP room, and payroll deductions (CPP pension contributions and EI insurance premiums).</>} />
+              help={<>Your total yearly pay <b>before</b> tax. Sets your tax rate, RRSP room, and payroll deductions (CPP and EI).</>} />
           </div>
           <div className="pp-row2">
             <SelectField id="f-prov" label="Province / territory" value={plan.province} onChange={(v) => set("province", v)} options={PROV_LIST}
-              help={<>Tax is provincial — this drives your brackets, rates, and credits.{plan.province === "QC" && <> Quebec uses QPP, QPIP, and the federal abatement.</>}</>} />
+              help={<>Tax is provincial, so this sets your brackets, rates, and credits.{plan.province === "QC" && <> Quebec uses QPP, QPIP, and the federal abatement.</>}</>} />
             <div className="pp-field">
               <label className="pp-label2">Employment type</label>
               <div className="pp-toggle">
@@ -270,9 +276,9 @@ export default function Planner({ plan, setPlan }) {
                 <button className={plan.employmentType === "incorporated" ? "on" : ""} onClick={() => set("employmentType", "incorporated")}>Incorporated</button>
               </div>
               <div className="pp-help">{plan.employmentType === "self"
-                ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan) — roughly double the normal deduction. No EI (Employment Insurance) typically applies.</>
+                ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan), roughly double the normal deduction. No EI (Employment Insurance) typically applies.</>
                 : plan.employmentType === "incorporated"
-                  ? <>We model how you pay <i>yourself</i> personally — salary (with CPP) and/or dividends (no CPP/EI, taxed with the dividend tax credit). We do <b>not</b> model corporate tax, retained earnings, or salary-vs-dividend optimization inside the company — your accountant handles those.</>
+                  ? <>We model how you pay <i>yourself</i> personally: salary (with CPP) and/or dividends (no CPP/EI, taxed with the dividend tax credit). We do <b>not</b> model corporate tax, retained earnings, or salary-vs-dividend optimization inside the company. Your accountant handles those.</>
                   : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
             </div>
           </div>
@@ -298,11 +304,11 @@ export default function Planner({ plan, setPlan }) {
                     <button className={(plan.dividendType || "noneligible") === "noneligible" ? "on" : ""} onClick={() => set("dividendType", "noneligible")}>Non-eligible (small business)</button>
                     <button className={plan.dividendType === "eligible" ? "on" : ""} onClick={() => set("dividendType", "eligible")}>Eligible</button>
                   </div>
-                  <div className="pp-help">Most owner-managers pay <b>non-eligible</b> dividends (from small-business-rate income). Eligible dividends come from income taxed at the general corporate rate.</div>
+                  <div className="pp-help">Most owner-managers pay <b>non-eligible</b> dividends, from small-business-rate income. Eligible dividends come from income taxed at the general corporate rate.</div>
                 </div>
               )}
               <div className="pp-help" style={{ marginTop: 10 }}>
-                Heads up: <b>dividends don't create RRSP room</b> (only salary does) and don't count toward CPP. Tax figures here are <b>estimates</b> — confirm with your accountant.
+                Heads up: <b>dividends don't create RRSP room</b> (only salary does) and don't count toward CPP. Tax figures here are <b>estimates</b>. Confirm with your accountant.
               </div>
             </div>
           )}
@@ -332,7 +338,7 @@ export default function Planner({ plan, setPlan }) {
                 {showRateWarn && (
                   <div className="pp-warn-rate">
                     <AlertTriangle size={15} style={{ flex: "none", marginTop: 1 }} />
-                    <span>A rate above 15% is unusually high for long-term projections — most broad market funds average 7–10% over time. Consider a more conservative assumption.</span>
+                    <span>A rate above 15% is unusually high for long-term projections. Most broad market funds average 7–10% over time. Consider a more conservative assumption.</span>
                   </div>
                 )}
                 <div className="pp-toggle" style={{ marginTop: 10 }}>
@@ -346,10 +352,10 @@ export default function Planner({ plan, setPlan }) {
                     <span className="pp-adorn r">% annual fund fee</span>
                   </div>
                 )}
-                <div className="pp-help">MER (Management Expense Ratio) is the annual fee your fund charges — usually 0.1–2.5%. Low-cost index ETFs are typically under 0.25%. The preset rates above already assume fees are included.</div>
+                <div className="pp-help">MER (Management Expense Ratio) is the annual fee your fund charges, usually 0.1–2.5%. Low-cost index ETFs are typically under 0.25%. The preset rates above already include fees.</div>
               </div>
             )}
-            <div className="pp-help">Those percentages are illustrative long-run averages — real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
+            <div className="pp-help">Those percentages are illustrative long-run averages. Real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
           </div>
         </div>
 
@@ -363,7 +369,7 @@ export default function Planner({ plan, setPlan }) {
                 <div className="pp-teaser-sub">your real take-home in {TAX_CONFIG.prov[plan.province].name}, after tax{teaserTax.cppTotal > 0 ? ", CPP" : ""}{teaserTax.ei > 0 ? " & EI" : ""}</div>
               </div>
               <div className="pp-teaser-aside">
-                Keep going — next we&apos;ll show your contribution room, tax savings, and a full projection to retirement.
+                Keep going. Next we&apos;ll show your contribution room, tax savings, and a full projection to retirement.
               </div>
             </div>
           </div>
@@ -372,7 +378,7 @@ export default function Planner({ plan, setPlan }) {
         {/* 2 — Your goals */}
         <div className="pp-fs">
           <div className="pp-fs-head"><div className="pp-fs-num">2</div><h3>Your goals</h3></div>
-          <p className="pp-fs-sub">This shapes your whole dashboard — your plan, your priorities, and what we track.</p>
+          <p className="pp-fs-sub">This shapes your whole dashboard: your plan, your priorities, and what we track.</p>
           <label className="pp-label2">What are your goals right now? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· pick any that apply</span></label>
           <div className="pp-goalgrid">
             {GOALS.map((g) => {
@@ -412,7 +418,7 @@ export default function Planner({ plan, setPlan }) {
             return (
               <div className="pp-subcard">
                 <p className="pp-sub-h">Each child's education fund</p>
-                <div className="pp-help" style={{ marginTop: 0 }}>Add one entry per child. The government automatically adds a <b>20% grant (CESG)</b> on your first $2,500/yr per child — up to $500/yr free money, until they turn 17.</div>
+                <div className="pp-help" style={{ marginTop: 0 }}>Add one entry per child. The government automatically adds a <b>20% grant (CESG)</b> on your first $2,500/yr per child, up to $500/yr of free money, until they turn 17.</div>
                 {resps.map((r, i) => {
                   const age = n(r.beneficiaryAge);
                   const yearsLeft = age > 0 ? Math.max(0, 18 - age) : null;
@@ -420,7 +426,7 @@ export default function Planner({ plan, setPlan }) {
                   return (
                     <div key={r.id} style={{ marginTop: 14, paddingTop: 14, borderTop: i > 0 ? "1px solid var(--line-soft)" : "none" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--plum)" }}>Child {i + 1}{r.name ? ` — ${r.name}` : ""}</span>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--plum)" }}>Child {i + 1}{r.name ? `: ${r.name}` : ""}</span>
                         {resps.length > 1 && <button className="pp-savedit-rm" onClick={() => rmResp(r.id)} aria-label="Remove">✕</button>}
                       </div>
                       <div className="pp-row2">
@@ -433,13 +439,13 @@ export default function Planner({ plan, setPlan }) {
                       <div className="pp-row2" style={{ marginTop: 8 }}>
                         <CurrencyField label="Current RESP balance" placeholder="0" value={r.balance} onChange={(v) => updResp(r.id, "balance", v)} />
                         <CurrencyField label="Monthly contribution" placeholder="e.g. 200" value={r.monthlyContrib} onChange={(v) => updResp(r.id, "monthlyContrib", v)}
-                          help="A dedicated amount for this child's education — separate from your main monthly savings." />
+                          help="A dedicated amount for this child's education, separate from your main monthly savings." />
                       </div>
                       {yearsLeft != null && (
                         <div className="pp-help" style={{ marginTop: 6, color: "var(--plum-2)" }}>
                           {yearsLeft > 0
                             ? <>{yearsLeft} years until university.{cesgYears > 0 ? <> CESG adds up to <b>$500/yr free</b> for {cesgYears} more year{cesgYears === 1 ? "" : "s"}.</> : " CESG has ended (age 17+)."}</>
-                            : "University age reached — RESP can now be withdrawn for education."}
+                            : "University age reached. RESP can now be withdrawn for education."}
                         </div>
                       )}
                     </div>
@@ -462,7 +468,7 @@ export default function Planner({ plan, setPlan }) {
             return (
               <div className="pp-subcard">
                 <p className="pp-sub-h">What are you saving for?</p>
-                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like — a car, a wedding, a big trip, or <b>helping your kids with a home down payment</b>. Set a target amount and a due date, and the money is set aside from your projection at the right time.</div>
+                <div className="pp-help" style={{ marginTop: 0 }}>Add as many separate goals as you like: a car, a wedding, a big trip, or <b>helping your kids with a home down payment</b>. Set a target amount and a due date, and the money is set aside from your projection at the right time.</div>
                 {list.map((g, i) => {
                   const yd = g.date ? yrsFromDate(g.date) : null;
                   return (
@@ -477,7 +483,7 @@ export default function Planner({ plan, setPlan }) {
                       </div>
                       {yd != null && (
                         <div className="pp-help" style={{ marginTop: 6 }}>
-                          {yd < 0 ? "That date is in the past — pick a future date." : yd < 3 ? <>Due in about <b>{Math.max(0, Math.round(yd))} year{Math.round(yd) === 1 ? "" : "s"}</b>. For goals under ~3 years, keeping the money in cash usually beats investing it.</> : <>Due in about <b>{Math.round(yd)} years</b> — we'll show the monthly amount to get there.</>}
+                          {yd < 0 ? "That date is in the past. Pick a future date." : yd < 3 ? <>Due in about <b>{Math.max(0, Math.round(yd))} year{Math.round(yd) === 1 ? "" : "s"}</b>. For goals under ~3 years, keeping the money in cash usually beats investing it.</> : <>Due in about <b>{Math.round(yd)} years</b>. We'll show the monthly amount to get there.</>}
                         </div>
                       )}
                     </div>
@@ -490,18 +496,8 @@ export default function Planner({ plan, setPlan }) {
 
           <div className="pp-row2" style={{ marginTop: 4 }}>
             <NumberField id="f-ret" label="What age do you expect to retire?" placeholder="65" value={plan.retAge} onChange={(v) => set("retAge", v)} suffix="years old" error={errors.retAge} help={retHelp} />
-            <CurrencyField id="f-retspend" label="Yearly spending in retirement (today's $)" placeholder="e.g. 50,000" value={plan.retSpend} onChange={(v) => set("retSpend", v)}
-              help={<>What would a comfortable year cost in <b>today's</b> money? We work out the nest egg you'd need (about 25× that) and the tax rate you'd pay. Leave blank to assume ~70% of your income.</>} />
-          </div>
-
-          <div className="pp-field" style={{ marginBottom: 0 }}>
-            <label className="pp-label2" htmlFor="f-infl">Inflation rate <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
-            <div className="pp-input-wrap" style={{ maxWidth: 200 }}>
-              <input id="f-infl" className="pp-input" inputMode="decimal" value={plan.inflationRate != null ? plan.inflationRate : ""} placeholder="2"
-                onChange={(e) => set("inflationRate", e.target.value.replace(/[^0-9.]/g, ""))} />
-              <span className="pp-adorn r">% / yr</span>
-            </div>
-            <div className="pp-help">Inflation means prices rise a little each year — $100 today buys less in 20 years. Canada has averaged about <b>2%</b> a year. This number adjusts your retirement target so it reflects what things will actually cost, not today's prices.</div>
+            <CurrencyField id="f-retspend" label="Yearly spending in retirement" placeholder="e.g. 50,000" value={plan.retSpend} onChange={(v) => set("retSpend", v)}
+              help={<>In <b>today's</b> dollars, what would a comfortable year cost? We size the nest egg you'd need, about 25× that amount. Leave blank to assume ~70% of your income.</>} />
           </div>
 
           <div className="pp-field">
@@ -517,40 +513,61 @@ export default function Planner({ plan, setPlan }) {
               <div className="pp-row2">
                 <NumberField id="f-homeage" label="By what age would you like to buy?" placeholder="e.g. 28" value={plan.homeAge} onChange={(v) => set("homeAge", v)} suffix="years old"
                   error={errors.homeAge}
-                  help={yrsHome != null ? <>About <b>{yrsHome} years</b> to save a down payment{yrsHome <= 5 ? " — a short timeline usually means keeping that money safer." : " — enough time to let it grow a little."}</> : <>We'll mark this milestone on your projection.</>} />
+                  help={yrsHome != null ? <>About <b>{yrsHome} years</b> to save a down payment.{yrsHome <= 5 ? " A short timeline usually means keeping that money safer." : " Enough time to let it grow a little."}</> : <>We'll mark this milestone on your projection.</>} />
                 <CurrencyField id="f-homeprice" label="About how much will the home cost?" placeholder="e.g. 550,000" value={plan.homePrice} onChange={(v) => set("homePrice", v)}
                   help={n(plan.homePrice) > 0 ? <>Minimum down payment: <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>.</> : <>We'll work out your minimum down payment and track progress toward it.</>} />
               </div>
               {n(plan.homePrice) > 0 && (
                 <div className="pp-callout" style={{ marginTop: 4 }}>
                   <Info size={18} style={{ flex: "none" }} />
-                  <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>mortgage default insurance (CMHC)</b> — a one-time premium of roughly 2.8–4% rolled into your mortgage.</> : <>At this price, the rules require a full <b>20%</b> down — no mortgage insurance required.</>}</span>
+                  <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>mortgage default insurance (CMHC)</b>, a one-time premium of roughly 2.8–4% rolled into your mortgage.</> : <>At this price, the rules require a full <b>20%</b> down, with no mortgage insurance required.</>}</span>
                 </div>
               )}
-              <div className="pp-row2" style={{ marginTop: 10 }}>
-                <div className="pp-field">
-                  <label className="pp-label2" htmlFor="f-mortgagerate">Mortgage rate <span style={{ fontWeight: 500, color: "var(--muted)" }}>(optional)</span></label>
+            </>
+          )}
+
+          {/* Optional rate knobs, grouped out of the way with sensible defaults */}
+          <Accordion
+            title="Fine-tune the assumptions"
+            sub="Optional. We use sensible Canadian defaults if you skip these."
+            open={showAssumptions}
+            onToggle={() => setShowAssumptions((v) => !v)}
+          >
+            <div className="pp-field" style={{ marginBottom: plan.buyHome ? 14 : 0 }}>
+              <label className="pp-label2" htmlFor="f-infl">Inflation rate</label>
+              <div className="pp-input-wrap" style={{ maxWidth: 200 }}>
+                <input id="f-infl" className="pp-input" inputMode="decimal" value={plan.inflationRate != null ? plan.inflationRate : ""} placeholder="2"
+                  onChange={(e) => set("inflationRate", e.target.value.replace(/[^0-9.]/g, ""))} />
+                <span className="pp-adorn r">%/yr</span>
+              </div>
+              <div className="pp-help">Prices rise a little each year, so a dollar buys less over time. Canada has averaged about <b>2%</b>. We use this to show your retirement target in today's dollars. Defaults to 2%.</div>
+            </div>
+
+            {plan.buyHome && (
+              <div className="pp-row2">
+                <div className="pp-field" style={{ marginBottom: 0 }}>
+                  <label className="pp-label2" htmlFor="f-mortgagerate">Mortgage rate</label>
                   <div className="pp-input-wrap">
                     <input id="f-mortgagerate" className="pp-input" inputMode="decimal"
                       value={plan.mortgageRate ?? ""} placeholder="5.0"
                       onChange={(e) => set("mortgageRate", e.target.value.replace(/[^0-9.]/g, ""))} />
                     <span className="pp-adorn r">%/yr</span>
                   </div>
-                  <div className="pp-help">Used to project your home equity on the chart. Defaults to 5% if blank.</div>
+                  <div className="pp-help">Used to project your home equity. Defaults to 5%.</div>
                 </div>
-                <div className="pp-field">
-                  <label className="pp-label2" htmlFor="f-homeapprec">Home appreciation <span style={{ fontWeight: 500, color: "var(--muted)" }}>(optional)</span></label>
+                <div className="pp-field" style={{ marginBottom: 0 }}>
+                  <label className="pp-label2" htmlFor="f-homeapprec">Home appreciation</label>
                   <div className="pp-input-wrap">
                     <input id="f-homeapprec" className="pp-input" inputMode="decimal"
                       value={plan.homeAppreciation ?? ""} placeholder="2.5"
                       onChange={(e) => set("homeAppreciation", e.target.value.replace(/[^0-9.]/g, ""))} />
                     <span className="pp-adorn r">%/yr</span>
                   </div>
-                  <div className="pp-help">Annual home value growth assumption. Defaults to 2.5% if blank.</div>
+                  <div className="pp-help">How fast the home's value grows. Defaults to 2.5%.</div>
                 </div>
               </div>
-            </>
-          )}
+            )}
+          </Accordion>
         </div>
 
         {/* 3 — Your money */}
@@ -560,12 +577,11 @@ export default function Planner({ plan, setPlan }) {
           <div className="pp-field">
             <label className="pp-label2" htmlFor="f-asof">Today's date</label>
             <input id="f-asof" type="date" className="pp-input" style={{ maxWidth: 230 }} value={plan.asOf || todayISO()} onChange={(e) => set("asOf", e.target.value)} />
-            <div className="pp-help">We project forward from this date. If it's partway through the year, your first year only counts the months you have left.</div>
+            <div className="pp-help">We project forward from today. A mid-year start only counts the months left this year.</div>
           </div>
           <CurrencyField id="f-monthly" label="How much can you set aside each month?" placeholder="e.g. 300" value={plan.monthly} onChange={(v) => set("monthly", v)}
-            help={<>Your total monthly savings — this one number covers everything: building your emergency fund, paying off debt, <em>and</em> investing. Your action plan shows exactly where each dollar goes first. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</>} />
-          <CurrencyField id="f-lump" label="One-time lump sum to invest now (optional)" placeholder="e.g. 5,000" value={plan.lumpSum} onChange={(v) => set("lumpSum", v)}
-            help={<>A single amount you can add today — a bonus, gift, or tax refund.</>} />
+            help={<>Your total monthly savings. This one number covers everything: emergency fund, debt, <em>and</em> investing. Your action plan shows where each dollar goes first. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</>} />
+          <CurrencyField id="f-lump" label="One-time lump sum to invest now (optional)" placeholder="e.g. 5,000" value={plan.lumpSum} onChange={(v) => set("lumpSum", v)} />
           <div className="pp-field">
             <label className="pp-label2">Do your monthly amounts vary?</label>
             <div className="pp-toggle">
@@ -604,14 +620,14 @@ export default function Planner({ plan, setPlan }) {
               <button className={plan.emergencyStatus === "partial" ? "on" : ""} onClick={() => set("emergencyStatus", "partial")}>Partially</button>
               <button className={(plan.emergencyStatus || "none") === "none" ? "on" : ""} onClick={() => set("emergencyStatus", "none")}>Not yet</button>
             </div>
-            <div className="pp-help">A cash cushion of essentials usually comes before serious investing — it's the foundation of the order of operations.</div>
+            <div className="pp-help">A cash cushion usually comes before serious investing. It's the foundation of the order of operations.</div>
           </div>
           {plan.emergencyStatus !== "full" && (
             <div className="pp-subcard">
               <p className="pp-sub-h">Let's size the right cushion for you.</p>
               <div className="pp-row2">
                 <CurrencyField id="f-expenses" label="Your essential monthly expenses" placeholder="e.g. 2,500" value={plan.livingExpenses} onChange={(v) => set("livingExpenses", v)}
-                  help={<>Rent or mortgage, food, utilities, transport, insurance — the must-pays only.</>} />
+                  help={<>Rent, food, utilities, transport, insurance. Must-pays only.</>} />
                 <div className="pp-field">
                   <label className="pp-label2">How steady is your income?</label>
                   <div className="pp-seg2">
@@ -622,8 +638,7 @@ export default function Planner({ plan, setPlan }) {
                 </div>
               </div>
               {plan.emergencyStatus === "partial" && (
-                <CurrencyField id="f-efsaved" label="How much have you saved so far?" placeholder="e.g. 3,000" value={plan.emergencySaved} onChange={(v) => set("emergencySaved", v)}
-                  help={<>We'll show how much more gets you to a full cushion.</>} />
+                <CurrencyField id="f-efsaved" label="How much have you saved so far?" placeholder="e.g. 3,000" value={plan.emergencySaved} onChange={(v) => set("emergencySaved", v)} />
               )}
               {n(plan.livingExpenses) > 0 && (() => {
                 const ef = emergencyFundTarget(plan.livingExpenses, plan.incomeStability);
@@ -631,7 +646,7 @@ export default function Planner({ plan, setPlan }) {
                 return (
                   <div className="pp-callout" style={{ marginBottom: 0 }}>
                     <Shield size={18} style={{ flex: "none" }} />
-                    <span>Aim for about <b>{fmtMoney(ef.amount)}</b> — roughly <b>{ef.months} months</b> of essentials.{plan.emergencyStatus === "partial" && n(plan.emergencySaved) > 0 ? <> You're <b>{fmtMoney(gap)}</b> away.</> : ""} Keep it in a high-interest savings account, separate from investing.</span>
+                    <span>Aim for about <b>{fmtMoney(ef.amount)}</b>, roughly <b>{ef.months} months</b> of essentials.{plan.emergencyStatus === "partial" && n(plan.emergencySaved) > 0 ? <> You're <b>{fmtMoney(gap)}</b> away.</> : ""} Keep it in a high-interest savings account, separate from investing.</span>
                   </div>
                 );
               })()}
@@ -691,7 +706,7 @@ export default function Planner({ plan, setPlan }) {
         {/* 4 — Your accounts */}
         <div className="pp-fs">
           <div className="pp-fs-head"><div className="pp-fs-num">4</div><h3>Your accounts</h3></div>
-          <p className="pp-fs-sub">Check every account type you hold — including RRSPs, TFSAs, pensions, and more. We'll ask for the details that matter for your plan.</p>
+          <p className="pp-fs-sub">Check every account type you hold, including RRSPs, TFSAs, pensions, and more. We'll ask for the details that matter for your plan.</p>
 
           <div className="pp-acct-grid">
             {CANADIAN_ACCOUNTS.map(({ key, name, full, Icon, accent, blurb }) => {
@@ -717,7 +732,7 @@ export default function Planner({ plan, setPlan }) {
           {openAccts.length === 0 && (
             <div className="pp-callout" style={{ marginTop: 12 }}>
               <Info size={18} style={{ flex: "none" }} />
-              <span>Starting from zero? No problem — skip this section and continue. You can always come back and add accounts later.</span>
+              <span>Starting from zero? No problem. Skip this section and continue; you can always come back and add accounts later.</span>
             </div>
           )}
 

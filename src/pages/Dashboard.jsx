@@ -53,6 +53,12 @@ export default function Dashboard({ plan, setPlan }) {
   const startBal = n(plan.bTfsa) + n(plan.bRrsp) + n(plan.bFhsa) + n(plan.bNonreg)
     + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp);
   const start = startBal + lumpSum;
+  // What you're worth today, from the balances entered: investments + RESP/RDSP + any
+  // emergency cash, minus high-interest debt. Grounds the big projected number in reality.
+  const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp)
+    + (plan.emergencyStatus === "partial" ? n(plan.emergencySaved) : 0)
+    - n(plan.highInterestDebt);
+  const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0;
   const monthsArr = plan.contribMode === "custom" ? (plan.months || null) : null;
   const emergencyFull = plan.emergencyStatus === "full";
   const emergencySaved = n(plan.emergencySaved);
@@ -600,8 +606,8 @@ export default function Dashboard({ plan, setPlan }) {
               In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * safeWithdrawalRate)}/yr</b> throughout retirement without running out.
             </div>
             <div style={{ marginTop: 12, fontSize: 13.5, color: "rgba(220,205,240,.92)", lineHeight: 1.55 }}>
-              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at 6%/yr → {fmtMoney(dispVal(finals.aggressive))} at 10%/yr) — they are not a downturn simulation.
-              {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk — the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at an 8% long-run average.</>} Plan for a range, not one number.
+              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at 6%/yr to {fmtMoney(dispVal(finals.aggressive))} at 10%/yr). They are not a downturn simulation.
+              {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk, the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at an 8% long-run average.</>} Plan for a range, not one number.
             </div>
             <div className="pp-scn">
               {RISK.map((r) => (
@@ -648,7 +654,7 @@ export default function Dashboard({ plan, setPlan }) {
             </div>
             <div className="pp-thisyear-pill pp-thisyear-pill-future">
               <div className="pp-thisyear-amt">{fmtMoney(thisYearFV)}</div>
-              <div className="pp-thisyear-lbl">by age {retAge} — without adding another dollar</div>
+              <div className="pp-thisyear-lbl">by age {retAge}, without adding another dollar</div>
             </div>
           </div>
           {thisYearMultiple > 1 && (
@@ -662,6 +668,13 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* Snapshot */}
       <div className="pp-snap">
+        {hasNetWorth && (
+          <div className="pp-snapc" style={{ borderColor: "var(--violet-mid)" }}>
+            <div className="l">Net worth today</div>
+            <div className="v">{fmtMoney(netWorthToday)}</div>
+            <div className="h">{n(plan.highInterestDebt) > 0 ? "your account balances, minus debt" : "across the accounts you entered"}</div>
+          </div>
+        )}
         {hasData && <div className="pp-snapc"><div className="l">Projected total</div><div className="v">{fmtMoney(dispVal(selFinal))}</div><div className="h">by age {retAge}</div></div>}
         {buyingHome && homeIdx != null && homeDown > 0 && (recSim.downAtHome || 0) > 0 && (
           <div className="pp-snapc" style={recSim.downAtHome >= homeDown ? { borderColor: "var(--green)" } : {}}>
@@ -814,7 +827,7 @@ export default function Dashboard({ plan, setPlan }) {
       {activeTabs.has("sec-plan") && <div id="sec-plan" style={{ marginTop: 32 }}>
         <span className="pp-eyebrow"><ListOrdered size={14} /> Your action plan</span>
         <h3 className="pp-sec-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
-        <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside — not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
+        <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside, not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
         {thisMonth && (
           <div className="pp-thismonth">
             <div className="pp-thismonth-lbl">Do this month</div>
@@ -1051,7 +1064,7 @@ export default function Dashboard({ plan, setPlan }) {
         <div id="sec-taxplan" style={{ marginTop: 34 }}>
           <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
           <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
-          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} tax rate on your next dollar earned — the optimal contribution order with the math shown.</p>
+          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} tax rate on your next dollar earned, here&apos;s the optimal contribution order, with the math shown.</p>
           {(() => {
             const yr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
             const deductibleTotal = (yr1.rrsp || 0) + (yr1.fhsa || 0);

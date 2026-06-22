@@ -128,7 +128,7 @@ function Footer() {
             <img src="/logo.jpg" alt="The Purple Portfolio crest" className="pp-brand-logo" style={{ width: 36, height: 36 }} />
             <span className="pp-brand-name" style={{ fontSize: 16 }}>Purple <b>Portfolio</b></span>
           </button>
-          <p style={{ fontSize: 13, color: "#8E7AA0", marginTop: 6 }}>Canadian investing education — not advice.</p>
+          <p style={{ fontSize: 13, color: "#8E7AA0", marginTop: 6 }}>Canadian investing education, not advice.</p>
         </div>
         <div>
           <h5>Navigate</h5>
@@ -140,7 +140,7 @@ function Footer() {
         </div>
         <div>
           <h5>About</h5>
-          <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6 }}>Built for Canadians. Private by default — your numbers stay in your browser unless you sign in to save across devices.</p>
+          <p style={{ fontSize: 13, color: "#8E7AA0", lineHeight: 1.6 }}>Built for Canadians. Private by default. Your numbers stay in your browser unless you sign in to save across devices.</p>
         </div>
         <div>
           <h5>Contact</h5>
@@ -151,7 +151,7 @@ function Footer() {
         </div>
       </div>
       <div className="pp-wrap pp-footer-fine">
-        Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs — actual returns and tax outcomes will vary.
+        Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs; actual returns and tax outcomes will vary.
       </div>
     </footer>
   );

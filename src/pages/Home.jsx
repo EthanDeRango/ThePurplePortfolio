@@ -20,10 +20,10 @@ export default function Home() {
         <div className="pp-wrap pp-hero-grid">
           <div>
             <span className="pp-eyebrow"><Sparkles size={14} /> Tax-aware planning, built for Canadians</span>
-            <h1 style={{ marginTop: 16 }}>Your paycheque,<br /><em>decoded</em>—and your<br />future, projected.</h1>
+            <h1 style={{ marginTop: 16 }}>Your paycheque, <em>decoded</em>.<br />Your future, projected.</h1>
             <p className="pp-hero-sub">
               Purple Portfolio is a free planner and learning club. Enter your income and province
-              and see exactly where your money goes — taxes, CPP, EI — then your contribution room,
+              and see exactly where your money goes (taxes, CPP, EI), then your contribution room,
               RRSP/FHSA tax savings, and a projection of your future.
             </p>
             <div className="pp-hero-cta">
@@ -31,7 +31,7 @@ export default function Home() {
               <button className="pp-btn pp-btn-ghost" onClick={() => navigate("/library")}>Browse the library</button>
             </div>
             <div className="pp-hero-fine">
-              <Shield size={15} /> Private by default — your numbers stay in your browser. Sign in only if you want to save across devices.
+              <Shield size={15} /> Private by default. Your numbers stay in your browser. Sign in only if you want to save across devices.
             </div>
           </div>
           <Orb />
@@ -44,7 +44,7 @@ export default function Home() {
           <h2 style={{ fontSize: 34, margin: "12px 0 30px", maxWidth: "16em" }}>From a few numbers to a clear picture.</h2>
           <div className="pp-grid-3">
             {[
-              { ic: <MapPin size={20} />,     t: "1 · Your income & province", d: "We decode your real take-home: federal + provincial tax, CPP/CPP2, and EI — for your province." },
+              { ic: <MapPin size={20} />,     t: "1 · Your income & province", d: "We decode your real take-home: federal + provincial tax, CPP/CPP2, and EI, all for your province." },
               { ic: <Calculator size={20} />, t: "2 · Tax savings & room",      d: "See your RRSP/FHSA tax savings, what contribution room you've got left, and your FHSA deadline." },
               { ic: <TrendingUp size={20} />, t: "3 · Your projection",          d: "Watch your portfolio grow to retirement, with after-tax, inflation, and fee views you control." },
             ].map((f) => (
@@ -66,18 +66,18 @@ export default function Home() {
               <h2 style={{ fontSize: 32, margin: "14px 0 16px", color: "#fff" }}>We educate. We don't sell.</h2>
               <p style={{ color: "#D9C9EE", fontSize: 16.5, marginBottom: 14 }}>
                 Most investing content is either selling you something or buried in jargon. Purple Portfolio
-                does neither. We put your real numbers in, show the honest trade-offs — including the tax
-                ones — and hand the decision back to you.
+                does neither. We put your real numbers in, show the honest trade-offs (including the tax
+                ones), and hand the decision back to you.
               </p>
               <p style={{ color: "#D9C9EE", fontSize: 16.5 }}>
-                The goal is simple: help as many people as possible become confident, informed investors —
+                The goal is simple: help as many people as possible become confident, informed investors,
                 whatever their budget.
               </p>
             </div>
             <div className="pp-grid-2" style={{ gap: 14 }}>
               {[
                 { ic: <Receipt size={18} />,       t: "Tax-aware",       d: "Real CPP, EI, and bracket math for every province." },
-                { ic: <Shield size={18} />,         t: "Private by design", d: "Runs in your browser. Accounts are optional — no tracking, no selling." },
+                { ic: <Shield size={18} />,         t: "Private by design", d: "Runs in your browser. Accounts are optional. No tracking, no selling." },
                 { ic: <Percent size={18} />,        t: "Honest on fees",  d: "We show the costs others gloss over." },
                 { ic: <GraduationCap size={18} />,  t: "Beginner-friendly", d: "Plain language, with depth when you want it." },
               ].map((c) => (

@@ -83,7 +83,7 @@ const STYLES = `
 }
 .pp-brand { display: flex; align-items: center; gap: 11px; cursor: pointer; background: none; border: 0; padding: 0; }
 .pp-mark { flex: none; }
-.pp-brand-name { font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: -.01em; }
+.pp-brand-name { font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: -.01em; color: var(--ink); }
 .pp-brand-name b { color: var(--violet); font-weight: 700; }
 .pp-navlinks { display: flex; align-items: center; gap: 2px; }
 .pp-navlink {
@@ -368,6 +368,9 @@ const STYLES = `
 .pp-label2 { display: block; font-weight: 700; font-size: 14px; margin-bottom: 7px; color: var(--plum); }
 .pp-help { font-size: 12.5px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
 .pp-help b { color: var(--plum-2); }
+.pp-privacy-note { display: flex; align-items: flex-start; gap: 9px; background: var(--violet-soft); border: 1px solid var(--violet-mid); border-radius: 12px; padding: 11px 15px; font-size: 13px; color: var(--plum-2); margin: 0 0 22px; max-width: 46em; line-height: 1.5; }
+.pp-privacy-note svg { flex: none; margin-top: 2px; color: var(--violet); }
+.pp-privacy-note b { color: var(--plum); }
 .pp-input-wrap {
   display: flex;
   align-items: center;
@@ -739,7 +742,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-inlinelink:hover { color: var(--plum); text-decoration: underline; }
 
 /* ── Dashboard snapshot row ───────────────────────────────────────────────── */
-.pp-snap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0 10px; }
+.pp-snap { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 14px; margin: 18px 0 10px; }
 .pp-snapc {
   background: var(--paper-card);
   border: 1px solid rgba(30,17,40,.09);

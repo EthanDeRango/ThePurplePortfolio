@@ -65,7 +65,7 @@ export default function AuthModal({ onClose }) {
         <div className="pp-auth-head">
           <img src="/logo.jpg" alt="The Purple Portfolio" className="pp-auth-modal-logo" />
           <div id="auth-title" className="pp-auth-logo-name">Purple <b>Portfolio</b></div>
-          <p className="pp-auth-tagline">Save your plan — access it from any device</p>
+          <p className="pp-auth-tagline">Save your plan and access it from any device</p>
         </div>
 
         {/* Tabs */}
