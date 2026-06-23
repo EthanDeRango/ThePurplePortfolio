@@ -164,7 +164,7 @@ function ScrollToTop() {
 }
 
 function AppShell({ plan, setPlan, onReset, hasSaved }) {
-  const { user, showNewsletterPrompt } = useAuth();
+  const { user, showNewsletterPrompt, recoveryMode, clearRecovery } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
 
   usePlanSync(user, plan, setPlan, PLAN_DEFAULTS);
@@ -191,7 +191,12 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
         </Routes>
       </main>
       <Footer />
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {(showAuth || recoveryMode) && (
+        <AuthModal
+          initialView={recoveryMode ? "recovery" : "signin"}
+          onClose={() => { setShowAuth(false); if (recoveryMode) clearRecovery(); }}
+        />
+      )}
     </>
   );
 }

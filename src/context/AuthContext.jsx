@@ -7,6 +7,10 @@ export function AuthProvider({ children }) {
   const [user, setUser]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [showNewsletterPrompt, setShowNewsletterPrompt] = useState(false);
+  // True after the user follows a password-reset link from their email — drives the
+  // "choose a new password" modal. Supabase fires PASSWORD_RECOVERY once the link's
+  // token is processed from the URL.
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -18,6 +22,9 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
+
+      // Arrived via a password-reset email link — show the "set a new password" screen.
+      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
 
       // First-time Google sign-ups: prompt for newsletter after OAuth redirect
       if (event === "SIGNED_IN" && session?.user) {
@@ -56,6 +63,21 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase?.auth.signOut();
 
+  // Sends a password-reset email. The link returns the user to the app, where the
+  // PASSWORD_RECOVERY event opens the "choose a new password" screen.
+  const resetPassword = (email) =>
+    supabase
+      ? supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+      : Promise.resolve({ error: new Error("Sign-in is not configured.") });
+
+  // Sets the new password during a recovery session (or for a signed-in user).
+  const updatePassword = (password) =>
+    supabase
+      ? supabase.auth.updateUser({ password })
+      : Promise.resolve({ error: new Error("Sign-in is not configured.") });
+
+  const clearRecovery = () => setRecoveryMode(false);
+
   // Permanently removes the user's saved plan (and newsletter row) from the server.
   // The plan in the current browser session is untouched — only cloud data is deleted.
   const deleteCloudData = async () => {
@@ -85,6 +107,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, loading,
       signIn, signUp, signOut, signInWithGoogle, deleteCloudData,
+      resetPassword, updatePassword, recoveryMode, clearRecovery,
       showNewsletterPrompt,
       resolveNewsletterPrompt,
       dismissNewsletterPrompt: () => setShowNewsletterPrompt(false),

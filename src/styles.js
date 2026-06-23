@@ -1426,6 +1426,15 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 }
 .pp-auth-swap button:hover { text-decoration: underline; }
 
+/* Forgot-password link (right-aligned under the password field) */
+.pp-auth-forgot { text-align: right; margin-top: -4px; }
+.pp-auth-forgot button {
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--violet); font-weight: 600; font-family: var(--sans); font-size: 12.5px;
+}
+.pp-auth-forgot button:hover { text-decoration: underline; }
+.pp-auth-hint { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5; }
+
 .pp-auth-success {
   padding: 30px 24px; text-align: center;
   font-size: 14px; line-height: 1.6; color: var(--ink);
