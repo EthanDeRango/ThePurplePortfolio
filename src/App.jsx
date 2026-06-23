@@ -69,7 +69,7 @@ function TopNav({ onReset, hasSaved, onSignIn }) {
           ))}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="pp-navauth" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {(hasSaved || showCleared) && !user && (
             <div className="pp-session">
               <span className="pp-session-dot" style={showCleared ? { background: "var(--muted)" } : {}} />

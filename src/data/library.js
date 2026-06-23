@@ -72,7 +72,7 @@ export const LIBRARY = [
         ],
         facts: [["Interest","100% taxed at marginal rate"],["Eligible dividends","38% gross-up + tax credit"],["Capital gains","50% included, taxed on sale"],["Inside registered accounts","Sheltered — no tax"]],
         callout: "Because the three are taxed so differently, where you hold each asset can change your after-tax return — see Asset Location." },
-      { key: "assetloc", name: "Asset Location", lead: "Putting the right asset in the right account can quietly boost your after-tax return.",
+      { key: "assetloc", name: "Asset Location", lead: "Putting the right asset in the right account can boost your after-tax return without changing what you own.",
         prose: [
           "Asset allocation is your mix of stocks and bonds. Asset location is the next layer: deciding which account each asset sits in, so the tax system works for you rather than against you.",
           "A common framework: hold tax-inefficient assets (bonds and other interest-paying investments) inside registered accounts where the interest is sheltered; keep Canadian-dividend and capital-gains-focused holdings where their preferential treatment shines; and use the TFSA for your highest-growth assets, since all that growth comes out tax-free.",
@@ -80,7 +80,7 @@ export const LIBRARY = [
         ],
         facts: [["Bonds / interest","Best sheltered (RRSP/TFSA)"],["High growth","Great in a TFSA (tax-free)"],["Canadian dividends","Reasonable in taxable"],["Priority","After savings rate, diversification & fees"]],
         callout: "Asset location only matters once you're investing in more than one account type — for most beginners, one good account comes first." },
-      { key: "clawbacks", name: "OAS & GIS Clawbacks", lead: "Why a bigger RRSP isn't always better — government benefits can be quietly taxed back in retirement.",
+      { key: "clawbacks", name: "OAS & GIS Clawbacks", lead: "Why a bigger RRSP isn't always better: government benefits can be clawed back in retirement.",
         prose: [
           `Two government benefits for seniors are income-tested, meaning they shrink as your retirement income rises. Old Age Security (OAS) is reduced by the OAS recovery tax — the 'clawback' — once your net income passes a threshold (${fmtMoney(TAX_CONFIG.oas.thresholdMin)} for 2026), at 15 cents per dollar above it, until OAS disappears entirely around $155,000.`,
           "The Guaranteed Income Supplement (GIS), for lower-income seniors, is even more sensitive: it's reduced by roughly 50 cents for every dollar of other income. That's effectively a 50% tax on withdrawals for those who qualify.",
@@ -153,8 +153,13 @@ export const LIBRARY = [
         facts: [["1","Starter emergency fund"],["2","Employer RRSP match"],["3","High-interest debt"],["4","Full emergency fund"],["5","Fill registered room (FHSA/TFSA/RRSP)"],["6","Non-registered investing"]],
         callout: "The ladder front-loads guaranteed wins — free matches and avoided interest — before market-dependent investing." },
       { key: "dca", name: "Dollar-Cost Averaging", lead: "Investing steadily instead of timing the market.",
-        prose: ["Dollar-cost averaging means investing a fixed amount on a schedule — say, every payday — no matter what the market is doing. You buy more when prices are low and less when high.", "It removes the stress of finding the 'perfect' moment (which almost nobody does reliably) and builds a consistent habit."],
-        facts: [["Method","Invest fixed amounts regularly"],["Benefit","Removes timing guesswork"]] },
+        prose: [
+          "Dollar-cost averaging means investing a fixed amount on a schedule, say every payday, no matter what the market is doing. You automatically buy more units when prices are low and fewer when they're high.",
+          "Here's the convincing part. A large share of the market's long-run gains come from a small handful of its very best days, and those days tend to arrive right after the scariest drops, exactly when nervous investors have moved to cash. Miss just a few of the best days because you were waiting on the sidelines and your long-term return takes a serious hit. Since nobody reliably predicts which days those will be, the only dependable way to catch them is to already be invested when they happen.",
+          "Investing on autopilot also takes emotion out of it. Instead of guessing at tops and bottoms (which almost nobody does well over a lifetime), you keep a steady habit and let compounding do the heavy lifting. Every contribution buys another small slice of decades of growth.",
+        ],
+        facts: [["Method","Invest fixed amounts regularly"],["Edge","Time in the market, not timing it"]],
+        callout: "The biggest risk usually isn't buying at a high. It's not being invested at all when the market's best days arrive." },
       { key: "allocation", name: "Asset Allocation", lead: "Your stock/bond/cash mix drives most of your results.",
         prose: ["Asset allocation is how you split money between growth assets (stocks) and defensive ones (bonds, cash). Research consistently finds this mix explains most of a portfolio's behaviour — far more than which specific funds you pick.", "Matching your allocation to your time horizon and risk tolerance is the single most important decision you'll make."],
         facts: [["Drives","Most of your risk & return"],["Set by","Time horizon + risk tolerance"]] },

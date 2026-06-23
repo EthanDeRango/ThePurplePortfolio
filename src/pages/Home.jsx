@@ -81,10 +81,12 @@ export default function Home() {
                 { ic: <Percent size={18} />,        t: "Honest on fees",  d: "We show the costs others gloss over." },
                 { ic: <GraduationCap size={18} />,  t: "Beginner-friendly", d: "Plain language, with depth when you want it." },
               ].map((c) => (
-                <div key={c.t} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 18 }}>
-                  <div style={{ color: "var(--gold-2)", marginBottom: 10 }}>{c.ic}</div>
-                  <h4 style={{ color: "#fff", fontSize: 16, marginBottom: 5 }}>{c.t}</h4>
-                  <p style={{ color: "#C7B4DF", fontSize: 13.5 }}>{c.d}</p>
+                <div key={c.t} style={{ display: "flex", gap: 12, padding: "6px 2px" }}>
+                  <div style={{ color: "var(--gold-2)", flex: "none", marginTop: 2 }}>{c.ic}</div>
+                  <div>
+                    <h4 style={{ color: "#fff", fontSize: 16, marginBottom: 4 }}>{c.t}</h4>
+                    <p style={{ color: "#C7B4DF", fontSize: 13.5 }}>{c.d}</p>
+                  </div>
                 </div>
               ))}
             </div>

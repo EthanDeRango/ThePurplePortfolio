@@ -146,6 +146,8 @@ export function runSelfTest() {
     ["flat schedule when no events",     savingsSchedule(1000, 40, 5, []).every((m) => m === 1000)],
     ["invest-more bumps from its age",   (() => { const ev = savingsEventsFor([{ type: "invest-more", amount: 500, age: 42 }], 40, 65); const s = savingsSchedule(1000, 40, 5, ev); return s[0] === 1000 && s[2] === 1500; })()],
     ["invest-less floors at 0",          savingsSchedule(300, 40, 3, [{ type: "invest-less", amount: 1000, age: 41 }])[1] === 0],
+    ["income growth compounds base",     (() => { const s = savingsSchedule(1000, 40, 3, [], 0.10); return s[0] === 1000 && Math.round(s[1]) === 1100 && Math.round(s[2]) === 1210; })()],
+    ["growth + event stack",             (() => { const ev = savingsEventsFor([{ type: "invest-more", amount: 500, age: 41 }], 40, 65); const s = savingsSchedule(1000, 40, 3, ev, 0.10); return s[0] === 1000 && Math.round(s[1]) === 1600; })()],
     ["event at current age excluded",    savingsEventsFor([{ type: "invest-more", amount: 500, age: 40 }], 40, 65).length === 0],
     ["event after retirement excluded",  savingsEventsFor([{ type: "invest-more", amount: 500, age: 70 }], 40, 65).length === 0],
   ];

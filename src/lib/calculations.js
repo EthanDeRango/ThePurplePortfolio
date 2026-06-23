@@ -217,10 +217,12 @@ export function savingsEventsFor(lifeEvents, age, retAge) {
 }
 
 // Per-year monthly contribution, shifting at each savings event's age (drives the projection).
-export function savingsSchedule(effectiveMonthly, age, years, savingsEvents) {
+// growthRate (e.g. 0.03) compounds the base monthly each year, reflecting rising income/raises;
+// life-event step changes are absolute dollar amounts and are applied on top of the grown base.
+export function savingsSchedule(effectiveMonthly, age, years, savingsEvents, growthRate = 0) {
   const arr = new Array(Math.max(1, years)).fill(0);
   for (let y = 0; y < arr.length; y++) {
-    let m = effectiveMonthly;
+    let m = effectiveMonthly * Math.pow(1 + (growthRate || 0), y);
     const atAge = age + y;
     for (const e of (savingsEvents || [])) {
       if (atAge >= n(e.age)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);

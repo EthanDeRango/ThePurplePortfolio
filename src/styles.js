@@ -142,6 +142,14 @@ const STYLES = `
 }
 .pp-session-clear:hover { color: var(--rose); }
 @media (max-width: 600px) { .pp-session { display: none; } }
+/* Phone nav: wrap to two rows so brand + Sign in never overflow the row.
+   Row 1 = brand (left) + auth (right); Row 2 = nav links, centered. */
+@media (max-width: 560px) {
+  .pp-topnav-in { flex-wrap: wrap; height: auto; min-height: 56px; padding: 9px 0; row-gap: 9px; }
+  .pp-brand { order: 1; }
+  .pp-navauth { order: 2; margin-left: auto; }
+  .pp-navlinks { order: 3; flex-basis: 100%; justify-content: center; gap: 4px; }
+}
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .pp-btn {
@@ -445,6 +453,10 @@ const STYLES = `
   transition: all .14s;
 }
 .pp-toggle button.on { border-color: var(--plum); background: var(--violet-soft); color: var(--plum); }
+/* Compact inline toggle (e.g. $ amount / % of income beside a field label) */
+.pp-label-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pp-toggle-sm { gap: 6px; flex: none; }
+.pp-toggle-sm button { flex: 0 0 auto; padding: 5px 12px; font-size: 12.5px; font-weight: 700; border-radius: 9px; }
 
 /* validation */
 .pp-error { font-size: 12.5px; color: var(--rose); margin-top: 6px; font-weight: 600; }

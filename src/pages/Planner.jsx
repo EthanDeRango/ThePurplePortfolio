@@ -262,7 +262,12 @@ export default function Planner({ plan, setPlan }) {
           <p className="pp-fs-sub">The basics that set your tax picture and time horizon.</p>
           <div className="pp-row2">
             <NumberField id="f-age" label="Your age" placeholder="e.g. 19" value={plan.age} onChange={(v) => set("age", v)} suffix="years" error={errors.age} />
-            <CurrencyField id="f-income" label="Annual income (CAD)" placeholder="e.g. 45,000" value={plan.income} onChange={(v) => set("income", v)} error={errors.income}
+            <CurrencyField id="f-income" label="Annual income (CAD)" placeholder="e.g. 45,000" value={plan.income}
+              onChange={(v) => setPlan((p) => {
+                const next = { ...p, income: v };
+                if (p.savingsMode === "percent") next.monthly = Math.round(n(v) * (parseFloat(p.savingsPct) || 0) / 100 / 12);
+                return next;
+              })} error={errors.income}
               help={<>Your total yearly pay <b>before</b> tax. Sets your tax rate, RRSP room, and payroll deductions (CPP and EI).</>} />
           </div>
           <div className="pp-row2">
@@ -579,9 +584,57 @@ export default function Planner({ plan, setPlan }) {
             <input id="f-asof" type="date" className="pp-input" style={{ maxWidth: 230 }} value={plan.asOf || todayISO()} onChange={(e) => set("asOf", e.target.value)} />
             <div className="pp-help">We project forward from today. A mid-year start only counts the months left this year.</div>
           </div>
-          <CurrencyField id="f-monthly" label="How much can you set aside each month?" placeholder="e.g. 300" value={plan.monthly} onChange={(v) => set("monthly", v)}
-            help={<>Your total monthly savings. This one number covers everything: emergency fund, debt, <em>and</em> investing. Your action plan shows where each dollar goes first. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</>} />
+          {/* Monthly savings — enter as a dollar amount or as a % of income */}
+          {(() => {
+            const savingsMode = plan.savingsMode === "percent" ? "percent" : "amount";
+            const pctNum = parseFloat(plan.savingsPct) || 0;
+            const monthlyFromPct = Math.round(n(plan.income) * pctNum / 100 / 12);
+            return (
+              <div className="pp-field">
+                <div className="pp-label-row">
+                  <label className="pp-label2" htmlFor="f-monthly" style={{ marginBottom: 0 }}>How much can you set aside each month?</label>
+                  <div className="pp-toggle pp-toggle-sm">
+                    <button type="button" className={savingsMode === "amount" ? "on" : ""} onClick={() => set("savingsMode", "amount")}>$ amount</button>
+                    <button type="button" className={savingsMode === "percent" ? "on" : ""}
+                      onClick={() => setPlan((p) => ({ ...p, savingsMode: "percent", monthly: Math.round(n(p.income) * (parseFloat(p.savingsPct) || 0) / 100 / 12) || n(p.monthly) }))}>% of income</button>
+                  </div>
+                </div>
+                {savingsMode === "amount" ? (
+                  <>
+                    <div className="pp-input-wrap">
+                      <span className="pp-adorn">$</span>
+                      <input id="f-monthly" className="pp-input" inputMode="numeric" placeholder="e.g. 300"
+                        value={plan.monthly === "" || plan.monthly == null ? "" : Number(plan.monthly).toLocaleString("en-CA")}
+                        onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ""); set("monthly", raw === "" ? "" : Number(raw)); }} />
+                    </div>
+                    <div className="pp-help">Your total monthly savings. This one number covers everything: emergency fund, debt, <em>and</em> investing. {n(plan.monthly) > 0 && <>That's <b>{fmtMoney(n(plan.monthly) * 12)}</b> a year.</>}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="pp-input-wrap" style={{ maxWidth: 220 }}>
+                      <input id="f-monthly" className="pp-input" inputMode="decimal" placeholder="e.g. 15"
+                        value={plan.savingsPct ?? ""}
+                        onChange={(e) => { const pct = e.target.value.replace(/[^0-9.]/g, ""); setPlan((p) => ({ ...p, savingsPct: pct, monthly: Math.round(n(p.income) * (parseFloat(pct) || 0) / 100 / 12) })); }} />
+                      <span className="pp-adorn r">%</span>
+                    </div>
+                    {n(plan.income) > 0 && pctNum > 0
+                      ? <div className="pp-help">That's about <b>{fmtMoney(monthlyFromPct)}/mo</b> ({fmtMoney(monthlyFromPct * 12)} a year) at your current income. Many people aim for around <b>15%</b>.</div>
+                      : <div className="pp-help">Set your income in Step 1, then choose a percentage. Many people aim to invest around <b>15%</b> of their income.</div>}
+                  </>
+                )}
+              </div>
+            );
+          })()}
           <CurrencyField id="f-lump" label="One-time lump sum to invest now (optional)" placeholder="e.g. 5,000" value={plan.lumpSum} onChange={(v) => set("lumpSum", v)} />
+          <div className="pp-field">
+            <label className="pp-label2" htmlFor="f-incgrowth">Do you expect your income to grow? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
+            <div className="pp-input-wrap" style={{ maxWidth: 220 }}>
+              <input id="f-incgrowth" className="pp-input" inputMode="decimal" placeholder="e.g. 3"
+                value={plan.incomeGrowth ?? ""} onChange={(e) => set("incomeGrowth", e.target.value.replace(/[^0-9.]/g, ""))} />
+              <span className="pp-adorn r">%/yr</span>
+            </div>
+            <div className="pp-help">As your pay rises, your investing usually rises with it. We grow your monthly contributions by this each year. Canadian raises have averaged around <b>3%</b>. Leave blank to keep contributions flat.</div>
+          </div>
           <div className="pp-field">
             <label className="pp-label2">Do your monthly amounts vary?</label>
             <div className="pp-toggle">

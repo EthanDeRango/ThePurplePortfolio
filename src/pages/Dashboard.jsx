@@ -148,36 +148,41 @@ export default function Dashboard({ plan, setPlan }) {
   const lifeEvents = Array.isArray(plan.lifeEvents) ? plan.lifeEvents : [];
   const savingsEvents = savingsEventsFor(lifeEvents, age, retAge);
   const hasLifeEvents = savingsEvents.length > 0;
+  // Income growth: as you earn more (raises), your monthly investing grows with it.
+  const incomeGrowthRate = Math.max(0, n(plan.incomeGrowth) / 100);
+  const contributionsGrow = incomeGrowthRate > 0 && effectiveMonthly > 0;
+  // Use the per-year schedule whenever contributions vary across years (life events OR growth).
+  const useSchedule = hasLifeEvents || contributionsGrow;
   const monthlyByYear = useMemo(
-    () => savingsSchedule(effectiveMonthly, age, years, savingsEvents),
+    () => savingsSchedule(effectiveMonthly, age, years, savingsEvents, contributionsGrow ? incomeGrowthRate : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [years, age, effectiveMonthly, JSON.stringify(savingsEvents)]
+    [years, age, effectiveMonthly, JSON.stringify(savingsEvents), contributionsGrow, incomeGrowthRate]
   );
 
   // memoized expensive computations
    
   const selSeries = useMemo(
-    () => hasLifeEvents
+    () => useSchedule
       ? projectSeriesSchedule(ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals)
       : projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly, monthsArr, startMonth, goalWithdrawals),
     // gwKey serializes goalWithdrawals so the memo only re-runs when goal data actually changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, hasLifeEvents, JSON.stringify(monthlyByYear)]
+    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, useSchedule, JSON.stringify(monthlyByYear)]
   );
   const selFinal = selSeries[selSeries.length - 1];
   const contribSeries = useMemo(
-    () => hasLifeEvents
+    () => useSchedule
       ? contributedSeriesSchedule(years, start, monthlyByYear, startMonth)
       : contributedSeries(years, start, effectiveMonthly, monthsArr, startMonth),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [years, start, effectiveMonthly, monthsArr, startMonth, hasLifeEvents, JSON.stringify(monthlyByYear)]
+    [years, start, effectiveMonthly, monthsArr, startMonth, useSchedule, JSON.stringify(monthlyByYear)]
   );
   const finals = useMemo(
-    () => Object.fromEntries(RISK.map((r) => [r.key, hasLifeEvents
+    () => Object.fromEntries(RISK.map((r) => [r.key, useSchedule
       ? projectSeriesSchedule(r.ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals).slice(-1)[0]
       : projectFinal(r.ret - fee, years, start, effectiveMonthly, monthsArr, startMonth)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fee, years, start, effectiveMonthly, monthsArr, startMonth, hasLifeEvents, JSON.stringify(monthlyByYear), gwKey]
+    [fee, years, start, effectiveMonthly, monthsArr, startMonth, useSchedule, JSON.stringify(monthlyByYear), gwKey]
   );
   const scaleRef = useMemo(
     () => projectFinal(0.10, years, start, effectiveMonthly, monthsArr, startMonth),
@@ -194,7 +199,7 @@ export default function Dashboard({ plan, setPlan }) {
     return projectFinal(-0.03, stressYears, v1, effectiveMonthly, null, 0);
   }, [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth]);
 
-  const contributed = hasLifeEvents
+  const contributed = useSchedule
     ? contributedSeriesSchedule(years, start, monthlyByYear, startMonth).slice(-1)[0]
     : totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
   const growth = Math.max(0, selFinal - contributed);
@@ -301,10 +306,10 @@ export default function Dashboard({ plan, setPlan }) {
   const optRefundMonthly = (recSim.refundYr1 || 0) / 12;
    
   const optSeries = useMemo(() => {
-    if (optRefundMonthly < 1 || !hasData || hasLifeEvents) return null;
+    if (optRefundMonthly < 1 || !hasData || useSchedule) return null;
     return projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly + optRefundMonthly, monthsArr, startMonth, goalWithdrawals);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ret, fee, years, start, effectiveMonthly, optRefundMonthly, monthsArr, startMonth, gwKey, hasLifeEvents]);
+  }, [ret, fee, years, start, effectiveMonthly, optRefundMonthly, monthsArr, startMonth, gwKey, useSchedule]);
   const optFinal = optSeries ? optSeries[optSeries.length - 1] : null;
   const optBoost = optFinal != null ? Math.max(0, optFinal - selFinal) : 0;
 
@@ -1917,7 +1922,7 @@ export default function Dashboard({ plan, setPlan }) {
                 ) : (
                   <>
                     <div className="pp-acct"><div className="num">{fmtMoney(effectiveMonthly)}/mo</div></div>
-                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(effectiveMonthly * 12)} a year going to work for you{dcEmployerMonthly > 0 ? ` — includes ${fmtMoney(dcEmployerMonthly * 12)}/yr employer match` : ""}.</p>
+                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(effectiveMonthly * 12)} a year going to work for you{dcEmployerMonthly > 0 ? `, including ${fmtMoney(dcEmployerMonthly * 12)}/yr employer match` : ""}.{contributionsGrow && <> Growing about <b style={{ color: "var(--violet)" }}>{n(plan.incomeGrowth)}%/yr</b> as your income rises, reaching {fmtMoney(monthlyByYear[monthlyByYear.length - 1])}/mo by age {retAge}.</>}</p>
                   </>
                 )}
               </div>
