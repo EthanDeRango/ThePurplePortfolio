@@ -24,17 +24,24 @@ const FUNDED = {
 };
 
 describe('Dashboard — tab navigation', () => {
-  it('opens the Action plan by default and hides "go deeper" sections', () => {
+  it('shows every section by default and can collapse to just the action plan', () => {
     renderDash(FUNDED);
     // the action-plan section heading is unique (the eyebrow text also appears in the guide)
     expect(screen.getByRole('heading', { name: /goes, in order/i })).toBeInTheDocument();
-    // Contribution limits lives under its own tab — not shown until opened
+    // a "go deeper" section (Contribution limits) is now visible by default
+    expect(screen.getByText(/How much you can still put in each account/i)).toBeInTheDocument();
+    // Collapse all tidies down to just the action plan
+    fireEvent.click(screen.getByRole('button', { name: /Collapse all/i }));
     expect(screen.queryByText(/How much you can still put in each account/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /goes, in order/i })).toBeInTheDocument();
   });
 
-  it('reveals a section when its tab is clicked', () => {
+  it('toggles a section closed and back open from its tab', () => {
     renderDash(FUNDED);
-    fireEvent.click(screen.getByRole('button', { name: /Contribution limits/i }));
+    const tab = screen.getByRole('button', { name: /Contribution limits/i });
+    fireEvent.click(tab); // collapse it
+    expect(screen.queryByText(/How much you can still put in each account/i)).not.toBeInTheDocument();
+    fireEvent.click(tab); // re-open it
     expect(screen.getByText(/How much you can still put in each account/i)).toBeInTheDocument();
   });
 });
@@ -44,8 +51,8 @@ describe('Dashboard — RRSP room safety (#3)', () => {
     renderDash({ ...FUNDED, bPensionDC: '80000', openAccounts: ['tfsa', 'rrsp', 'pension_dc'] });
     // the warning badge on the action-plan step
     expect(screen.getByText(/Check your NOA room/i)).toBeInTheDocument();
-    // and the explanation about the pension adjustment
-    expect(screen.getByText(/pension adjustment/i)).toBeInTheDocument();
+    // and the explanation about the pension adjustment (appears in the plan + room sections)
+    expect(screen.getAllByText(/pension adjustment/i).length).toBeGreaterThan(0);
   });
 
   it('does not flag the RRSP step when NOA room is provided', () => {
@@ -57,8 +64,8 @@ describe('Dashboard — RRSP room safety (#3)', () => {
 describe('Dashboard — incorporated pay (#4)', () => {
   it('shows the salary/dividend split with no CPP/EI on dividends', () => {
     renderDash({ ...FUNDED, employmentType: 'incorporated', payMix: 'dividends', dividendType: 'noneligible', income: '120000' });
-    fireEvent.click(screen.getByRole('button', { name: /Paycheque & tax/i }));
-    expect(screen.getByText(/no CPP\/EI/i)).toBeInTheDocument();
+    // Paycheque & tax is open by default now
+    expect(screen.getAllByText(/no CPP\/EI/i).length).toBeGreaterThan(0);
   });
 });
 
@@ -81,7 +88,7 @@ describe('Dashboard — goal due dates', () => {
       ...FUNDED, goals: ['retirement', 'save'],
       customGoals: [{ name: "Maya's university", amount: '20000', date: '2032-09-01' }],
     });
-    fireEvent.click(screen.getByRole('button', { name: /Goals & score/i }));
+    // Goals & score is open by default now
     expect(screen.getByText(/due Sep 2032/i)).toBeInTheDocument();
   });
 });

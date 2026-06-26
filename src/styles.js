@@ -823,6 +823,13 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   border-color: var(--plum);
   box-shadow: 0 2px 8px rgba(30,17,40,.20);
 }
+/* Collapse all / Expand all — a subtle text action, pushed to the right of the tabs */
+.pp-secnav button.pp-secnav-all {
+  margin-left: auto; background: none; border: none; box-shadow: none;
+  color: var(--violet); text-decoration: underline; padding: 6px 8px;
+}
+.pp-secnav button.pp-secnav-all:hover { background: none; border: none; box-shadow: none; color: var(--plum); }
+@media (max-width: 760px) { .pp-secnav button.pp-secnav-all { margin-left: 0; } }
 
 /* ── Goal selector ────────────────────────────────────────────────────────── */
 .pp-goalgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 6px 0 14px; }

@@ -91,7 +91,9 @@ export default function Dashboard({ plan, setPlan }) {
   const [inflation, setInflation] = useState(false);
   const [afterTax, setAfterTax] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [activeTabs, setActiveTabs] = useState(() => new Set(["sec-plan"]));
+  // Show every section by default so nothing feels hidden; the tabs below let you
+  // jump to a section or collapse the ones you don't want (Collapse all / Expand all).
+  const [activeTabs, setActiveTabs] = useState(() => new Set(["sec-plan", "sec-compare", "sec-goal", "sec-pay", "sec-room", "sec-grow"]));
   const switchTab = (id) => {
     setActiveTabs(prev => {
       const next = new Set(prev);
@@ -204,6 +206,12 @@ export default function Dashboard({ plan, setPlan }) {
     : totalContributed(years, start, effectiveMonthly, monthsArr, startMonth);
   const growth = Math.max(0, selFinal - contributed);
   const hasData = start > 0 || effectiveMonthly > 0 || (monthsArr && monthsArr.some((m) => n(m) > 0));
+
+  // Every section that can be shown right now (some depend on having income / data).
+  const allSectionIds = ["sec-plan", "sec-compare", "sec-goal",
+    ...(income > 0 ? ["sec-pay"] : []), "sec-room", ...(hasData ? ["sec-grow"] : [])];
+  const allOpen = allSectionIds.every((id) => activeTabs.has(id));
+  const toggleAll = () => setActiveTabs(allOpen ? new Set(["sec-plan"]) : new Set(allSectionIds));
 
   const rrspShare = startBal > 0
     ? (n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp)) / startBal
@@ -725,7 +733,7 @@ export default function Dashboard({ plan, setPlan }) {
       {/* Section tab nav */}
       <div id="pp-secnav-anchor" style={{ scrollMarginTop: 80 }} />
       <div className="pp-secnav-guide pp-noprint">
-        <b>New here? Start with your Action plan</b> — it tells you exactly what to do next. Open <b>Accounts</b> and <b>Goals &amp; score</b> when you want the reasoning. Everything under <b>Go deeper</b> is optional — there when you're curious, ignorable when you're not.
+        <b>Everything's open below.</b> Your <b>Action plan</b> tells you what to do next; the rest shows the full reasoning, your accounts, paycheque, room, and growth. Use the tabs to jump to a section, or <b>Collapse all</b> to tidy things up.
       </div>
       <nav className="pp-secnav pp-noprint" aria-label="Dashboard sections">
         <span className="pp-secnav-label">Start here</span>
@@ -755,6 +763,9 @@ export default function Dashboard({ plan, setPlan }) {
             {label}
           </button>
         ))}
+        <button type="button" className="pp-secnav-all" onClick={toggleAll}>
+          {allOpen ? "Collapse all" : "Expand all"}
+        </button>
       </nav>
 
       <div style={{ height: 14 }} />
