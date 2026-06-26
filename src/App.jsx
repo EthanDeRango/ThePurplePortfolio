@@ -9,6 +9,7 @@ import { usePlanSync } from "./hooks/usePlanSync.js";
 
 import Home from "./pages/Home.jsx";
 import Planner from "./pages/Planner.jsx";
+import Budget from "./pages/Budget.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Library from "./pages/Library.jsx";
 import LibraryCategory from "./pages/LibraryCategory.jsx";
@@ -26,6 +27,7 @@ function loadSavedPlan() {
 const NAV_LINKS = [
   { to: "/", label: "Home" },
   { to: "/plan", label: "Planner" },
+  { to: "/budget", label: "Budget" },
   { to: "/library", label: "Library" },
   { to: "/about", label: "About" },
 ];
@@ -182,6 +184,7 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/plan" element={<Planner plan={plan} setPlan={setPlan} />} />
+          <Route path="/budget" element={<Budget plan={plan} setPlan={setPlan} />} />
           <Route path="/dashboard" element={<Dashboard plan={plan} setPlan={setPlan} />} />
           <Route path="/library" element={<Library />} />
           <Route path="/library/:cat" element={<LibraryCategory />} />
