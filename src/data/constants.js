@@ -14,6 +14,7 @@ export const PLAN_DEFAULTS = {
   buyHome: false, province: "ON", employmentType: "employed", lumpSum: "", contribMode: "flat",
   months: ["","","","","","","","","","","",""], asOf: null, homePrice: "", livingExpenses: "",
   incomeStability: "variable", goals: ["retirement"], employerMatch: "", highInterestDebt: "",
+  employerMatchMode: "amount", employerMatchPct: "", // RRSP match as $/yr or % of pay
   bNonreg: "", bLocked: "", emergencyStatus: "none", emergencySaved: "", retTaxRate: "",
   retSpend: "", inflationRate: 2, customGoals: [],
   // Account selection (null = not yet set; infer from existing balances for backward compat)
@@ -28,6 +29,8 @@ export const PLAN_DEFAULTS = {
   pensionDBMonthly: "", pensionDBStartAge: "",
   // Home purchase projection assumptions (optional overrides)
   mortgageRate: "", homeAppreciation: "",
+  // Buying with a partner: split the down payment, track only your share
+  homeWithPartner: false, homeYourShare: 50,
   // Life events — future changes to savings/income at a given age.
   // [{ id, age, type: 'invest-more'|'invest-less'|'income', amount, label }]
   lifeEvents: [],

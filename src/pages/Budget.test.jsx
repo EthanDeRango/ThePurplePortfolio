@@ -75,6 +75,18 @@ describe('Budget — interaction', () => {
     expect(screen.getByText('16% of income')).toBeInTheDocument();
   });
 
+  it('adds a new budget year (rolled forward) and hides Planner sync there', () => {
+    renderBudget(PLAN);
+    // default year is the planner year, so Apply is available
+    expect(screen.getByRole('button', { name: /Apply to my Planner/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add year/i }));
+    // now on the next year: sync is gone, replaced by a note
+    expect(screen.queryByRole('button', { name: /Apply to my Planner/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Planner sync is on your 2026 budget/i)).toBeInTheDocument();
+    // the rolled-forward year keeps the seeded salary
+    expect(screen.getByLabelText('Salary / Wages Jan')).toHaveValue('5,000');
+  });
+
   it('pushes numbers back to the Planner only after an explicit confirm', () => {
     const setPlan = vi.fn();
     renderBudget(PLAN, setPlan);

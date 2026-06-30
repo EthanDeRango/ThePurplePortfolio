@@ -24,47 +24,48 @@ const FUNDED = {
 };
 
 describe('Dashboard — tab navigation', () => {
-  it('shows every section by default and can collapse to just the action plan', () => {
+  it('opens only the Action plan by default; Expand all reveals the rest', () => {
     renderDash(FUNDED);
     // the action-plan section heading is unique (the eyebrow text also appears in the guide)
     expect(screen.getByRole('heading', { name: /goes, in order/i })).toBeInTheDocument();
-    // a "go deeper" section (Contribution limits) is now visible by default
-    expect(screen.getByText(/How much you can still put in each account/i)).toBeInTheDocument();
-    // Collapse all tidies down to just the action plan
-    fireEvent.click(screen.getByRole('button', { name: /Collapse all/i }));
+    // a "go deeper" section (Contribution limits) is hidden by default now
     expect(screen.queryByText(/How much you can still put in each account/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /goes, in order/i })).toBeInTheDocument();
+    // Expand all reveals everything
+    fireEvent.click(screen.getByRole('button', { name: /Expand all/i }));
+    expect(screen.getByText(/How much you can still put in each account/i)).toBeInTheDocument();
   });
 
-  it('toggles a section closed and back open from its tab', () => {
+  it('opens a section from its tab, then closes it again', () => {
     renderDash(FUNDED);
     const tab = screen.getByRole('button', { name: /Contribution limits/i });
-    fireEvent.click(tab); // collapse it
+    // closed by default
     expect(screen.queryByText(/How much you can still put in each account/i)).not.toBeInTheDocument();
-    fireEvent.click(tab); // re-open it
+    fireEvent.click(tab); // open it
     expect(screen.getByText(/How much you can still put in each account/i)).toBeInTheDocument();
+    fireEvent.click(tab); // close it
+    expect(screen.queryByText(/How much you can still put in each account/i)).not.toBeInTheDocument();
   });
 });
 
 describe('Dashboard — RRSP room safety (#3)', () => {
   it('flags the RRSP step when a workplace pension exists and no NOA is entered', () => {
     renderDash({ ...FUNDED, bPensionDC: '80000', openAccounts: ['tfsa', 'rrsp', 'pension_dc'] });
-    // the warning badge on the action-plan step
-    expect(screen.getByText(/Check your NOA room/i)).toBeInTheDocument();
-    // and the explanation about the pension adjustment (appears in the plan + room sections)
+    // the estimate badge on the action-plan step
+    expect(screen.getByText(/check NOA/i)).toBeInTheDocument();
+    // and the explanation about the pension adjustment
     expect(screen.getAllByText(/pension adjustment/i).length).toBeGreaterThan(0);
   });
 
   it('does not flag the RRSP step when NOA room is provided', () => {
     renderDash({ ...FUNDED, bPensionDC: '80000', rrspLimitNOA: '15000', openAccounts: ['tfsa', 'rrsp', 'pension_dc'] });
-    expect(screen.queryByText(/Check your NOA room/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/check NOA/i)).not.toBeInTheDocument();
   });
 });
 
 describe('Dashboard — incorporated pay (#4)', () => {
   it('shows the salary/dividend split with no CPP/EI on dividends', () => {
     renderDash({ ...FUNDED, employmentType: 'incorporated', payMix: 'dividends', dividendType: 'noneligible', income: '120000' });
-    // Paycheque & tax is open by default now
+    fireEvent.click(screen.getByRole('button', { name: /Paycheque & tax/i })); // open the section
     expect(screen.getAllByText(/no CPP\/EI/i).length).toBeGreaterThan(0);
   });
 });
@@ -88,7 +89,7 @@ describe('Dashboard — goal due dates', () => {
       ...FUNDED, goals: ['retirement', 'save'],
       customGoals: [{ name: "Maya's university", amount: '20000', date: '2032-09-01' }],
     });
-    // Goals & score is open by default now
+    fireEvent.click(screen.getByRole('button', { name: /Goals & score/i })); // open the section
     expect(screen.getByText(/due Sep 2032/i)).toBeInTheDocument();
   });
 });

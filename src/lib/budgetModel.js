@@ -2,8 +2,11 @@
 // Budget tab. Kept separate from the React page so it can be unit-tested directly.
 
 import { STAGES, STAGE_BY_KEY, stageFromAge } from "../data/budgetStages.js";
+import { TAX_YEAR } from "./tax-config.js";
 
 export const BUDGET_STORAGE_KEY = "pp-budget-v1";
+// The one budget year that syncs with the Planner (a single-tax-year tool).
+export const PLANNER_YEAR = TAX_YEAR;
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Stable-ish row ids without pulling in a uuid dep. Deterministic within a session.
@@ -188,6 +191,51 @@ export function planPatchFromBudget(budget) {
     if (age > 0 && age < 120) patch.age = age;
   }
   return patch;
+}
+
+// ── Multi-year store ─────────────────────────────────────────────────────────
+// Budgets are saved per year: { activeYear, years: { [year]: budget } }. Only the
+// PLANNER_YEAR budget syncs with the Planner; others are standalone roll-forwards.
+
+const cloneBudget = (b) => JSON.parse(JSON.stringify(b));
+
+// Load (and migrate) the store from localStorage, seeding a planner-year budget
+// from the Planner when there's nothing saved yet.
+export function loadBudgetStore(plan) {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(BUDGET_STORAGE_KEY)); } catch { /* ignore */ }
+  if (raw && raw.years && raw.activeYear && raw.years[raw.activeYear]) return raw;
+  // Migrate an older single-budget save into the per-year shape.
+  if (raw && (raw.income !== undefined || raw.expenses !== undefined || raw.lifeStage)) {
+    const y = num(raw.year) || PLANNER_YEAR;
+    return { activeYear: y, years: { [y]: { ...raw, year: y } } };
+  }
+  const stage = deriveFromPlan(plan).lifeStage || "young_pro";
+  const seeded = seedFromPlan(createBudget(stage, PLANNER_YEAR), plan);
+  return { activeYear: PLANNER_YEAR, years: { [PLANNER_YEAR]: seeded } };
+}
+
+export const activeBudget = (store) => store.years[store.activeYear];
+
+export function setActiveBudget(store, budget) {
+  return { ...store, years: { ...store.years, [store.activeYear]: budget } };
+}
+
+export const budgetYears = (store) => Object.keys(store.years).map(Number).sort((a, b) => a - b);
+
+export function switchBudgetYear(store, year) {
+  const y = num(year);
+  return store.years[y] ? { ...store, activeYear: y } : store;
+}
+
+// Add the next year, copying the latest year's rows/amounts as a starting point.
+export function addBudgetYear(store) {
+  const years = budgetYears(store);
+  const latest = years[years.length - 1];
+  const newYear = latest + 1;
+  if (store.years[newYear]) return { ...store, activeYear: newYear };
+  const rolled = { ...cloneBudget(store.years[latest]), year: newYear, syncDismissed: false };
+  return { ...store, activeYear: newYear, years: { ...store.years, [newYear]: rolled } };
 }
 
 export { STAGES };

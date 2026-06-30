@@ -162,6 +162,7 @@ export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
   const set = (k, v) => setPlan((p) => ({ ...p, [k]: v }));
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [step, setStep] = useState(0); // wizard step: 0 About you · 1 Goals · 2 Money · 3 Accounts
 
 
   const age = n(plan.age), retAge = n(plan.retAge), homeAge = n(plan.homeAge);
@@ -206,6 +207,7 @@ export default function Planner({ plan, setPlan }) {
   const ready = age > 0 && retAge > age && !!plan.province && (!hasFhsa || n(plan.fhsaYearOpened) > 0);
   const onDone = () => { if (ready) navigate("/dashboard"); };
   const onExit = () => navigate("/");
+  const goStep = (s) => { setStep(Math.max(0, Math.min(3, s))); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   let retHelp;
   if (yrsRet == null) retHelp = <>Many Canadians target <b>60–65</b>. We've pre-filled 65; adjust it to your own plan.</>;
@@ -245,19 +247,21 @@ export default function Planner({ plan, setPlan }) {
           <span><b>Private by default.</b> Everything you enter stays on this device, in your browser. Nothing is sent anywhere unless you create a free account to sync across your devices.</span>
         </div>
 
-        {/* Progress across the 4 sections */}
-        <div className="pp-progress" role="list" aria-label="Plan progress">
+        {/* Progress / step nav across the 4 sections */}
+        <div className="pp-progress" role="tablist" aria-label="Plan steps">
           {steps.map((s, i) => (
-            <div key={s.n} className={"pp-progress-step" + (s.done ? " done" : "")} role="listitem">
+            <button key={s.n} type="button" role="tab" aria-selected={step === i}
+              className={"pp-progress-step" + (s.done ? " done" : "") + (step === i ? " current" : "")}
+              onClick={() => goStep(i)}>
               <span className="pp-progress-dot">{s.done ? <Check size={13} /> : s.n}</span>
               <span className="pp-progress-label">{s.label}</span>
               {i < steps.length - 1 && <span className="pp-progress-line" aria-hidden="true" />}
-            </div>
+            </button>
           ))}
         </div>
 
         {/* 1 — About you */}
-        <div className="pp-fs">
+        <div className="pp-fs" style={{ display: step === 0 ? undefined : "none" }}>
           <div className="pp-fs-head"><div className="pp-fs-num">1</div><h3>About you</h3></div>
           <p className="pp-fs-sub">The basics that set your tax picture and time horizon.</p>
           <div className="pp-row2">
@@ -364,8 +368,8 @@ export default function Planner({ plan, setPlan }) {
           </div>
         </div>
 
-        {/* Early value teaser — a win before we ask for everything */}
-        {teaserTax && (
+        {/* Early value teaser — a win before we ask for everything (shown on step 1) */}
+        {teaserTax && step === 0 && (
           <div className="pp-teaser">
             <div className="pp-teaser-eyebrow"><Sparkles size={13} /> Already worth it</div>
             <div className="pp-teaser-row">
@@ -381,7 +385,7 @@ export default function Planner({ plan, setPlan }) {
         )}
 
         {/* 2 — Your goals */}
-        <div className="pp-fs">
+        <div className="pp-fs" style={{ display: step === 1 ? undefined : "none" }}>
           <div className="pp-fs-head"><div className="pp-fs-num">2</div><h3>Your goals</h3></div>
           <p className="pp-fs-sub">This shapes your whole dashboard: your plan, your priorities, and what we track.</p>
           <label className="pp-label2">What are your goals right now? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· pick any that apply</span></label>
@@ -528,6 +532,31 @@ export default function Planner({ plan, setPlan }) {
                   <span>On a {fmtMoney(n(plan.homePrice))} home, the legal minimum down payment is <b>{fmtMoney(minDownPayment(n(plan.homePrice)))}</b>. {n(plan.homePrice) < 1500000 ? <>Putting down less than <b>20% ({fmtMoney(n(plan.homePrice) * 0.2)})</b> requires <b>mortgage default insurance (CMHC)</b>, a one-time premium of roughly 2.8–4% rolled into your mortgage.</> : <>At this price, the rules require a full <b>20%</b> down, with no mortgage insurance required.</>}</span>
                 </div>
               )}
+
+              {/* Buying with a partner — split the down payment, track only your share */}
+              <div className="pp-field" style={{ marginTop: 4 }}>
+                <label className="pp-label2">Buying with a partner?</label>
+                <div className="pp-toggle">
+                  <button type="button" className={plan.homeWithPartner ? "on" : ""} onClick={() => set("homeWithPartner", true)}>Yes, together</button>
+                  <button type="button" className={!plan.homeWithPartner ? "on" : ""} onClick={() => set("homeWithPartner", false)}>Just me</button>
+                </div>
+                <div className="pp-help">Couples buying their first home can <b>each</b> use an FHSA and an RRSP Home Buyers' Plan — roughly <b>double</b> the tax-advantaged room toward the down payment. We track <b>your</b> share against your plan.</div>
+              </div>
+              {plan.homeWithPartner && (() => {
+                const share = n(plan.homeYourShare) || 50;
+                const total = minDownPayment(n(plan.homePrice));
+                const yourShare = Math.round(total * share / 100);
+                return (
+                  <div className="pp-field" style={{ marginBottom: 0 }}>
+                    <label className="pp-label2" htmlFor="f-homeshare">Your share of the down payment: <b>{share}%</b></label>
+                    <input id="f-homeshare" className="pp-range" type="range" min="0" max="100" step="5" value={share}
+                      onChange={(e) => set("homeYourShare", e.target.value)} />
+                    {n(plan.homePrice) > 0 && (
+                      <div className="pp-help">You'd save <b>{fmtMoney(yourShare)}</b> of the {fmtMoney(total)} down payment; your partner covers the other <b>{fmtMoney(total - yourShare)}</b>. Your projection only needs to reach your share.</div>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
 
@@ -576,7 +605,7 @@ export default function Planner({ plan, setPlan }) {
         </div>
 
         {/* 3 — Your money */}
-        <div className="pp-fs">
+        <div className="pp-fs" style={{ display: step === 2 ? undefined : "none" }}>
           <div className="pp-fs-head"><div className="pp-fs-num">3</div><h3>Your money</h3></div>
           <p className="pp-fs-sub">What you can add, and what you've already invested.</p>
           <div className="pp-field">
@@ -707,8 +736,45 @@ export default function Planner({ plan, setPlan }) {
           )}
 
           <div className="pp-row2" style={{ marginTop: 16 }}>
-            <CurrencyField id="f-match" label="Employer RRSP match (per year, optional)" placeholder="e.g. 2,000" value={plan.employerMatch} onChange={(v) => set("employerMatch", v)}
-              help={<>If your employer matches RRSP contributions, that's an instant ~100% return.</>} />
+            {(() => {
+              const matchMode = plan.employerMatchMode === "percent" ? "percent" : "amount";
+              const pctNum = parseFloat(plan.employerMatchPct) || 0;
+              const matchFromPct = Math.round(n(plan.income) * pctNum / 100);
+              return (
+                <div className="pp-field" style={{ marginBottom: 0 }}>
+                  <div className="pp-label-row">
+                    <label className="pp-label2" htmlFor="f-match" style={{ marginBottom: 0 }}>Employer RRSP match <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
+                    <div className="pp-toggle pp-toggle-sm">
+                      <button type="button" className={matchMode === "amount" ? "on" : ""} onClick={() => set("employerMatchMode", "amount")}>$ / yr</button>
+                      <button type="button" className={matchMode === "percent" ? "on" : ""} onClick={() => set("employerMatchMode", "percent")}>% of pay</button>
+                    </div>
+                  </div>
+                  {matchMode === "amount" ? (
+                    <>
+                      <div className="pp-input-wrap">
+                        <span className="pp-adorn">$</span>
+                        <input id="f-match" className="pp-input" inputMode="numeric" placeholder="e.g. 2,000"
+                          value={plan.employerMatch === "" || plan.employerMatch == null ? "" : Number(plan.employerMatch).toLocaleString("en-CA")}
+                          onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ""); set("employerMatch", raw === "" ? "" : Number(raw)); }} />
+                      </div>
+                      <div className="pp-help">If your employer matches RRSP contributions, that's an instant ~100% return on what you put in to capture it.</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="pp-input-wrap" style={{ maxWidth: 170 }}>
+                        <input id="f-match" className="pp-input" inputMode="decimal" placeholder="e.g. 3"
+                          value={plan.employerMatchPct ?? ""}
+                          onChange={(e) => set("employerMatchPct", e.target.value.replace(/[^0-9.]/g, ""))} />
+                        <span className="pp-adorn r">% of pay</span>
+                      </div>
+                      {n(plan.income) > 0 && pctNum > 0
+                        ? <div className="pp-help">That's about <b>{fmtMoney(matchFromPct)}/yr</b> at your income — an instant ~100% return on what you contribute to capture it.</div>
+                        : <div className="pp-help">Many employers match <b>3–5%</b> of salary. Set your income in Step 1, then enter your match rate.</div>}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <CurrencyField id="f-debt" label="High-interest debt (optional)" placeholder="e.g. 5,000" value={plan.highInterestDebt} onChange={(v) => set("highInterestDebt", v)}
               help={<>Credit cards or other debt above ~10%. Paying it off is a guaranteed, tax-free return.</>} />
           </div>
@@ -757,7 +823,7 @@ export default function Planner({ plan, setPlan }) {
         </div>
 
         {/* 4 — Your accounts */}
-        <div className="pp-fs">
+        <div className="pp-fs" style={{ display: step === 3 ? undefined : "none" }}>
           <div className="pp-fs-head"><div className="pp-fs-num">4</div><h3>Your accounts</h3></div>
           <p className="pp-fs-sub">Check every account type you hold, including RRSPs, TFSAs, pensions, and more. We'll ask for the details that matter for your plan.</p>
 
@@ -804,17 +870,22 @@ export default function Planner({ plan, setPlan }) {
           ))}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-          <button
-            className="pp-btn pp-btn-primary"
-            disabled={!ready}
-            style={{ opacity: ready ? 1 : 0.45 }}
-            onClick={onDone}
-          >
-            See my plan <ArrowRight size={18} />
+        <div className="pp-wizard-nav">
+          <button type="button" className="pp-btn pp-btn-ghost" onClick={() => goStep(step - 1)} disabled={step === 0}>
+            <ArrowLeft size={16} /> Back
           </button>
+          <span className="pp-wizard-count">Step {step + 1} of 4</span>
+          {step < 3 ? (
+            <button type="button" className="pp-btn pp-btn-primary" onClick={() => goStep(step + 1)}>
+              Next <ArrowRight size={18} />
+            </button>
+          ) : (
+            <button className="pp-btn pp-btn-primary" disabled={!ready} style={{ opacity: ready ? 1 : 0.45 }} onClick={onDone}>
+              See my plan <ArrowRight size={18} />
+            </button>
+          )}
         </div>
-        {!ready && (
+        {step === 3 && !ready && (
           <p style={{ textAlign: "right", fontSize: 12.5, color: "var(--muted)", marginTop: 8 }}>
             {hasFhsa && !(n(plan.fhsaYearOpened) > 0)
               ? "Add the year you opened your FHSA in Step 4 to continue."

@@ -4,6 +4,8 @@ import {
   createBudget, swapStage, addRow, removeRow, setCell, setRowLabel, fillAcross,
   sectionMonthTotals, sectionAnnual, netCashFlowByMonth, budgetTotals,
   deriveFromPlan, seedFromPlan, planPatchFromBudget, num,
+  BUDGET_STORAGE_KEY, PLANNER_YEAR,
+  loadBudgetStore, activeBudget, setActiveBudget, budgetYears, switchBudgetYear, addBudgetYear,
 } from "./budgetModel.js";
 
 // Helper: set every month of a row to the same value.
@@ -199,6 +201,43 @@ describe("Planner bridge", () => {
     const patch = planPatchFromBudget(b);
     expect(patch.birthYear).toBe(1990);
     expect(patch.age).toBe(new Date().getFullYear() - 1990);
+  });
+});
+
+describe("multi-year store", () => {
+  it("rolls a new year forward from the latest, keeping amounts, as an independent copy", () => {
+    let b = createBudget("young_pro", PLANNER_YEAR);
+    b = fillRow(b, "income", 0, 5000);
+    const store = { activeYear: PLANNER_YEAR, years: { [PLANNER_YEAR]: b } };
+    const next = addBudgetYear(store);
+    expect(next.activeYear).toBe(PLANNER_YEAR + 1);
+    expect(budgetYears(next)).toEqual([PLANNER_YEAR, PLANNER_YEAR + 1]);
+    expect(next.years[PLANNER_YEAR + 1].year).toBe(PLANNER_YEAR + 1);
+    expect(sectionAnnual(next.years[PLANNER_YEAR + 1].income)).toBe(60000); // copied forward
+    // editing the new year must not touch the old one
+    const edited = setActiveBudget(next, fillRow(next.years[PLANNER_YEAR + 1], "income", 0, 9000));
+    expect(sectionAnnual(edited.years[PLANNER_YEAR + 1].income)).toBe(108000);
+    expect(sectionAnnual(edited.years[PLANNER_YEAR].income)).toBe(60000);
+  });
+
+  it("switches the active year", () => {
+    const store = { activeYear: PLANNER_YEAR, years: {
+      [PLANNER_YEAR]: createBudget("young_pro", PLANNER_YEAR),
+      [PLANNER_YEAR + 1]: createBudget("family", PLANNER_YEAR + 1),
+    } };
+    const sw = switchBudgetYear(store, PLANNER_YEAR + 1);
+    expect(sw.activeYear).toBe(PLANNER_YEAR + 1);
+    expect(activeBudget(sw).lifeStage).toBe("family");
+  });
+
+  it("migrates an old single-budget save into the per-year store", () => {
+    let b = createBudget("young_pro", PLANNER_YEAR);
+    b = fillRow(b, "income", 0, 5000);
+    localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(b)); // legacy single-budget shape
+    const store = loadBudgetStore({});
+    expect(store.activeYear).toBe(PLANNER_YEAR);
+    expect(sectionAnnual(activeBudget(store).income)).toBe(60000);
+    localStorage.clear();
   });
 });
 

@@ -12,9 +12,9 @@ import {
   totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
-  oasClawback, emergencyFundTarget, minDownPayment, bracketInfo,
+  oasClawback, emergencyFundTarget, minDownPayment, yourHomeDownPayment, bracketInfo,
   yearsToTarget, simulateStrategy,
-  recommendOrder, healthScore, annualInvestable, insights, accounts,
+  recommendOrder, healthScore, investedFromMonth, employerMatchAmount, insights, accounts,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
@@ -93,7 +93,8 @@ export default function Dashboard({ plan, setPlan }) {
   const [showGuide, setShowGuide] = useState(false);
   // Show every section by default so nothing feels hidden; the tabs below let you
   // jump to a section or collapse the ones you don't want (Collapse all / Expand all).
-  const [activeTabs, setActiveTabs] = useState(() => new Set(["sec-plan", "sec-compare", "sec-goal", "sec-pay", "sec-room", "sec-grow"]));
+  // Open only the Action plan by default; the tabs (and "Expand all") reveal the rest.
+  const [activeTabs, setActiveTabs] = useState(() => new Set(["sec-plan"]));
   const switchTab = (id) => {
     setActiveTabs(prev => {
       const next = new Set(prev);
@@ -102,6 +103,7 @@ export default function Dashboard({ plan, setPlan }) {
       } else {
         next.add(id);
         setTimeout(() => {
+          if (typeof document === "undefined") return; // guard: timer may fire after unmount
           const el = document.getElementById(id);
           if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 50);
@@ -128,7 +130,8 @@ export default function Dashboard({ plan, setPlan }) {
   const homeAge = n(plan.homeAge);
   const homeIdx = plan.buyHome && homeAge > age && homeAge < retAge ? homeAge - age : null;
   const homePrice = n(plan.homePrice);
-  const homeDown = minDownPayment(homePrice);
+  // With a partner, only YOUR share of the down payment is tracked against your plan.
+  const homeDown = yourHomeDownPayment(plan);
 
   // A custom goal's timeline: prefer an explicit due date, fall back to "years from now".
   const goalYears = (g) => {
@@ -279,11 +282,13 @@ export default function Dashboard({ plan, setPlan }) {
   const projInvestIncome = Math.round(dispVal(selFinal) * safeWithdrawalRate);
   const totalRetIncome = projInvestIncome + govBenefits + pensionDBIncome;
 
-  const annInv = annualInvestable(plan);
-  const restOfYearInvestable = plan.contribMode === "custom"
-    ? (plan.months || []).reduce((a, b, mi) => mi >= startMonth ? a + n(b) : a, 0)
-    : n(plan.monthly) * (12 - startMonth);
-  const matchAmt = n(plan.employerMatch);
+  // Both use the LIVE `monthly` what-if (not the saved plan.monthly), so the
+  // "invested this year" figure and the account allocations track the slider —
+  // exactly like the projection does. (Was a bug: these read plan.monthly and
+  // went stale whenever the monthly amount was adjusted on the dashboard.)
+  const annInv = investedFromMonth(plan, monthly, 0);
+  const restOfYearInvestable = investedFromMonth(plan, monthly, startMonth);
+  const matchAmt = employerMatchAmount(plan);
   const debt = n(plan.highInterestDebt);
 
   // "This year only" projection — what does just this year's new money grow to?
@@ -439,6 +444,18 @@ export default function Dashboard({ plan, setPlan }) {
     return { ...g, amt, yrs, dueLabel, reqMonthly, yToReach: amt > 0 ? yearsToTarget(amt, ret - fee, 0, annInv) : null };
   });
 
+  // For each goal: where your portfolio will be at that point, and whether it covers
+  // the goal. Goals share one pot, so we subtract earlier commitments (the home down
+  // payment + any goals that come due first) from the projected balance.
+  customGoalCalc.forEach((g) => {
+    if (!(g.yrs >= 1 && g.yrs <= years && g.amt > 0)) { g.projAtGoal = null; g.affordable = null; return; }
+    const gross = projectFinal(ret - fee, g.yrs, start, effectiveMonthly, monthsArr, startMonth);
+    let prior = (homeIdx != null && homeIdx <= g.yrs) ? homeDown : 0;
+    customGoalCalc.forEach((o) => { if (o !== g && o.amt > 0 && o.yrs >= 1 && o.yrs < g.yrs) prior += o.amt; });
+    g.projAtGoal = Math.max(0, Math.round(gross - prior));
+    g.affordable = g.projAtGoal >= g.amt;
+  });
+
   // Milestone dots on the growth chart for each custom savings goal
   const GOAL_COLORS = ["#7044BE", "#2E8B57", "#C05D5D", "#C0955D", "#5D80C0"];
   const chartMilestones = customGoalCalc
@@ -523,7 +540,10 @@ export default function Dashboard({ plan, setPlan }) {
         : "";
       nextSteps.push({
         key: acct, label: `${ACCT_NAME[acct]} contribution`, amount: yrAmt, cap: recCaps[acct], done: false,
-        warn: acct === "rrsp" && rrspRoomUncertain && hasWorkplacePension,
+        // Flag the RRSP amount as an estimate whenever it's based on the 18%-of-income
+        // guess (no NOA entered) — more pointed when a pension makes real room lower.
+        warn: acct === "rrsp" && rrspRoomUncertain,
+        warnText: hasWorkplacePension ? "Estimated — likely lower, check NOA" : "Estimated room — confirm on NOA",
         note: acct === "fhsa"
           ? `${investPrefix}Tax refund now, and the money comes out completely tax-free when you buy your first home.${ongoingNote}`
           : acct === "rrsp"
@@ -733,7 +753,7 @@ export default function Dashboard({ plan, setPlan }) {
       {/* Section tab nav */}
       <div id="pp-secnav-anchor" style={{ scrollMarginTop: 80 }} />
       <div className="pp-secnav-guide pp-noprint">
-        <b>Everything's open below.</b> Your <b>Action plan</b> tells you what to do next; the rest shows the full reasoning, your accounts, paycheque, room, and growth. Use the tabs to jump to a section, or <b>Collapse all</b> to tidy things up.
+        <b>Start with your Action plan below</b> — it tells you exactly what to do next. There's more underneath: your accounts, paycheque, contribution room, goals, and growth. Tap any tab above to open a section, or <b>Expand all</b> to see everything at once.
       </div>
       <nav className="pp-secnav pp-noprint" aria-label="Dashboard sections">
         <span className="pp-secnav-label">Start here</span>
@@ -873,7 +893,7 @@ export default function Dashboard({ plan, setPlan }) {
               <div className="pp-step-b">
                 <h4>{s.label} {s.amount > 0 && <span className="amt">{["ef","debt","match"].includes(s.key) ? fmtMoney(s.amount) : fmtMoney(s.amount) + "/yr"}</span>}
                   {s.urgent && !s.done && <span className="pp-step-tag urgent">Highest guaranteed return</span>}
-                  {s.warn && <span className="pp-step-tag warn">Check your NOA room</span>}
+                  {s.warn && <span className="pp-step-tag warn">{s.warnText || "Check your NOA room"}</span>}
                   {i === firstTodo && <span className="pp-step-tag">Start here</span>}
                   {s.done && <span className="pp-step-tag ok">Done</span>}
                 </h4>
@@ -1372,13 +1392,26 @@ export default function Dashboard({ plan, setPlan }) {
                     <div key={gi} className="pp-savegoal">
                       <div className="nm">{g.name || "Goal " + (gi + 1)}{g.dueLabel && <span style={{ fontWeight: 500, fontSize: 13, color: "var(--muted)", marginLeft: 8 }}>· due {g.dueLabel}</span>}</div>
                       <div className="pp-grid-3" style={{ marginTop: 6 }}>
-                        <div className="pp-rate-chip"><div className="l">Target</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.dueLabel ? `by ${g.dueLabel}` : g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
-                        <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Monthly · with growth</div><div className="v">{g.reqMonthly != null ? fmtMoney(g.reqMonthly) + "/mo" : "—"}</div><div className="h">at {pct1(ret)}</div></div>
-                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly · as cash</div><div className="v">{g.yrs > 0 && g.amt > 0 ? fmtMoney(g.amt / (g.yrs * 12)) + "/mo" : "—"}</div><div className="h">no growth</div></div>
+                        <div className="pp-rate-chip"><div className="l">You'll need</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.dueLabel ? `by ${g.dueLabel}` : g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
+                        {g.projAtGoal != null ? (
+                          <>
+                            <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">You'll have by then</div><div className="v">{fmtMoney(g.projAtGoal)}</div><div className="h">your portfolio at {pct1(ret)}, after earlier goals</div></div>
+                            <div className="pp-rate-chip" style={{ background: g.affordable ? "#EDF7ED" : "#F3ECDB" }}>
+                              <div className="l">Can you afford it?</div>
+                              <div className="v" style={{ color: g.affordable ? "var(--green)" : "var(--gold)" }}>{g.affordable ? "Yes ✓" : fmtMoney(g.amt - g.projAtGoal) + " short"}</div>
+                              <div className="h">{g.affordable ? `${fmtMoney(g.projAtGoal - g.amt)} to spare at your current pace` : g.reqMonthly != null ? `save ${fmtMoney(g.reqMonthly)}/mo toward this to close it` : "add a timeframe"}</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Monthly · with growth</div><div className="v">{g.reqMonthly != null ? fmtMoney(g.reqMonthly) + "/mo" : "—"}</div><div className="h">at {pct1(ret)}</div></div>
+                            <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly · as cash</div><div className="v">{g.yrs > 0 && g.amt > 0 ? fmtMoney(g.amt / (g.yrs * 12)) + "/mo" : "—"}</div><div className="h">no growth</div></div>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
-                  <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>For goals under ~3 years, keeping the money safer usually beats investing it.</p>
+                  <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>“You'll have by then” is your projected portfolio at that date, after money set aside for any earlier goals — they all draw from the same pot. For goals under ~3 years, keeping the money in cash usually beats investing it.</p>
                 </div>
               ) : <p style={{ color: "var(--muted)", marginTop: 8 }}>Add savings goals in the planner's goal step.</p>}
             </div>

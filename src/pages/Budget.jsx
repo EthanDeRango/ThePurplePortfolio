@@ -5,20 +5,12 @@ import {
 import { fmtMoney } from "../lib/calculations.js";
 import { STAGE_OPTIONS, STAGE_BY_KEY, ACCOUNT_TIPS, LIFE_STAGE_GUIDE } from "../data/budgetStages.js";
 import {
-  BUDGET_STORAGE_KEY, MONTHS, num,
-  createBudget, deriveFromPlan, seedFromPlan, swapStage,
+  BUDGET_STORAGE_KEY, MONTHS, num, PLANNER_YEAR,
+  deriveFromPlan, seedFromPlan, swapStage,
   addRow, removeRow, setCell, setRowLabel, fillAcross,
   sectionMonthTotals, sectionAnnual, netCashFlowByMonth, budgetTotals, planPatchFromBudget,
+  loadBudgetStore, activeBudget, setActiveBudget, budgetYears, switchBudgetYear, addBudgetYear,
 } from "../lib/budgetModel.js";
-
-function loadBudget(plan) {
-  try {
-    const raw = localStorage.getItem(BUDGET_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  const stage = deriveFromPlan(plan).lifeStage || "young_pro";
-  return seedFromPlan(createBudget(stage), plan);
-}
 
 const cellDisplay = (v) => (v === "" || v == null ? "" : Number(v).toLocaleString("en-CA"));
 const parseCell = (s) => { const raw = String(s).replace(/[^0-9]/g, ""); return raw === "" ? "" : Number(raw); };
@@ -30,7 +22,7 @@ const SECTIONS = [
 ];
 
 export default function Budget({ plan, setPlan }) {
-  const [budget, setBudget] = useState(() => loadBudget(plan));
+  const [store, setStore] = useState(() => loadBudgetStore(plan));
   const [pendingStage, setPendingStage] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState(false);
@@ -39,18 +31,24 @@ export default function Budget({ plan, setPlan }) {
   const [refreshed, setRefreshed] = useState(false);
   const firstLoad = useRef(true);
 
-  // Auto-save to localStorage (debounced), matching the plan's persistence pattern.
+  const budget = activeBudget(store);
+  const isPlannerYear = num(store.activeYear) === PLANNER_YEAR;
+  const setBudget = (updater) =>
+    setStore((s) => setActiveBudget(s, typeof updater === "function" ? updater(activeBudget(s)) : updater));
+
+  // Auto-save the whole multi-year store (debounced).
   useEffect(() => {
     if (firstLoad.current) { firstLoad.current = false; return; }
     const t = setTimeout(() => {
-      try { localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(budget)); } catch { /* quota */ }
+      try { localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(store)); } catch { /* quota */ }
     }, 400);
     return () => clearTimeout(t);
-  }, [budget]);
+  }, [store]);
 
-  // A budget saved before the birth-year sync existed can load without one. If
-  // the Planner can supply it, fill it in once on mount (never clobbers a value).
+  // On the planner-year budget only: if it loaded without a birth year but the
+  // Planner can supply one, fill it in once on mount (never clobbers a value).
   useEffect(() => {
+    if (num(budget.year) !== PLANNER_YEAR) return;
     const d = deriveFromPlan(plan);
     if (!num(budget.birthYear) && d.birthYear) {
       setBudget((b) => (num(b.birthYear) ? b : { ...b, birthYear: d.birthYear }));
@@ -115,8 +113,8 @@ export default function Budget({ plan, setPlan }) {
         <div className="pp-bud-alert err"><Info size={15} /> Couldn't build the Excel file. Please try again.</div>
       )}
 
-      {/* Planner sync banner (informational) */}
-      {hasPlannerData && !budget.syncDismissed && (
+      {/* Planner sync banner (informational) — planner-year budget only */}
+      {hasPlannerData && isPlannerYear && !budget.syncDismissed && (
         <div className="pp-bud-sync">
           <div className="pp-bud-sync-main">
             <Check size={16} className="pp-bud-sync-tick" />
@@ -155,15 +153,22 @@ export default function Budget({ plan, setPlan }) {
           </div>
           <div className="pp-field" style={{ marginBottom: 0 }}>
             <label className="pp-label2" htmlFor="bud-year">Budget year</label>
-            <div className="pp-input-wrap" style={{ maxWidth: 100 }}>
-              <input id="bud-year" className="pp-input" inputMode="numeric" placeholder="2026"
-                value={budget.year ?? ""}
-                onChange={(e) => upd((b) => ({ ...b, year: parseCell(e.target.value) || b.year }))} />
+            <div className="pp-bud-yearpick">
+              <select id="bud-year" className="pp-select" value={store.activeYear}
+                onChange={(e) => setStore((s) => switchBudgetYear(s, e.target.value))}>
+                {budgetYears(store).map((y) => (
+                  <option key={y} value={y}>{y}{y === PLANNER_YEAR ? "  ·  tax year" : ""}</option>
+                ))}
+              </select>
+              <button type="button" className="pp-bud-addyear" onClick={() => setStore((s) => addBudgetYear(s))}
+                title="Add the next year, rolled forward from this one">
+                <Plus size={14} /> Add year
+              </button>
             </div>
           </div>
         </div>
         <div className="pp-bud-toolbar-actions">
-          {hasPlannerData && (
+          {hasPlannerData && isPlannerYear && (
             <button className={"pp-btn pp-btn-ghost pp-bud-refresh" + (refreshed ? " done" : "")} onClick={refreshFromPlanner}
               title="Re-pull stage, birth year and starting amounts from your Planner">
               {refreshed ? <><Check size={15} /> Refreshed</> : <><RefreshCw size={14} /> Refresh from Planner</>}
@@ -174,6 +179,14 @@ export default function Budget({ plan, setPlan }) {
           </button>
         </div>
       </div>
+
+      {/* Non-planner year: explain why Planner sync isn't here */}
+      {!isPlannerYear && (
+        <div className="pp-bud-yearnote">
+          <Info size={15} style={{ flex: "none", marginTop: 1 }} />
+          <span>You're editing your <b>{store.activeYear}</b> budget — it started as a copy of the prior year; adjust anything freely. Planner sync (pre-fill, refresh, apply) lives on your <b>{PLANNER_YEAR}</b> budget, since the Planner is a {PLANNER_YEAR} tax-year tool.</span>
+        </div>
+      )}
 
       {/* Stage-swap confirm — amounts are always kept; user picks label behaviour */}
       {pendingStage && (
@@ -206,7 +219,9 @@ export default function Budget({ plan, setPlan }) {
           <span>Net cash flow</span><b>{fmtMoney(totals.net)}</b>
         </div>
         <div className="pp-bud-push">
-          {pushState === "done" ? (
+          {!isPlannerYear ? (
+            <span className="pp-bud-push-note">Planner sync is on your {PLANNER_YEAR} budget</span>
+          ) : pushState === "done" ? (
             <span className="pp-bud-push-done"><Check size={15} /> Applied to your Planner</span>
           ) : pushState === "confirm" ? (
             <span className="pp-bud-push-confirm">

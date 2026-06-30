@@ -324,7 +324,13 @@ const STYLES = `
 .pp-lifeevent-rm:hover { color: #B73737; border-color: #B73737; }
 
 .pp-progress { display: flex; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 4px 0; }
-.pp-progress-step { display: flex; align-items: center; flex: 1; min-width: 0; }
+.pp-progress-step { display: flex; align-items: center; flex: 1; min-width: 0; background: none; border: none; padding: 0; font-family: inherit; cursor: pointer; }
+.pp-progress-step.current .pp-progress-dot { border-color: var(--plum); color: var(--plum); box-shadow: 0 0 0 3px rgba(112,68,190,.16); }
+.pp-progress-step.current.done .pp-progress-dot { background: var(--plum); border-color: var(--plum); color: #fff; }
+.pp-progress-step.current .pp-progress-label { color: var(--plum); }
+.pp-wizard-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; }
+.pp-wizard-count { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+@media (max-width: 480px) { .pp-wizard-count { display: none; } }
 .pp-progress-dot {
   width: 26px; height: 26px; border-radius: 999px; flex: none;
   display: grid; place-items: center; font-size: 12.5px; font-weight: 700;
@@ -1646,6 +1652,21 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-toolbar-fields .pp-select { min-width: 190px; }
 .pp-bud-toolbar-actions { display: flex; gap: 10px; align-items: center; }
 .pp-bud-refresh.done { color: #2D6A4F; border-color: #9AD6B6; background: #EAF7F0; }
+.pp-bud-yearpick { display: flex; align-items: center; gap: 8px; }
+.pp-bud-yearpick .pp-select { min-width: 150px; }
+.pp-bud-addyear {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; cursor: pointer; font-family: inherit;
+  background: #fff; border: 1px solid var(--violet-mid); color: var(--plum); font-weight: 700;
+  font-size: 12.5px; padding: 9px 12px; border-radius: 10px; white-space: nowrap;
+}
+.pp-bud-addyear:hover { background: var(--violet-soft); border-color: var(--plum); }
+.pp-bud-yearnote {
+  display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.5;
+  background: var(--violet-soft); border: 1px solid var(--violet-mid); color: var(--plum-2);
+  border-radius: 12px; padding: 11px 15px; margin: 0 0 18px;
+}
+.pp-bud-yearnote b { color: var(--plum); }
+.pp-bud-push-note { font-size: 12.5px; font-weight: 700; color: var(--muted); font-style: italic; }
 
 /* Stage-swap confirm */
 .pp-bud-confirm {

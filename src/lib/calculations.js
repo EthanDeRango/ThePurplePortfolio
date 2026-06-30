@@ -291,6 +291,33 @@ export function annualInvestable(plan) {
   return custom ? plan.months.reduce((a, b) => a + n(b), 0) : n(plan.monthly) * 12;
 }
 
+// Your share of the home's minimum down payment. When buying with a partner the
+// total is split by `homeYourShare` (%); solo buyers carry the whole amount.
+export function yourHomeDownPayment(plan) {
+  const total = minDownPayment(n(plan.homePrice));
+  if (!plan.homeWithPartner) return total;
+  const share = Math.max(0, Math.min(100, n(plan.homeYourShare) || 50)) / 100;
+  return Math.round(total * share);
+}
+
+// Employer RRSP match as a dollar amount, whether the user entered $/yr or % of pay.
+export function employerMatchAmount(plan) {
+  return plan.employerMatchMode === "percent"
+    ? Math.round(n(plan.income) * n(plan.employerMatchPct) / 100)
+    : n(plan.employerMatch);
+}
+
+// Money invested across the months from `fromMonth` (0–11) to year-end, at the
+// given monthly amount. Pass the LIVE dashboard `monthly` (what-if), not plan.monthly,
+// so "invested this year" and the account split track the slider like the projection.
+// fromMonth 0 → the full year; fromMonth = current month → the rest of this year.
+export function investedFromMonth(plan, monthly, fromMonth) {
+  const from = Math.max(0, Math.min(12, fromMonth || 0));
+  return plan.contribMode === "custom"
+    ? (plan.months || []).reduce((a, b, mi) => (mi >= from ? a + n(b) : a), 0)
+    : n(monthly) * (12 - from);
+}
+
 function allocate(pool, order, caps) {
   const a = { tfsa: 0, rrsp: 0, fhsa: 0, taxable: 0 };
   let left = pool;

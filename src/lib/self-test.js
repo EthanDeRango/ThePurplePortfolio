@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -150,6 +150,25 @@ export function runSelfTest() {
     ["growth + event stack",             (() => { const ev = savingsEventsFor([{ type: "invest-more", amount: 500, age: 41 }], 40, 65); const s = savingsSchedule(1000, 40, 3, ev, 0.10); return s[0] === 1000 && Math.round(s[1]) === 1600; })()],
     ["event at current age excluded",    savingsEventsFor([{ type: "invest-more", amount: 500, age: 40 }], 40, 65).length === 0],
     ["event after retirement excluded",  savingsEventsFor([{ type: "invest-more", amount: 500, age: 70 }], 40, 65).length === 0],
+
+    // ── investedFromMonth (this-year / rest-of-year pool, "invested this year" bug) ──
+    ["full year flat = monthly×12",       investedFromMonth({ contribMode: "flat" }, 500, 0) === 6000],
+    ["rest of year from June (idx 5)",    investedFromMonth({ contribMode: "flat" }, 500, 5) === 3500],
+    ["rest of year from Dec (idx 11)",    investedFromMonth({ contribMode: "flat" }, 500, 11) === 500],
+    ["uses the passed live monthly, not plan.monthly", investedFromMonth({ contribMode: "flat", monthly: 999 }, 500, 0) === 6000],
+    ["custom mode sums all months",       investedFromMonth({ contribMode: "custom", months: new Array(12).fill(100) }, 0, 0) === 1200],
+    ["custom mode sums from month idx",   investedFromMonth({ contribMode: "custom", months: new Array(12).fill(100) }, 0, 6) === 600],
+
+    // ── employerMatchAmount ($/yr or % of pay) ────────────────────────────────
+    ["match as $ amount",                 employerMatchAmount({ employerMatch: 2000 }) === 2000],
+    ["match as 5% of $80k = $4,000",      employerMatchAmount({ employerMatchMode: "percent", income: 80000, employerMatchPct: 5 }) === 4000],
+    ["match amount mode ignores pct",     employerMatchAmount({ employerMatchMode: "amount", employerMatch: 2000, employerMatchPct: 5, income: 80000 }) === 2000],
+
+    // ── yourHomeDownPayment (couple split) ────────────────────────────────────
+    ["solo carries the full down payment", yourHomeDownPayment({ homePrice: 500000 }) === 25000],
+    ["partner 50% = half the down",        yourHomeDownPayment({ homePrice: 500000, homeWithPartner: true, homeYourShare: 50 }) === 12500],
+    ["partner 60% share",                  yourHomeDownPayment({ homePrice: 500000, homeWithPartner: true, homeYourShare: 60 }) === 15000],
+    ["partner flag off ignores share",     yourHomeDownPayment({ homePrice: 500000, homeWithPartner: false, homeYourShare: 50 }) === 25000],
   ];
 
   const failed = checks.filter(([, ok]) => !ok);

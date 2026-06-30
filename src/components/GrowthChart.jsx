@@ -104,12 +104,17 @@ export default function GrowthChart({
   };
 
   const hoverTotal = hover != null ? totalSeries[hover] : null;
-  const tipFlip = hover != null && hover > years * 0.65;
+  // Pin the readout to the top of the plot, on the side OPPOSITE the cursor, so it
+  // never covers the curve or the point you're inspecting — the crosshair line and
+  // dot already mark the exact spot. (Old behaviour centred the box on the point,
+  // which buried everything when the curve hugged the bottom of a large projection.)
+  const tipOnLeft = hover != null && hover > years * 0.5;
   const tipStyle = hoverTotal != null ? {
-    top: (Y(hoverTotal) / H) * 100 + "%",
-    ...(tipFlip
-      ? { right: ((W - X(hover)) / W) * 100 + "%", left: "auto", transform: "translateY(-50%)" }
-      : { left: (X(hover) / W) * 100 + "%", right: "auto", transform: "translate(-50%, -50%)" }),
+    top: ((PT - 6) / H) * 100 + "%",
+    ...(tipOnLeft
+      ? { left: (PL / W) * 100 + "%", right: "auto" }
+      : { right: (PR / W) * 100 + "%", left: "auto" }),
+    transform: "none",
   } : {};
 
   return (
