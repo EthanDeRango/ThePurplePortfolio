@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -169,6 +169,14 @@ export function runSelfTest() {
     ["partner 50% = half the down",        yourHomeDownPayment({ homePrice: 500000, homeWithPartner: true, homeYourShare: 50 }) === 12500],
     ["partner 60% share",                  yourHomeDownPayment({ homePrice: 500000, homeWithPartner: true, homeYourShare: 60 }) === 15000],
     ["partner flag off ignores share",     yourHomeDownPayment({ homePrice: 500000, homeWithPartner: false, homeYourShare: 50 }) === 25000],
+
+    // ── goalRate (horizon glide-path) ─────────────────────────────────────────
+    ["1-yr goal caps at 2%",               goalRate(1, 0.08) === 0.02],
+    ["3-yr goal caps at 3.5%",             goalRate(3, 0.08) === 0.035],
+    ["6-yr goal caps at 5%",               goalRate(6, 0.08) === 0.05],
+    ["12-yr goal uses full rate",          goalRate(12, 0.08) === 0.08],
+    ["never exceeds the user's own rate",  goalRate(20, 0.04) === 0.04],
+    ["short goal still capped by low rate", goalRate(1, 0.015) === 0.015],
   ];
 
   const failed = checks.filter(([, ok]) => !ok);

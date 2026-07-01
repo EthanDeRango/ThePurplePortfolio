@@ -300,6 +300,18 @@ export function yourHomeDownPayment(plan) {
   return Math.round(total * share);
 }
 
+// Expected return for a goal `years` away. Near-term money belongs in safer,
+// lower-return holdings (a 1-year goal shouldn't ride on 8% equity), so the
+// assumed rate steps down as the horizon shortens — never above the user's own.
+export function goalRate(years, fullRate) {
+  const r = Math.max(0, fullRate || 0);
+  if (years < 2)  return Math.min(r, 0.02);   // ~high-interest savings — don't risk it
+  if (years < 4)  return Math.min(r, 0.035);  // short — conservative (bonds/GIC ladder)
+  if (years < 7)  return Math.min(r, 0.05);   // medium — balanced
+  if (years < 10) return Math.min(r, 0.065);  // longer — growth-leaning
+  return r;                                    // 10y+ — full growth
+}
+
 // Employer RRSP match as a dollar amount, whether the user entered $/yr or % of pay.
 export function employerMatchAmount(plan) {
   return plan.employerMatchMode === "percent"

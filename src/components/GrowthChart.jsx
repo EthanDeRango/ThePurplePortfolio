@@ -1,24 +1,29 @@
 import { useState } from "react";
 import { fmtMoney, fmtShort } from "../lib/calculations.js";
 
+// Round a value up to a clean axis maximum (1/2/5 × 10ⁿ) for tidy gridlines.
+function niceCeil(v) {
+  if (v <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / mag;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return step * mag;
+}
+
 // stackedSeries: [{key, label, color, values: number[]}] — when provided, renders stacked
 // areas instead of a single line. Each layer stacks on top of the previous one.
 export default function GrowthChart({
-  series, optSeries, scaleRef, contribSeries, years, startAge, startMonth,
+  series, optSeries, contribSeries, years, startAge,
   homeIdx, homeAge, fhsaIdx, color, inflation, inflRate = 0.02,
   afterTax, retMarginal, rrspShare,
   milestones,
   stackedSeries,
   noContribSeries,
 }) {
-  // PT=72 gives 4 label rows (16px each) above the plot while keeping plotH=264.
-  const W = 720, H = 370, PL = 56, PR = 18, PT = 72, PB = 34;
-  const plotW = W - PL - PR, plotH = H - PT - PB;
-  // Four rows, 16px apart, so even 10.5px bold text has a clear gap between rows.
-  const LABEL_ROWS = [PT - 14, PT - 30, PT - 46, PT - 62];
-
-  const [hover, setHover] = useState(null);
   const lineColor = color || "var(--violet)";
+  const [hover, setHover] = useState(null);
+
+  // ── Data (full horizon) ───────────────────────────────────────────────────────
   const taxFactor = afterTax ? (1 - (retMarginal || 0) * (rrspShare == null ? 1 : rrspShare)) : 1;
   const adj = (v, y) => { let x = v * taxFactor; if (inflation) x /= Math.pow(1 + inflRate, y); return x; };
   const vals = (series || [0]).map((v, y) => adj(v, y));
@@ -26,9 +31,6 @@ export default function GrowthChart({
   const ncVals = noContribSeries ? noContribSeries.map((v, y) => adj(v, y)) : null;
   const showNoContrib = !!(ncVals && ncVals[0] > 0);
 
-  // ── Stacked mode ─────────────────────────────────────────────────────────────
-  // Each layer gets a cumulative bottom/top. Inflation is applied but not after-tax,
-  // since we're showing account balances rather than retirement withdrawal amounts.
   let stackedLayers = null;
   if (stackedSeries && stackedSeries.length > 0) {
     const cumTop = new Array(years + 1).fill(0);
@@ -42,145 +44,162 @@ export default function GrowthChart({
       return { ...layer, av, bottom, top: [...cumTop] };
     });
   }
-
   const totalSeries = stackedLayers ? stackedLayers[stackedLayers.length - 1].top : vals;
-  const refAdj = scaleRef ? adj(scaleRef, years) : 0;
-  const max = Math.max(1, refAdj, ...totalSeries, ...(optVals || []));
-  const X = (y) => PL + (years === 0 ? 0 : (y / years) * plotW);
-  const Y = (v) => PT + plotH - (v / max) * plotH;
-  const linePts = vals.map((v, y) => `${X(y)},${Y(v)}`).join(" ");
-  const areaPts = `${PL},${PT + plotH} ${linePts} ${X(years)},${PT + plotH}`;
-  const gy = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
-  const xticks = Array.from(new Set([0, Math.round(years / 2), years]))
-    .filter((t) => t >= 0 && t <= years).sort((a, b) => a - b);
 
-  const showFhsa = fhsaIdx != null && fhsaIdx >= 0 && fhsaIdx <= years;
-  const showHome = homeIdx != null && homeIdx >= 0 && homeIdx <= years;
-  const visibleMilestones = (milestones || []).filter((m) => m.year >= 0 && m.year <= years);
+  // ── Horizon window — keep the near term readable; full journey on demand ───────
+  const presets = [...new Set([Math.min(10, years), Math.min(25, years), years])]
+    .filter((v) => v >= 1).sort((a, b) => a - b);
+  const [view, setView] = useState(years > 12 ? presets[0] : years);
+  const vYears = Math.min(Math.max(1, view), years);
 
-  // ── Greedy label-row assignment ───────────────────────────────────────────────
-  // Each label's half-width is estimated from its text length so two labels only
-  // share a row when they genuinely won't collide (fixed-pixel thresholds fail when
-  // a milestone label like "Kids University −$20k" is much wider than "Home · age 30").
-  const CHAR_PX = 6.5; // avg px per char, 10.5px Hanken Grotesk Bold
-  const labelText = {
-    home: `Home · age ${homeAge}`,
-    fhsa: "FHSA closes",
-    ...Object.fromEntries(visibleMilestones.map((m) => [`m${m.year}`, m.label])),
-  };
-  const halfW = (key) => Math.ceil((labelText[key] || "").length * CHAR_PX / 2) + 4;
+  // ── Geometry (scaled to the visible window only) ──────────────────────────────
+  // PT reserves a label band above the plot so milestone titles never sit on the curve.
+  const W = 720, H = 314, PL = 54, PR = 70, PT = 50, PB = 30;
+  const plotW = W - PL - PR, plotH = H - PT - PB;
+  const winMax = niceCeil(Math.max(
+    1,
+    ...totalSeries.slice(0, vYears + 1),
+    ...(optVals ? optVals.slice(0, vYears + 1) : []),
+  ));
+  const X = (y) => PL + (vYears === 0 ? 0 : (y / vYears) * plotW);
+  const Y = (v) => PT + plotH - (Math.min(v, winMax) / winMax) * plotH;
+  const gy = [0, 0.25, 0.5, 0.75, 1].map((f) => f * winMax);
+  const xticks = [...new Set([0, Math.round(vYears / 2), vYears])].filter((t) => t >= 0 && t <= vYears).sort((a, b) => a - b);
 
-  const allMarkers = [
-    ...(showHome ? [{ key: "home", xv: X(homeIdx) }] : []),
-    ...(showFhsa ? [{ key: "fhsa", xv: X(fhsaIdx) }] : []),
-    ...visibleMilestones.map((m) => ({ key: `m${m.year}`, xv: X(m.year) })),
-  ].sort((a, b) => a.xv - b.xv);
+  const seg = (arr) => arr.slice(0, vYears + 1).map((v, y) => `${X(y)},${Y(v)}`).join(" ");
 
-  const placed = []; // [{xv, row, key}]
-  const rowOf = {};
-  for (const mk of allMarkers) {
-    // Two labels collide if their centers are closer than the sum of their half-widths.
-    const taken = placed
-      .filter((p) => Math.abs(p.xv - mk.xv) < halfW(mk.key) + halfW(p.key))
-      .map((p) => p.row);
-    let row = 0;
-    while (taken.includes(row) && row < LABEL_ROWS.length - 1) row++;
-    rowOf[mk.key] = row;
-    placed.push({ xv: mk.xv, row, key: mk.key });
-  }
-  const labelY = (key) => LABEL_ROWS[rowOf[key] ?? 0];
+  const showFhsa = fhsaIdx != null && fhsaIdx >= 0 && fhsaIdx <= vYears;
+  const showHome = homeIdx != null && homeIdx >= 0 && homeIdx <= vYears;
+  const visibleMilestones = (milestones || []).filter((m) => m.year >= 0 && m.year <= vYears);
 
   // ── Interaction ───────────────────────────────────────────────────────────────
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const cx = ("touches" in e ? e.touches[0].clientX : e.clientX) - rect.left;
     const fx = (cx / rect.width) * W;
-    setHover(Math.max(0, Math.min(years, Math.round(((fx - PL) / plotW) * years))));
+    setHover(Math.max(0, Math.min(vYears, Math.round(((fx - PL) / plotW) * vYears))));
   };
   const onKey = (e) => {
-    if (e.key === "ArrowRight") { e.preventDefault(); setHover((h) => Math.min(years, (h ?? 0) + 1)); }
-    if (e.key === "ArrowLeft")  { e.preventDefault(); setHover((h) => Math.max(0, (h ?? years) - 1)); }
+    if (e.key === "ArrowRight") { e.preventDefault(); setHover((h) => Math.min(vYears, (h ?? 0) + 1)); }
+    if (e.key === "ArrowLeft")  { e.preventDefault(); setHover((h) => Math.max(0, (h ?? vYears) - 1)); }
     if (e.key === "Escape") setHover(null);
   };
 
-  const hoverTotal = hover != null ? totalSeries[hover] : null;
-  // Pin the readout to the top of the plot, on the side OPPOSITE the cursor, so it
-  // never covers the curve or the point you're inspecting — the crosshair line and
-  // dot already mark the exact spot. (Old behaviour centred the box on the point,
-  // which buried everything when the curve hugged the bottom of a large projection.)
-  const tipOnLeft = hover != null && hover > years * 0.5;
-  const tipStyle = hoverTotal != null ? {
-    top: ((PT - 6) / H) * 100 + "%",
-    ...(tipOnLeft
-      ? { left: (PL / W) * 100 + "%", right: "auto" }
-      : { right: (PR / W) * 100 + "%", left: "auto" }),
-    transform: "none",
-  } : {};
+  // ── Fixed readout (defaults to the end of the view; follows the cursor on hover) ─
+  const rIdx = hover != null ? hover : vYears;
+  const rTotal = totalSeries[rIdx];
+  const rAge = startAge > 0 ? startAge + rIdx : null;
+  const rWhen = rIdx === 0 ? "Today" : `+${rIdx} ${rIdx === 1 ? "year" : "years"}`;
+  const rBreakdown = stackedLayers
+    ? [...stackedLayers].reverse()
+        .map((l) => ({ label: l.label, color: l.color, val: l.top[rIdx] - l.bottom[rIdx] }))
+        .filter((b) => b.val > 50)
+    : (contribSeries && contribSeries[rIdx] != null
+        ? (() => {
+            const inv = contribSeries[rIdx] * taxFactor / (inflation ? Math.pow(1 + inflRate, rIdx) : 1);
+            return [
+              { label: "Invested", color: "#8E7AA0", val: inv },
+              { label: "Growth", color: lineColor, val: Math.max(0, vals[rIdx] - inv) },
+            ];
+          })()
+        : []);
+  const retTotal = totalSeries[years];
+  const retAge = startAge > 0 ? startAge + years : null;
+
+  // Milestone titles live in the label band; greedy row assignment keeps them from
+  // overlapping (two share a row only when their widths genuinely won't collide).
+  const mYearVal = (yr) => (stackedLayers ? totalSeries : vals)[Math.min(yr, totalSeries.length - 1)];
+  const LABEL_ROWS = [13, 28, 43];
+  const CHAR_PX = 5.6; // ~px per char at the 10px label size
+  const markerList = [
+    ...(showHome ? [{ key: "home", year: homeIdx, label: `Home · age ${homeAge}`, color: "#B0822B" }] : []),
+    ...(showFhsa ? [{ key: "fhsa", year: fhsaIdx, label: "FHSA closes", color: "#A8456A" }] : []),
+    ...visibleMilestones.map((m) => ({ key: `m${m.year}`, year: m.year, label: m.label, color: m.color })),
+  ].sort((a, b) => a.year - b.year);
+  const halfW = (mk) => Math.ceil((mk.label || "").length * CHAR_PX / 2) + 7;
+  const placed = [];
+  markerList.forEach((mk) => {
+    mk.x = X(mk.year);
+    const taken = placed.filter((p) => Math.abs(p.x - mk.x) < halfW(mk) + halfW(p)).map((p) => p.rowIdx);
+    let rowIdx = 0;
+    while (taken.includes(rowIdx) && rowIdx < LABEL_ROWS.length - 1) rowIdx++;
+    mk.rowIdx = rowIdx;
+    mk.labelY = LABEL_ROWS[rowIdx];
+    placed.push(mk);
+  });
 
   return (
     <div className="pp-chartwrap">
-
-      {/* Legend */}
-      <div className="pp-chartlegend" style={stackedSeries ? { flexWrap: "wrap", gap: "6px 14px" } : {}}>
-        {stackedSeries ? (
-          <>
-            {[...stackedSeries].reverse().map((layer) => (
-              <span key={layer.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5 }}>
-                <span style={{ width: 11, height: 11, borderRadius: 3, background: layer.color, display: "inline-block", flexShrink: 0 }} />
-                {layer.label}
-              </span>
+      {/* Header: legend + horizon toggle */}
+      <div className="pp-chart-head">
+        <div className="pp-chartlegend" style={stackedSeries ? { flexWrap: "wrap", gap: "5px 12px" } : {}}>
+          {stackedSeries ? (
+            <>
+              {[...stackedSeries].reverse().map((layer) => (
+                <span key={layer.key} className="pp-leg-item">
+                  <span style={{ width: 11, height: 11, borderRadius: 3, background: layer.color, display: "inline-block", flexShrink: 0 }} />
+                  {layer.label}
+                </span>
+              ))}
+              {showNoContrib && (
+                <span className="pp-leg-item" style={{ opacity: 0.7 }}>
+                  <svg width="14" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" /></svg>
+                  If you stopped saving today
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="pp-leg-item"><span className="dot" style={{ background: lineColor }} /> Your path</span>
+              {optVals && <span className="pp-leg-item"><span style={{ border: "2px dashed #2E8B57", width: 10, height: 10, display: "inline-block", borderRadius: "50%" }} /> Reinvest tax refund</span>}
+              {showNoContrib && <span className="pp-leg-item" style={{ opacity: 0.7 }}><svg width="14" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" /></svg> If you stopped saving today</span>}
+            </>
+          )}
+        </div>
+        {presets.length > 1 && (
+          <div className="pp-chart-horizon" role="group" aria-label="Time horizon">
+            {presets.map((p) => (
+              <button key={p} type="button" className={view === p ? "on" : ""}
+                onClick={() => { setView(p); setHover(null); }}
+                aria-pressed={view === p}>
+                {p === years ? (retAge ? `To ${retAge}` : "Full") : `${p}y`}
+              </button>
             ))}
-            {showNoContrib && (
-              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, opacity: 0.72 }}>
-                <svg width="14" height="10" viewBox="0 0 14 10" style={{ flexShrink: 0 }} aria-hidden="true">
-                  <line x1="0" y1="5" x2="14" y2="5" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" />
-                </svg>
-                Without contributing
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            <span className="dot" style={{ background: lineColor }} />
-            Your current path
-            {optVals && (
-              <>
-                <span style={{ marginLeft: 14, border: "2px dashed #2E8B57", width: 10, height: 10, display: "inline-block", borderRadius: "50%", verticalAlign: "middle", flexShrink: 0 }} />
-                <span style={{ marginLeft: 4 }}>Optimal strategy (reinvest tax refund)</span>
-              </>
-            )}
-            {showNoContrib && (
-              <>
-                <svg width="14" height="10" viewBox="0 0 14 10" style={{ verticalAlign: "middle", marginLeft: 12, flexShrink: 0 }} aria-hidden="true">
-                  <line x1="0" y1="5" x2="14" y2="5" stroke="rgba(110,94,120,0.8)" strokeWidth="1.5" strokeDasharray="3 2.5" />
-                </svg>
-                <span style={{ marginLeft: 4, opacity: 0.72 }}>Current savings only</span>
-              </>
-            )}
-          </>
+          </div>
         )}
+      </div>
+
+      {/* Fixed readout — always visible, updates as you scrub; never covers the plot */}
+      <div className="pp-chart-readout" aria-live="polite">
+        <div className="pp-chart-readout-main">
+          <span className="ro-when">{rWhen}{rAge ? ` · age ${rAge}` : ""}{hover == null ? " (end of view)" : ""}</span>
+          <span className="ro-total">{fmtMoney(rTotal)}</span>
+        </div>
+        <div className="pp-chart-readout-break">
+          {rBreakdown.map((b) => (
+            <span key={b.label} className="ro-chip"><i style={{ background: b.color }} />{b.label} {fmtMoney(b.val)}</span>
+          ))}
+          {showNoContrib && ncVals[rIdx] != null && rTotal > ncVals[rIdx] + 100 && (
+            <span className="ro-chip muted"><i style={{ background: "rgba(110,94,120,0.6)" }} />If you stopped saving today: {fmtMoney(ncVals[rIdx])}</span>
+          )}
+          {vYears < years && retTotal > rTotal && (
+            <span className="ro-chip gold">→ {fmtMoney(retTotal)} by {retAge}</span>
+          )}
+        </div>
       </div>
 
       <div
         className="pp-chartfocus"
         tabIndex={0}
         role="img"
-        aria-label={`Projected growth chart. Use arrow keys to step through years. ${hoverTotal != null ? `Age ${startAge + hover}: ${fmtMoney(hoverTotal)} total` : ""}`}
-        aria-live="polite"
+        aria-label={`Projected growth to ${vYears} years. Use arrow keys to step through years. ${rTotal != null ? `${rWhen}: ${fmtMoney(rTotal)}` : ""}`}
         onKeyDown={onKey}
         onMouseLeave={() => setHover(null)}
         onBlur={() => setHover(null)}
         style={{ outline: "none" }}
       >
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          width="100%"
-          style={{ display: "block", touchAction: "none" }}
-          aria-hidden="true"
-          onMouseMove={onMove}
-          onTouchStart={onMove}
-          onTouchMove={onMove}
-        >
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", touchAction: "none", cursor: "crosshair" }}
+          aria-hidden="true" onMouseMove={onMove} onClick={onMove} onTouchStart={onMove} onTouchMove={onMove}>
           <defs>
             <linearGradient id="ppArea" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={lineColor} stopOpacity="0.18" />
@@ -188,191 +207,102 @@ export default function GrowthChart({
             </linearGradient>
           </defs>
 
-          {/* Grid */}
+          {/* Gridlines + y labels */}
           {gy.map((v, i) => (
             <g key={i}>
-              <line x1={PL} y1={Y(v)} x2={W - PR} y2={Y(v)} stroke="rgba(34,19,48,0.10)" strokeWidth="1" />
-              <text x={PL - 8} y={Y(v) + 4} textAnchor="end" fontSize="11" fill="#6E5E78" fontFamily="Hanken Grotesk">{fmtShort(v)}</text>
+              <line x1={PL} y1={Y(v)} x2={W - PR} y2={Y(v)} stroke="rgba(34,19,48,0.09)" strokeWidth="1" />
+              <text x={PL - 8} y={Y(v) + 4} textAnchor="end" fontSize="11" fill="#8E7AA0" fontFamily="Hanken Grotesk">{fmtShort(v)}</text>
             </g>
           ))}
 
-          {/* Event markers */}
-          {showHome && (
-            <g>
-              <line x1={X(homeIdx)} y1={PT} x2={X(homeIdx)} y2={PT + plotH} stroke="#B0822B" strokeWidth="1.5" strokeDasharray="4 4" />
-              <text x={X(homeIdx)} y={labelY("home")} textAnchor="middle" fontSize="10.5" fill="#B0822B" fontWeight="700" fontFamily="Hanken Grotesk">
-                Home · age {homeAge}
-              </text>
-            </g>
-          )}
-          {showFhsa && (
-            <g>
-              <line x1={X(fhsaIdx)} y1={PT} x2={X(fhsaIdx)} y2={PT + plotH} stroke="#A8456A" strokeWidth="1.5" strokeDasharray="2 3" />
-              <text x={X(fhsaIdx)} y={labelY("fhsa")} textAnchor="middle" fontSize="10.5" fill="#A8456A" fontWeight="700" fontFamily="Hanken Grotesk">
-                FHSA closes
-              </text>
-            </g>
-          )}
+          {/* Milestone connector lines — from the label band down to the marker dot */}
+          {markerList.map((mk) => (
+            <line key={"gl" + mk.key} x1={mk.x} y1={mk.labelY + 4} x2={mk.x} y2={Y(mYearVal(mk.year))}
+              stroke={mk.color} strokeOpacity="0.4" strokeWidth="1.25" strokeDasharray="4 4" />
+          ))}
 
-          {/* ── STACKED areas ─────────────────────────────────────────────── */}
+          {/* Areas / line */}
           {stackedLayers ? (
             <>
               {stackedLayers.map((layer) => {
                 const pts = [
-                  ...Array.from({ length: years + 1 }, (_, y) => `${X(y)},${Y(layer.top[y])}`),
-                  ...Array.from({ length: years + 1 }, (_, i) => `${X(years - i)},${Y(layer.bottom[years - i])}`),
+                  ...Array.from({ length: vYears + 1 }, (_, y) => `${X(y)},${Y(layer.top[y])}`),
+                  ...Array.from({ length: vYears + 1 }, (_, i) => `${X(vYears - i)},${Y(layer.bottom[vYears - i])}`),
                 ].join(" ");
-                return (
-                  <polygon key={layer.key} points={pts} fill={layer.color} fillOpacity="0.88"
-                    stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinejoin="round" />
-                );
+                return <polygon key={layer.key} points={pts} fill={layer.color} fillOpacity="0.9"
+                  stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinejoin="round" />;
               })}
-              {/* "If I stopped today" — current savings compounding with no future contributions */}
               {showNoContrib && ncVals && (
-                <>
-                  <polyline
-                    points={ncVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
-                    fill="none" stroke="rgba(110,94,120,0.65)" strokeWidth="1.8"
-                    strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round"
-                  />
-                  <text
-                    x={X(ncVals.length - 1) - 6} y={Y(ncVals[ncVals.length - 1]) - 8}
-                    fontSize={9} fill="rgba(110,94,120,0.85)" textAnchor="end"
-                    style={{ userSelect: "none", pointerEvents: "none" }}
-                  >savings only</text>
-                </>
+                <polyline points={seg(ncVals)} fill="none" stroke="rgba(110,94,120,0.6)" strokeWidth="1.8"
+                  strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />
               )}
-              {/* Subtle total outline */}
-              <polyline
-                points={totalSeries.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
-                fill="none" stroke="rgba(34,19,48,0.28)" strokeWidth="1.2"
-                strokeLinejoin="round" strokeLinecap="round"
-              />
+              <polyline points={seg(totalSeries)} fill="none" stroke="rgba(34,19,48,0.3)" strokeWidth="1.2"
+                strokeLinejoin="round" strokeLinecap="round" />
             </>
           ) : (
-            /* ── SINGLE LINE ─────────────────────────────────────────────── */
             <>
-              <polygon points={areaPts} fill="url(#ppArea)" />
-              {/* "If I stopped today" reference line */}
+              <polygon points={`${PL},${PT + plotH} ${seg(vals)} ${X(vYears)},${PT + plotH}`} fill="url(#ppArea)" />
               {showNoContrib && ncVals && (
-                <>
-                  <polyline
-                    points={ncVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
-                    fill="none" stroke="rgba(110,94,120,0.5)" strokeWidth="1.5"
-                    strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round"
-                  />
-                  <text
-                    x={X(ncVals.length - 1) - 6} y={Y(ncVals[ncVals.length - 1]) - 8}
-                    fontSize={9} fill="rgba(110,94,120,0.85)" textAnchor="end"
-                    style={{ userSelect: "none", pointerEvents: "none" }}
-                  >savings only</text>
-                </>
+                <polyline points={seg(ncVals)} fill="none" stroke="rgba(110,94,120,0.5)" strokeWidth="1.5"
+                  strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />
               )}
               {optVals && (
-                <polyline
-                  points={optVals.map((v, y) => `${X(y)},${Y(v)}`).join(" ")}
-                  fill="none" stroke="#2E8B57" strokeWidth="2" strokeDasharray="7 4"
-                  strokeLinejoin="round" strokeLinecap="round" opacity="0.75"
-                />
+                <polyline points={seg(optVals)} fill="none" stroke="#2E8B57" strokeWidth="2" strokeDasharray="7 4"
+                  strokeLinejoin="round" strokeLinecap="round" opacity="0.75" />
               )}
-              <polyline points={linePts} fill="none" stroke={lineColor} strokeWidth="2.8"
-                strokeLinejoin="round" strokeLinecap="round" />
-              <circle cx={X(years)} cy={Y(vals[years])} r="4" fill={lineColor} />
-              {optVals && <circle cx={X(years)} cy={Y(optVals[years])} r="4" fill="#2E8B57" />}
+              <polyline points={seg(vals)} fill="none" stroke={lineColor} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
             </>
           )}
 
-          {/* Milestone dots (reference total series for y position) */}
-          {visibleMilestones.map((m) => {
-            const vRef = stackedLayers ? totalSeries : vals;
-            const vIdx = Math.min(m.year, vRef.length - 1);
-            const cx = X(m.year), cy = Y(vRef[vIdx]);
+          {/* Endpoint dot + direct value label */}
+          {(() => {
+            const ev = totalSeries[vYears];
+            const ey = Y(ev);
             return (
-              <g key={m.year}>
-                <circle cx={cx} cy={cy} r="9" fill={m.color} fillOpacity="0.15" />
-                <circle cx={cx} cy={cy} r="4.5" fill={m.color} />
-                <text x={cx} y={labelY(`m${m.year}`)} textAnchor="middle" fontSize="10.5"
-                  fill={m.color} fontWeight="700" fontFamily="Hanken Grotesk">{m.label}</text>
+              <g>
+                <circle cx={X(vYears)} cy={ey} r="4" fill={stackedLayers ? "#3A2168" : lineColor} />
+                <text x={X(vYears) + 8} y={ey - 4} fontSize="12" fontWeight="800" fill="var(--plum)" fontFamily="Hanken Grotesk">{fmtShort(ev)}</text>
+                {rAge != null && <text x={X(vYears) + 8} y={ey + 9} fontSize="9.5" fill="#8E7AA0" fontFamily="Hanken Grotesk">age {startAge + vYears}</text>}
+              </g>
+            );
+          })()}
+
+          {/* Now label */}
+          <text x={PL + 3} y={Y(totalSeries[0]) - 7} fontSize="10.5" fontWeight="700" fill="#8E7AA0" fontFamily="Hanken Grotesk">
+            now {fmtShort(totalSeries[0])}
+          </text>
+
+          {/* Milestone dots (on the curve) + titles (in the label band, no overlap) */}
+          {markerList.map((mk) => {
+            const cx = mk.x, cy = Y(mYearVal(mk.year));
+            return (
+              <g key={mk.key}>
+                <circle cx={cx} cy={cy} r="9" fill={mk.color} fillOpacity="0.14" />
+                <circle cx={cx} cy={cy} r="4.5" fill={mk.color} />
+                <text x={cx} y={mk.labelY} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={mk.color} fontFamily="Hanken Grotesk">{mk.label}</text>
               </g>
             );
           })}
 
           {/* Hover crosshair */}
-          {hover != null && hoverTotal != null && (
+          {hover != null && (
             <g>
-              <line x1={X(hover)} y1={PT} x2={X(hover)} y2={PT + plotH}
-                stroke="rgba(34,19,48,0.22)" strokeWidth="1" />
-              <circle cx={X(hover)} cy={Y(hoverTotal)} r="5.5"
-                fill="#fff" stroke={stackedLayers ? "rgba(34,19,48,0.45)" : lineColor} strokeWidth="2.5" />
+              <line x1={X(hover)} y1={PT} x2={X(hover)} y2={PT + plotH} stroke="rgba(34,19,48,0.28)" strokeWidth="1" />
+              <circle cx={X(hover)} cy={Y(totalSeries[hover])} r="5.5" fill="#fff" stroke={stackedLayers ? "#3A2168" : lineColor} strokeWidth="2.5" />
             </g>
           )}
 
-          {/* X-axis ticks */}
+          {/* X ticks */}
           {xticks.map((t) => (
-            <text key={t} x={X(t)} y={H - 10} textAnchor="middle" fontSize="11" fill="#6E5E78" fontFamily="Hanken Grotesk">
+            <text key={t} x={X(t)} y={H - 9} textAnchor="middle" fontSize="11" fill="#8E7AA0" fontFamily="Hanken Grotesk">
               {t === 0 ? "Now" : `+${t}y`}
             </text>
           ))}
         </svg>
-
-        {/* Tooltip */}
-        {hover != null && hoverTotal != null && (
-          <div className="pp-tip" style={tipStyle}>
-            <div className="ty">
-              {hover === 0 ? "Now" : `+${hover} ${hover === 1 ? "year" : "years"}`}
-              {startAge > 0 ? ` · age ${startAge + hover}` : ""}
-            </div>
-
-            {stackedLayers ? (
-              // Stacked tooltip: show each account value (reversed so top account is first)
-              <>
-                {[...stackedLayers].reverse()
-                  .filter((l) => (l.top[hover] - l.bottom[hover]) > 50)
-                  .map((l) => (
-                    <div key={l.key} className="tr">
-                      <i style={{ background: l.color, borderRadius: 2 }} />
-                      <span style={{ fontSize: 10.5, opacity: 0.85 }}>{l.label}:</span>
-                      {" "}{fmtMoney(l.top[hover] - l.bottom[hover])}
-                    </div>
-                  ))}
-                <div className="tr" style={{ borderTop: "1px solid rgba(255,255,255,0.18)", marginTop: 3, paddingTop: 3, fontWeight: 700 }}>
-                  <i style={{ background: "rgba(255,255,255,0.55)", borderRadius: 2 }} />
-                  Total: {fmtMoney(hoverTotal)}
-                </div>
-                {showNoContrib && ncVals && ncVals[hover] != null && hoverTotal > ncVals[hover] + 100 && (
-                  <div className="tr" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 2, paddingTop: 2, opacity: 0.7, fontSize: 11 }}>
-                    <i style={{ background: "rgba(110,94,120,0.5)", borderRadius: 2 }} />
-                    No contributions: {fmtMoney(ncVals[hover])}
-                  </div>
-                )}
-              </>
-            ) : (
-              // Single-line tooltip
-              <>
-                <div className="tr"><i style={{ background: lineColor }} /> {fmtMoney(vals[hover])}</div>
-                {showNoContrib && ncVals && ncVals[hover] != null && (
-                  <div className="tr" style={{ opacity: 0.7 }}>
-                    <i style={{ background: "rgba(110,94,120,0.6)" }} /> {fmtMoney(ncVals[hover])} without contributing
-                  </div>
-                )}
-                {optVals && optVals[hover] != null && (
-                  <div className="tr" style={{ color: "#2E8B57" }}>
-                    <i style={{ background: "#2E8B57" }} /> {fmtMoney(optVals[hover])} optimal
-                  </div>
-                )}
-                {contribSeries && contribSeries[hover] != null && (() => {
-                  const inv = contribSeries[hover] * taxFactor / (inflation ? Math.pow(1 + inflRate, hover) : 1);
-                  const grw = Math.max(0, vals[hover] - inv);
-                  return <div className="tsub">Invested {fmtMoney(inv)} · Growth {fmtMoney(grw)}</div>;
-                })()}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       <p className="pp-chartkey">
-        Use ← → arrow keys to step through years{stackedSeries ? " · hover to see breakdown by account" : ""}
+        Scrub or use ← → to read any year · the box above updates{presets.length > 1 ? " · switch the time range top-right" : ""}
       </p>
     </div>
   );

@@ -962,8 +962,9 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
 .pp-chartwrap { position: relative; }
-.pp-chartlegend { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--plum-2); margin-bottom: 8px; }
-.pp-chartlegend .dot { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.pp-chartlegend { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 12px; font-weight: 700; color: var(--plum-2); }
+.pp-leg-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pp-leg-item .dot { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 .pp-chartfocus { outline: none; }
 .pp-chartfocus:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 10px; }
 .pp-cmp { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -980,23 +981,23 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-cmp .recbadge { display: inline-block; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #fff; background: var(--violet); padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
 .pp-cmp .ord { font-size: 11.5px; color: var(--muted); font-weight: 400; }
 .pp-cmp .best { color: var(--green); font-weight: 800; }
-.pp-tip {
-  position: absolute;
-  pointer-events: none;
-  background: var(--ink);
-  color: #fff;
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 12.5px;
-  white-space: nowrap;
-  box-shadow: 0 8px 24px rgba(0,0,0,.28);
-  z-index: 5;
-  border: 1px solid rgba(255,255,255,.08);
-}
-.pp-tip .ty { font-weight: 700; margin-bottom: 3px; color: var(--gold-2); }
-.pp-tip .tr { display: flex; gap: 8px; align-items: center; }
-.pp-tip .tr i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-.pp-tip .tsub { margin-top: 4px; font-size: 11px; opacity: .75; }
+/* Chart header: legend + horizon toggle */
+.pp-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pp-chart-horizon { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2px; flex: none; }
+.pp-chart-horizon button { border: none; background: none; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 12px; color: var(--muted); padding: 5px 11px; border-radius: 8px; }
+.pp-chart-horizon button.on { background: #fff; color: var(--plum); box-shadow: 0 1px 3px rgba(30,17,40,.12); }
+.pp-chart-horizon button:hover:not(.on) { color: var(--plum-2); }
+
+/* Fixed readout strip — always visible, updates on scrub, never over the plot */
+.pp-chart-readout { background: var(--paper-card); border: 1px solid var(--line); border-radius: 12px; padding: 9px 14px; margin-bottom: 8px; }
+.pp-chart-readout-main { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ro-when { font-size: 12px; font-weight: 700; color: var(--muted); }
+.ro-total { font-size: 19px; font-weight: 800; color: var(--plum); font-variant-numeric: tabular-nums; }
+.pp-chart-readout-break { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 5px; }
+.ro-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.ro-chip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.ro-chip.muted { color: var(--muted); }
+.ro-chip.gold { color: var(--gold); font-weight: 800; }
 .pp-chartkey { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
 /* ── Order of operations ──────────────────────────────────────────────────── */
@@ -1098,6 +1099,14 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-savegoal { padding: 12px 0; border-top: 1px solid var(--line); }
 .pp-savegoal:first-child { border-top: none; padding-top: 4px; }
 .pp-savegoal .nm { font-weight: 700; color: var(--plum); font-family: var(--display); font-size: 16px; }
+/* Goal affordability verdict banner */
+.pp-goal-verdict { display: flex; gap: 9px; align-items: flex-start; border-radius: 12px; padding: 11px 15px; font-size: 13.5px; line-height: 1.5; margin-bottom: 6px; }
+.pp-goal-verdict b { font-weight: 800; }
+.pp-goal-verdict.ok { background: #EDF7ED; border: 1px solid #BFE3BF; color: #1F5A2E; }
+.pp-goal-verdict.ok b { color: #14431F; }
+.pp-goal-verdict.warn { background: #FBF1DC; border: 1px solid #E7C98C; color: #7A5A1E; }
+.pp-goal-verdict.warn b { color: #5E4310; }
+.pp-goal-verdict.neutral { background: var(--violet-soft); border: 1px solid var(--violet-mid); color: var(--plum-2); }
 
 .pp-emptyguide {
   margin-top: 16px; text-align: center; padding: 32px 28px;
@@ -1231,16 +1240,25 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 
 /* ── Print ────────────────────────────────────────────────────────────────── */
 @media print {
-  .pp-topnav, .pp-footer, .pp-noprint, .pp-back, .pp-orb { display: none !important; }
+  /* Hide chrome and interactive-only controls */
+  .pp-topnav, .pp-footer, .pp-noprint, .pp-back, .pp-orb,
+  .pp-chart-horizon, .pp-secnav, .pp-secnav-guide, .pp-secnav-all { display: none !important; }
+  /* Keep every colour (chips, goal verdicts, chart bands, badges) in the printout */
+  .pp, .pp * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   .pp { background: #fff !important; }
   .pp-wrap { max-width: 100%; padding: 0; }
-  .pp-card, .pp-roomc, .pp-fs, .pp-invest-banner { box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
+  /* Don't split cards, goals, verdicts, or the chart across pages */
+  .pp-card, .pp-roomc, .pp-fs, .pp-invest-banner, .pp-brk,
+  .pp-savegoal, .pp-goal-verdict, .pp-chartwrap, .pp-stress, .pp-deadline { box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
   .pp-section { padding: 8px 0; }
-  .pp-dash-head, .pp-invest-banner { background: #fff !important; color: #000 !important; border: 1px solid #ccc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pp-sec-h, h1, h2, h3, h4 { page-break-after: avoid; }
+  svg { max-width: 100%; }
+  .pp-dash-head, .pp-invest-banner { background: #fff !important; color: #000 !important; border: 1px solid #ccc; }
   .pp-dash-head .big, .pp-dash-head .cap, .pp-dash-head .pp-eyebrow, .pp-invest-banner .l, .pp-invest-banner .v, .pp-invest-banner .h, .pp-invest-banner .v .u { color: #000 !important; }
   .pp-printonly { display: block !important; }
   a[href]:after { content: ""; }
 }
+@page { margin: 14mm; }
 .pp-printonly { display: none; }
 
 /* ── This-year contribution card ─────────────────────────────────────────── */

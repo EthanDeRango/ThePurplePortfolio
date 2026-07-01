@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, Shield, Sparkles,
@@ -13,7 +13,7 @@ import {
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, minDownPayment, yourHomeDownPayment, bracketInfo,
-  yearsToTarget, simulateStrategy,
+  yearsToTarget, simulateStrategy, goalRate,
   recommendOrder, healthScore, investedFromMonth, employerMatchAmount, insights, accounts,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
@@ -215,6 +215,15 @@ export default function Dashboard({ plan, setPlan }) {
     ...(income > 0 ? ["sec-pay"] : []), "sec-room", ...(hasData ? ["sec-grow"] : [])];
   const allOpen = allSectionIds.every((id) => activeTabs.has(id));
   const toggleAll = () => setActiveTabs(allOpen ? new Set(["sec-plan"]) : new Set(allSectionIds));
+
+  // Printing: sections are collapsed by default, so expand them all first (closed
+  // sections aren't in the DOM and can't print otherwise). Also catches Ctrl/⌘-P.
+  useEffect(() => {
+    const expand = () => setActiveTabs(new Set(allSectionIds));
+    window.addEventListener("beforeprint", expand);
+    return () => window.removeEventListener("beforeprint", expand);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allSectionIds.join(",")]);
 
   const rrspShare = startBal > 0
     ? (n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp)) / startBal
@@ -435,26 +444,35 @@ export default function Dashboard({ plan, setPlan }) {
   const customGoalCalc = customGoals.map((g) => {
     const amt = n(g.amount), yrs = goalYears(g);
     const dueLabel = g.date ? new Date(`${g.date}T00:00:00`).toLocaleDateString("en-CA", { month: "short", year: "numeric" }) : null;
-    const reqMonthly = (() => {
-      const N = yrs * 12, i = (ret - fee) / 12;
-      if (N <= 0 || amt <= 0) return null;
-      if (i <= 0) return amt / N;
-      return Math.max(0, amt * i / (Math.pow(1 + i, N) - 1));
-    })();
-    return { ...g, amt, yrs, dueLabel, reqMonthly, yToReach: amt > 0 ? yearsToTarget(amt, ret - fee, 0, annInv) : null };
+    // A near-term goal can't ride on the full equity return — you'd hold it safer.
+    const gRate = amt > 0 && yrs >= 1 ? goalRate(yrs, ret - fee) : (ret - fee);
+    return { ...g, amt, yrs, dueLabel, gRate, fromLump: 0, reqMonthly: amt > 0 && yrs >= 1 ? 0 : null };
   });
 
-  // For each goal: where your portfolio will be at that point, and whether it covers
-  // the goal. Goals share one pot, so we subtract earlier commitments (the home down
-  // payment + any goals that come due first) from the projected balance.
-  customGoalCalc.forEach((g) => {
-    if (!(g.yrs >= 1 && g.yrs <= years && g.amt > 0)) { g.projAtGoal = null; g.affordable = null; return; }
-    const gross = projectFinal(ret - fee, g.yrs, start, effectiveMonthly, monthsArr, startMonth);
-    let prior = (homeIdx != null && homeIdx <= g.yrs) ? homeDown : 0;
-    customGoalCalc.forEach((o) => { if (o !== g && o.amt > 0 && o.yrs >= 1 && o.yrs < g.yrs) prior += o.amt; });
-    g.projAtGoal = Math.max(0, Math.round(gross - prior));
-    g.affordable = g.projAtGoal >= g.amt;
+  // Money you already have for goals = your one-time lump sum. Apply it to the soonest
+  // goals first (least time to grow); whatever it can't cover is funded from monthly saving.
+  const goalPMT = (target, rate, yrs) => {
+    const N = yrs * 12, i = rate / 12;
+    if (N <= 0 || target <= 0) return 0;
+    if (i <= 0) return target / N;
+    return Math.max(0, target * i / (Math.pow(1 + i, N) - 1));
+  };
+  let goalLumpPool = lumpSum;
+  [...customGoalCalc].filter((g) => g.amt > 0 && g.yrs >= 1).sort((a, b) => a.yrs - b.yrs).forEach((g) => {
+    const grown = goalLumpPool * Math.pow(1 + g.gRate, g.yrs);   // your lump sum grown to this goal's date
+    const fromLump = Math.min(grown, g.amt);
+    g.fromLump = Math.round(fromLump);
+    g.reqMonthly = goalPMT(Math.max(0, g.amt - fromLump), g.gRate, g.yrs);
+    goalLumpPool = Math.max(0, goalLumpPool - fromLump / Math.pow(1 + g.gRate, g.yrs)); // spend its present value
   });
+
+  // Can you afford your goals and still be okay? After your lump sum, the remainder is
+  // funded from monthly savings — leaving room to invest is the "still okay" test.
+  const goalsLumpApplied = Math.round(lumpSum - goalLumpPool);
+  const goalsMonthlyTotal = Math.round(customGoalCalc.reduce((a, g) => a + (g.reqMonthly || 0), 0));
+  const goalsLeftForInvesting = Math.round(monthly - goalsMonthlyTotal);
+  const goalsAffordable = goalsMonthlyTotal <= monthly + 1;
+  const hasFundedGoals = customGoalCalc.some((g) => g.amt > 0 && g.yrs >= 1);
 
   // Milestone dots on the growth chart for each custom savings goal
   const GOAL_COLORS = ["#7044BE", "#2E8B57", "#C05D5D", "#C0955D", "#5D80C0"];
@@ -610,7 +628,11 @@ export default function Dashboard({ plan, setPlan }) {
 
   const accts = accounts(plan);
   const ins = insights(plan, marginal);
-  const print = () => window.print();
+  // Expand every section, let it render, then open the print dialog.
+  const print = () => {
+    setActiveTabs(new Set(allSectionIds));
+    setTimeout(() => window.print(), 250);
+  };
 
   const Bar = ({ used, total, color }) => {
     const pu = total > 0 ? Math.min(100, (used / total) * 100) : 0;
@@ -1294,14 +1316,15 @@ export default function Dashboard({ plan, setPlan }) {
                   </div>
                   {(() => {
                     const N = homeIdx ? homeIdx * 12 : 0;
-                    const i = (ret - fee) / 12;
+                    const hRate = homeIdx ? goalRate(homeIdx, ret - fee) : (ret - fee); // safer return for a near-term down payment
+                    const i = hRate / 12;
                     const flat = N > 0 ? Math.max(0, (downNeed - start) / N) : null;
                     const fvStart = start * Math.pow(1 + i, N);
                     const grow = (N > 0 && i > 0) ? Math.max(0, (downNeed - fvStart) * i / (Math.pow(1 + i, N) - 1)) : flat;
                     return (
                       <div className="pp-grid-2" style={{ marginTop: 12 }}>
                         <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly to get there · before growth</div><div className="v">{flat != null ? fmtMoney(flat) + "/mo" : "—"}</div><div className="h">if saved as plain cash</div></div>
-                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly to get there · with growth</div><div className="v">{grow != null ? fmtMoney(grow) + "/mo" : "—"}</div><div className="h">invested at {pct1(ret)}{fvStart >= downNeed && start > 0 ? " — your balance already covers it" : ""}</div></div>
+                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly to get there · with growth</div><div className="v">{grow != null ? fmtMoney(grow) + "/mo" : "—"}</div><div className="h">at ~{pct1(hRate)}/yr (safer, near-term){fvStart >= downNeed && start > 0 ? " — your balance already covers it" : ""}</div></div>
                       </div>
                     );
                   })()}
@@ -1388,30 +1411,31 @@ export default function Dashboard({ plan, setPlan }) {
               <span className="pp-eyebrow"><PiggyBank size={13} /> Save for something</span>
               {customGoalCalc.length > 0 ? (
                 <div style={{ marginTop: 8 }}>
+                  {/* Can you afford your goals and still be okay? (lump sum applied first) */}
+                  {hasFundedGoals && (
+                    <div className={"pp-goal-verdict " + (goalsMonthlyTotal <= 0 ? "ok" : monthly <= 0 ? "neutral" : goalsAffordable ? "ok" : "warn")}>
+                      {goalsMonthlyTotal <= 0 ? (
+                        <span><Check size={16} style={{ flex: "none", marginTop: 1 }} /> <b>Your goals are covered.</b> Your <b>{fmtMoney(goalsLumpApplied)}</b> lump sum, invested now, grows to cover them — no extra monthly saving needed.</span>
+                      ) : monthly <= 0 ? (
+                        <span><Info size={16} style={{ flex: "none", marginTop: 1 }} /> {goalsLumpApplied > 0 ? <>After your <b>{fmtMoney(goalsLumpApplied)}</b> lump sum, your goals</> : "Your goals"} still need <b>{fmtMoney(goalsMonthlyTotal)}/mo</b>. Add your monthly savings in the planner to see whether that fits with room left to invest.</span>
+                      ) : goalsAffordable ? (
+                        <span><Check size={16} style={{ flex: "none", marginTop: 1 }} /> <b>Yes — you can afford your goals and still be okay.</b> {goalsLumpApplied > 0 ? <>Your <b>{fmtMoney(goalsLumpApplied)}</b> lump sum covers part; the rest needs </> : "They need "}<b>{fmtMoney(goalsMonthlyTotal)}/mo</b> of your <b>{fmtMoney(monthly)}/mo</b> savings, leaving <b>{fmtMoney(goalsLeftForInvesting)}/mo</b> for long-term investing.</span>
+                      ) : (
+                        <span><AlertTriangle size={16} style={{ flex: "none", marginTop: 1 }} /> <b>These goals are a stretch right now.</b> {goalsLumpApplied > 0 ? <>Even after your <b>{fmtMoney(goalsLumpApplied)}</b> lump sum, they</> : "Together they"} need <b>{fmtMoney(goalsMonthlyTotal)}/mo</b>, but you're saving <b>{fmtMoney(monthly)}/mo</b> — about <b>{fmtMoney(goalsMonthlyTotal - monthly)}/mo short</b>. Push a date out, trim a target, or save more.</span>
+                      )}
+                    </div>
+                  )}
                   {customGoalCalc.map((g, gi) => (
                     <div key={gi} className="pp-savegoal">
                       <div className="nm">{g.name || "Goal " + (gi + 1)}{g.dueLabel && <span style={{ fontWeight: 500, fontSize: 13, color: "var(--muted)", marginLeft: 8 }}>· due {g.dueLabel}</span>}</div>
                       <div className="pp-grid-3" style={{ marginTop: 6 }}>
                         <div className="pp-rate-chip"><div className="l">You'll need</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.dueLabel ? `by ${g.dueLabel}` : g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
-                        {g.projAtGoal != null ? (
-                          <>
-                            <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">You'll have by then</div><div className="v">{fmtMoney(g.projAtGoal)}</div><div className="h">your portfolio at {pct1(ret)}, after earlier goals</div></div>
-                            <div className="pp-rate-chip" style={{ background: g.affordable ? "#EDF7ED" : "#F3ECDB" }}>
-                              <div className="l">Can you afford it?</div>
-                              <div className="v" style={{ color: g.affordable ? "var(--green)" : "var(--gold)" }}>{g.affordable ? "Yes ✓" : fmtMoney(g.amt - g.projAtGoal) + " short"}</div>
-                              <div className="h">{g.affordable ? `${fmtMoney(g.projAtGoal - g.amt)} to spare at your current pace` : g.reqMonthly != null ? `save ${fmtMoney(g.reqMonthly)}/mo toward this to close it` : "add a timeframe"}</div>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Monthly · with growth</div><div className="v">{g.reqMonthly != null ? fmtMoney(g.reqMonthly) + "/mo" : "—"}</div><div className="h">at {pct1(ret)}</div></div>
-                            <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Monthly · as cash</div><div className="v">{g.yrs > 0 && g.amt > 0 ? fmtMoney(g.amt / (g.yrs * 12)) + "/mo" : "—"}</div><div className="h">no growth</div></div>
-                          </>
-                        )}
+                        <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Save to fund it</div><div className="v" style={g.reqMonthly === 0 ? { color: "var(--green)" } : {}}>{g.reqMonthly == null ? "—" : g.reqMonthly === 0 ? "Covered ✓" : fmtMoney(g.reqMonthly) + "/mo"}</div><div className="h">{g.reqMonthly == null ? "add a target & date" : g.fromLump > 0 ? `${fmtMoney(g.fromLump)} from your lump sum${g.reqMonthly > 0 ? " + saving" : ""} · ~${pct1(g.gRate)}/yr` : `assuming ~${pct1(g.gRate)}/yr`}</div></div>
+                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Hold it in</div><div className="v" style={{ fontSize: 15 }}>{g.yrs < 3 ? "Cash / HISA" : g.yrs < 7 ? "Balanced" : "Growth"}</div><div className="h">{g.yrs < 3 ? "too soon to risk it" : g.yrs < 7 ? "stocks + bonds mix" : "mostly stocks"}</div></div>
                       </div>
                     </div>
                   ))}
-                  <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>“You'll have by then” is your projected portfolio at that date, after money set aside for any earlier goals — they all draw from the same pot. For goals under ~3 years, keeping the money in cash usually beats investing it.</p>
+                  <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>{lumpSum > 0 ? <>Your <b>{fmtMoney(lumpSum)}</b> one-time lump sum is applied to the soonest goals first. </> : null}Shorter goals use a lower assumed return because the money belongs somewhere safer — under ~3 years, cash or a high-interest savings account usually beats investing. The remaining "save to fund it" figures draw from the same monthly savings, which is why we total them against your savings above.</p>
                 </div>
               ) : <p style={{ color: "var(--muted)", marginTop: 8 }}>Add savings goals in the planner's goal step.</p>}
             </div>
