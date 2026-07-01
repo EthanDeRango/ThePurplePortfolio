@@ -1253,8 +1253,12 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   .pp-section { padding: 8px 0; }
   .pp-sec-h, h1, h2, h3, h4 { page-break-after: avoid; }
   svg { max-width: 100%; }
-  .pp-dash-head, .pp-invest-banner { background: #fff !important; color: #000 !important; border: 1px solid #ccc; }
-  .pp-dash-head .big, .pp-dash-head .cap, .pp-dash-head .pp-eyebrow, .pp-invest-banner .l, .pp-invest-banner .v, .pp-invest-banner .h, .pp-invest-banner .v .u { color: #000 !important; }
+  /* The projection hero is white-on-dark on screen; in print force ALL its text
+     (incl. inline color:#fff) dark, drop the decorative glow, and outline the cards. */
+  .pp-dash-head, .pp-invest-banner { background: #fff !important; color: #1E1128 !important; border: 1px solid #ccc; }
+  .pp-dash-head::before { display: none !important; }
+  .pp-dash-head *, .pp-invest-banner * { color: #1E1128 !important; }
+  .pp-dash-head .pp-scnc { background: #F5F2FB !important; border-color: #D8D0E8 !important; }
   .pp-printonly { display: block !important; }
   a[href]:after { content: ""; }
 }

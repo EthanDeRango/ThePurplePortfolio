@@ -267,11 +267,6 @@ export default function GrowthChart({
             );
           })()}
 
-          {/* Now label */}
-          <text x={PL + 3} y={Y(totalSeries[0]) - 7} fontSize="10.5" fontWeight="700" fill="#8E7AA0" fontFamily="Hanken Grotesk">
-            now {fmtShort(totalSeries[0])}
-          </text>
-
           {/* Milestone dots (on the curve) + titles (in the label band, no overlap) */}
           {markerList.map((mk) => {
             const cx = mk.x, cy = Y(mYearVal(mk.year));
@@ -291,6 +286,19 @@ export default function GrowthChart({
               <circle cx={X(hover)} cy={Y(totalSeries[hover])} r="5.5" fill="#fff" stroke={stackedLayers ? "#3A2168" : lineColor} strokeWidth="2.5" />
             </g>
           )}
+
+          {/* "Now" starting value — drawn last, over a white halo so the curve never hides it */}
+          {(() => {
+            const label = `now ${fmtShort(totalSeries[0])}`;
+            const ny = Math.min(Y(totalSeries[0]) - 10, PT + plotH - 8);
+            const w = label.length * 6 + 10;
+            return (
+              <g>
+                <rect x={PL + 1} y={ny - 11} width={w} height={15} rx="4" fill="#fff" fillOpacity="0.85" />
+                <text x={PL + 6} y={ny} fontSize="10.5" fontWeight="700" fill="#5B3A9E" fontFamily="Hanken Grotesk">{label}</text>
+              </g>
+            );
+          })()}
 
           {/* X ticks */}
           {xticks.map((t) => (
