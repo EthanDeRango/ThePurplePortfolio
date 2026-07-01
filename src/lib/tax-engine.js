@@ -27,19 +27,22 @@ const num = (x) => { const v = typeof x === "number" ? x : parseFloat(x); return
 // - incorporated (owner-manager on salary): employee CPP only (corp pays the employer half),
 //   and EI-exempt (controlling owners don't pay EI). Dividends carry no CPP/EI at all.
 export function contributions(gross, prov, employmentType) {
+  // A loss/negative income can't produce negative payroll contributions (a phantom "refund") —
+  // floor at 0 before any of the CPP/EI/QPIP math below.
+  const g = Math.max(0, num(gross));
   const selfEmployed = employmentType === "self" || employmentType === true; // accept legacy boolean
   const incorporated = employmentType === "incorporated";
   const isQC = prov === "QC";
   const C = isQC ? TAX_CONFIG.qpp : TAX_CONFIG.cpp;
-  const pen = Math.max(0, Math.min(gross, C.ympe) - C.exemption);
+  const pen = Math.max(0, Math.min(g, C.ympe) - C.exemption);
   let base = pen * C.baseRate;
-  const cpp2Earn = Math.max(0, Math.min(gross, C.yampe) - C.ympe);
+  const cpp2Earn = Math.max(0, Math.min(g, C.yampe) - C.ympe);
   let cpp2 = cpp2Earn * C.cpp2Rate;
   if (selfEmployed) { base *= 2; cpp2 *= 2; }
   let ei = 0;
-  if (!selfEmployed && !incorporated) ei = Math.min(gross, TAX_CONFIG.ei.mie) * (isQC ? TAX_CONFIG.ei.qcRate : TAX_CONFIG.ei.rate);
+  if (!selfEmployed && !incorporated) ei = Math.min(g, TAX_CONFIG.ei.mie) * (isQC ? TAX_CONFIG.ei.qcRate : TAX_CONFIG.ei.rate);
   let qpip = 0;
-  if (isQC && !incorporated) qpip = Math.min(gross, TAX_CONFIG.qpip.mie) * (selfEmployed ? TAX_CONFIG.qpip.selfRate : TAX_CONFIG.qpip.rate);
+  if (isQC && !incorporated) qpip = Math.min(g, TAX_CONFIG.qpip.mie) * (selfEmployed ? TAX_CONFIG.qpip.selfRate : TAX_CONFIG.qpip.rate);
   return { isQC, pen, cppBase: base, cpp2, ei, qpip, cppTotal: base + cpp2, creditRate: C.creditRate, enhRate: C.enhRate };
 }
 

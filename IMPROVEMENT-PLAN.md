@@ -69,14 +69,11 @@ The projection currently looks more certain than it is. This is what gates trust
   - Fix (pick one, document it): (a) a path-dependent stress scenario — e.g. first 5 years at −2%/yr then recover — or (b) a simple Monte Carlo band. At minimum, re-label the current range honestly as "different assumed average returns, not a downturn simulation."
   - Acceptance: either real downside modeling exists, or the copy no longer implies it does.
 
-- [ ] **Tie the safe-withdrawal rate to the horizon** *(Sarah)*
-  - Problem: 4% rule applied as law; too high for a 55-year-old with a 40-year horizon.
-  - Fix: scale the withdrawal rate by retirement length (e.g. ~3–3.5% for 40+ years). Touches `Dashboard.jsx` retirement-income math.
-  - Acceptance: withdrawal rate visibly adjusts with retirement age / horizon.
+- [x] **Tie the safe-withdrawal rate to the horizon** *(Sarah)* — done
+  - `retirementWithdrawal(retAge)` in `lib/calculations.js` scales the withdrawal rate down as retirement length grows (sequence-of-returns risk), used throughout `Dashboard.jsx`.
 
-- [ ] **Apply OAS clawback to projected retirement income** *(Sarah)*
-  - Problem: clawback is footnoted, not applied. We have `oasClawback()` in `lib/calculations.js` — use it in the retirement income total, not just as a flag.
-  - Acceptance: projected government benefits reflect clawback at higher modeled incomes.
+- [x] **Apply OAS clawback to projected retirement income** *(Sarah)* — done, and hardened 2026-07-01
+  - `oasClawback()` is applied in `govBenefitsEstimate()` and reduces the projected gov-benefits total. As of the 2026-07-01 audit below, the clawback income proxy also floors at a DB pension's guaranteed income (not just planned spend), since a big pension is taxable whether or not it's spent.
 
 - [ ] **Model a career arc / contribution changes** *(Sarah)*
   - Allow income/contributions to change over time (raises, leave, gaps) rather than constant-forever. Overlaps with Alex's "life events timeline" (Tier 3).
@@ -164,3 +161,40 @@ Strategic, not a quick fix — but it's the difference between a calculator and 
 - Plain term (ACRONYM) on first use per screen (existing house rule).
 - No regression to the privacy-by-default posture.
 - New assumptions are disclosed on-screen, not hidden.
+
+---
+
+## 2026-07-01 audit — 4-persona deep dive (post Tier 0–4 shipped)
+
+Fresh review with live Playwright walkthroughs + code verification, run after the Budget tab, Planner wizard, employer-match %, home-splitting, and print/chart fixes shipped. Personas: Jamie (22yo first-timer) + accessibility, Sarah (skeptical CPA), Daniel (incorporated business owner) + Priya (power user), Emma/Michael (design + trust). Verified against source before listing.
+
+> **Status — 2026-07-01, same day:** all 19 items below are fixed and verified (engine self-tests, Vitest, lint, build all green). Notes per item.
+
+### A — Correctness bugs (fix first)
+- [x] **Couple home-equity split not applied to net worth.** Added `homeEquityShare` (`plan.homeYourShare`/100, or 1 solo) and scaled `homeEquityArr` by it before it enters the stacked net-worth chart; also switched `downNeed` to the already-share-adjusted `homeDown` and relabeled the "Min. down payment" chip to "Your share of down payment" when buying with a partner.
+- [x] **OAS clawback modeled off planned spending, not actual retirement income.** `govBenefitsEstimate()` now takes a `pensionIncome` arg and floors the clawback income proxy at `pensionIncome + CPP + OAS` (a DB pension is taxable whether or not it's spent). Regression tests added.
+- [x] **DB pension excluded from the retirement marginal-rate base.** `retTaxableIncome` now uses `Math.max(govBenefits + pensionDBIncome, retSpend)` — dropped the old hardcoded `GOV_BENEFITS` constant in favour of the real computed figure.
+- [x] **Employer RRSP match shown as unconditional free money.** Softened copy in both the action-plan step and tax-savings card to note it assumes the user's own contribution already qualifies for the match ("check your plan's rules").
+- [x] **Negative/zero income floors missing in the shared tax engine.** `contributions()` now floors gross at 0 before any CPP/EI/QPIP math. Regression tests added.
+
+### B — Wrong-content / state bugs
+- [x] **Budget tab mislabels anyone under 25 as "Student."** `deriveFromPlan()` now only defaults to "student" when there's no job/income signal (`employmentType` or income > $15k overrides to "young_pro").
+- [x] **Sticky header covers section headings on every anchor-jump.** Added a global `html { scroll-padding-top: 90px; }` — fixes every `scrollIntoView`/`#anchor` jump site-wide, not just one id list.
+- [x] **"Refresh from Planner" always overwrites Budget row 0.** `seedFromPlan()` now only fills row 0 while its label still matches the stage template's default — a renamed row is left alone.
+- [x] **Rolling forward a budget year keeps the stale life stage.** `addBudgetYear()` recomputes the implied stage from birth year + new year and updates the `lifeStage` key, without force-relabeling customized rows.
+- [x] **Planner wizard step position isn't persisted.** Step now reads/writes `sessionStorage` — survives a refresh within the tab, resets for a fresh session.
+- [x] **No account for corporate/holdco assets.** Added a "Corporate investments (holdco)" balance field (incorporated-only), counted in `netWorthToday`; explicitly not projected/grown, consistent with the deferred full corp-tax model.
+
+### C — Accessibility ("usable by everyone")
+- [x] **Toggle-style buttons have no `aria-pressed`/`aria-selected`.** Added `aria-pressed` to every toggle-style button in the Planner (employment type, pay mix, dividend type, risk cards, MER toggle, goal cards, buy-home/partner yes-no, contribution mode, emergency status, income stability, match mode, savings mode, account picker cards).
+- [x] **Gold accent text fails WCAG AA contrast.** Darkened `--gold` from `#A8761E` to `#8A6420` (~4.8:1 on `--paper`, up from ~3.55:1); `--gold-2` left as-is since it's only ever used on dark plum backgrounds.
+- [x] **No progressive disclosure for account jargon.** Account picker now shows TFSA/RRSP/FHSA/RESP/Non-Reg by default, with the other 6 (RDSP/RRIF/LIRA/DB/DC/DPSP) behind a "Show less common accounts" toggle that auto-expands if any of them already has data.
+
+### D — Polish / trust nits (cheap, do anytime)
+- [x] Contribution-limit cards: swapped the visual hierarchy so **your balance** is now the large bold figure and the annual max/room is a small secondary chip underneath, instead of the reverse.
+- [x] Budget grid empty cells now show a plain **"–"** placeholder instead of a literal "0".
+- [x] Fresh-dashboard score ring: added a reassuring note under scores below 40 ("not a grade on you... climbs fast as you work through your Action Plan") without hiding the real number.
+- [x] **Dead legacy file `src/PurplePortfolio.jsx`** deleted (2,635 lines, unimported, forked copy of the tax engine).
+- [x] Stale Tier 2 line about OAS clawback updated above to reflect it's applied (and now hardened).
+
+Overall verdict across all 4 personas: no console errors on 24 page/width combinations, $0-income and no-asset paths handled unusually well, tone/copy consistently non-judgmental and jargon-explained on the marketing pages. The gaps above were real but narrow — this was a polish-and-correctness pass, not a rebuild.

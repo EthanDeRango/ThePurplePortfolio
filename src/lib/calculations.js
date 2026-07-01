@@ -183,15 +183,20 @@ export function splitIncome(income, empType, payMix, salaryShare) {
 }
 
 // Rough CPP + OAS estimate. OAS starts at 65 and is clawed back at higher retirement
-// incomes — we apply the clawback (using planned spend as the income proxy) so the
-// projected benefit isn't overstated.
-export function govBenefitsEstimate(income, retAge, retSpend) {
+// incomes — we apply the clawback against planned spend PLUS any defined-benefit pension
+// (a DB pension pays out — and is taxed — whether or not it's actually spent, so it can't
+// be netted out of the income proxy the way discretionary spending can) so a pension-heavy,
+// low-spend retiree isn't shown a false $0 clawback.
+export function govBenefitsEstimate(income, retAge, retSpend, pensionIncome = 0) {
   if (retAge < 60) return { govBenefits: 0, oasClawApplied: 0 };
   const oasGross = retAge >= 65 ? 8800 : 0;
   const cppFull = n(income) > 0 ? Math.min(17400, Math.max(4000, n(income) * 0.18)) : 8500;
   const yearsEarly = Math.max(0, 65 - retAge);
   const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
-  const oasClaw = oasGross > 0 ? Math.min(oasGross, Math.round(oasClawback(retSpend))) : 0;
+  // A DB pension (plus CPP/OAS) is taxable whether or not it's actually spent, so the
+  // clawback income test can't drop below guaranteed income even at low planned spend.
+  const clawIncomeProxy = Math.max(n(retSpend), n(pensionIncome) + cpp + oasGross);
+  const oasClaw = oasGross > 0 ? Math.min(oasGross, Math.round(oasClawback(clawIncomeProxy))) : 0;
   const oasNet = Math.max(0, oasGross - oasClaw);
   return { govBenefits: Math.max(0, cpp) + oasNet, oasClawApplied: oasClaw };
 }

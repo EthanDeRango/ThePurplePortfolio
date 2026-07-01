@@ -12,7 +12,7 @@ import {
   totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
-  oasClawback, emergencyFundTarget, minDownPayment, yourHomeDownPayment, bracketInfo,
+  oasClawback, emergencyFundTarget, yourHomeDownPayment, bracketInfo,
   yearsToTarget, simulateStrategy, goalRate,
   recommendOrder, healthScore, investedFromMonth, employerMatchAmount, insights, accounts,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
@@ -28,7 +28,6 @@ import { Disclaimer, TaxDisclaimer } from "../components/Disclaimer.jsx";
 import { CurrencyField } from "../components/InputFields.jsx";
 
 const HBP_LIMIT = 60000;
-const GOV_BENEFITS = 21000;
 const ACCT_NAME = { fhsa: "FHSA", tfsa: "TFSA", rrsp: "RRSP", taxable: "Taxable" };
 
 export default function Dashboard({ plan, setPlan }) {
@@ -55,10 +54,10 @@ export default function Dashboard({ plan, setPlan }) {
   const start = startBal + lumpSum;
   // What you're worth today, from the balances entered: investments + RESP/RDSP + any
   // emergency cash, minus high-interest debt. Grounds the big projected number in reality.
-  const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp)
+  const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp) + n(plan.holdco)
     + (plan.emergencyStatus === "partial" ? n(plan.emergencySaved) : 0)
     - n(plan.highInterestDebt);
-  const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0;
+  const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0 || n(plan.holdco) > 0;
   const monthsArr = plan.contribMode === "custom" ? (plan.months || null) : null;
   const emergencyFull = plan.emergencyStatus === "full";
   const emergencySaved = n(plan.emergencySaved);
@@ -263,7 +262,7 @@ export default function Dashboard({ plan, setPlan }) {
     return startAge <= retAge ? mo * 12 : 0;
   })();
   // Rough CPP + OAS estimate (with OAS clawback applied) — see govBenefitsEstimate.
-  const { govBenefits, oasClawApplied } = govBenefitsEstimate(income, retAge, retSpend);
+  const { govBenefits, oasClawApplied } = govBenefitsEstimate(income, retAge, retSpend, pensionDBIncome);
   // Safe-withdrawal rate scales down as retirement lengthens (sequence-of-returns risk).
   const { rate: safeWithdrawalRate, multiple: nestEggMultiple, lengthYears: retLengthYears } = retirementWithdrawal(retAge);
   const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) / safeWithdrawalRate;
@@ -283,7 +282,9 @@ export default function Dashboard({ plan, setPlan }) {
       ? Math.max(0, (retNeedFuture - pvGrown) * r / (Math.pow(1 + r, nMo) - 1))
       : Math.max(0, (retNeedFuture - start) / nMo);
   })();
-  const retTaxableIncome = Math.max(GOV_BENEFITS, retSpend);
+  // A DB pension pays out (and is taxed) whether or not it's spent, so taxable income in
+  // retirement is at least gov benefits + pension, even if planned spending is lower.
+  const retTaxableIncome = Math.max(govBenefits + pensionDBIncome, retSpend);
   const retMarginalAuto = retTaxableIncome > 0 ? retirementMarginal(retTaxableIncome, prov) : 0;
   const retMarginal = n(plan.retTaxRate) > 0 ? Math.min(0.6, n(plan.retTaxRate) / 100) : retMarginalAuto;
   const dispVal = (v) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x = x / Math.pow(1 + inflRate, years); return x; };
@@ -354,12 +355,17 @@ export default function Dashboard({ plan, setPlan }) {
   );
   const fhsaAtPurchase = (byAcct && homeIdx != null && homeIdx > 0)
     ? (byAcct.fhsaAtClose || n(plan.bFhsa)) : n(plan.bFhsa);
+  // When buying with a partner, only your ownership share of the home's equity belongs in
+  // your net worth — the mortgage/appreciation math itself still runs on the full household home.
+  const homeEquityShare = plan.homeWithPartner
+    ? Math.max(0, Math.min(100, n(plan.homeYourShare) || 50)) / 100
+    : 1;
   const homeEquityArr = useMemo(
     () => (buyingHome && homePrice > 0 && homeIdx != null)
-      ? mortgageEquitySeries(homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx)
+      ? mortgageEquitySeries(homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx).map((v) => v * homeEquityShare)
       : new Array(years + 1).fill(0),
-     
-    [buyingHome, homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx]
+
+    [buyingHome, homePrice, fhsaAtPurchase, mortgageRateDecimal, homeApprecDecimal, years, homeIdx, homeEquityShare]
   );
   const stackedSeries = useMemo(() => {
     if (!byAcct) return null;
@@ -484,7 +490,9 @@ export default function Dashboard({ plan, setPlan }) {
       color: GOAL_COLORS[i % GOAL_COLORS.length],
     }));
 
-  const downNeed = buyingHome ? (n(plan.homePrice) > 0 ? minDownPayment(n(plan.homePrice)) : 0) : 0;
+  // Your own savings only need to cover your share of the down payment (homeDown), not the
+  // full household minimum — that's what a co-buyer's own FHSA/TFSA progress should be measured against.
+  const downNeed = buyingHome ? homeDown : 0;
   const health = healthScore({ hasEmergency: emergencyFull, income, annualInvest: annInv, buyHome: buyingHome, marginal, projRetIncome: recSim.afterTax * safeWithdrawalRate, targetSpend: retSpend, downProj: recSim.downAtHome || 0, downNeed });
   const scoreColor = (s) => s >= 7 ? "var(--green)" : s >= 4 ? "var(--gold)" : "var(--rose)";
 
@@ -531,7 +539,7 @@ export default function Dashboard({ plan, setPlan }) {
   });
   if (matchAmt > 0) nextSteps.push({
     key: "match", label: "Capture your employer RRSP match", amount: matchAmt, done: false,
-    note: `Your employer matches up to ${fmtMoney(matchAmt)} in your RRSP — contribute enough to collect it all. It's an instant ~100% return on that money before it even gets invested.`,
+    note: `Your employer matches up to ${fmtMoney(matchAmt)} in your RRSP if you're contributing enough of your own pay to qualify (check your plan's rules) — that's an instant ~100% return before the money even gets invested.`,
   });
   if (debt > 0) nextSteps.push({
     key: "debt", label: "Clear high-interest debt", amount: debt, done: false, urgent: true,
@@ -1144,9 +1152,9 @@ export default function Dashboard({ plan, setPlan }) {
               key: "match", done: false,
               icon: <Landmark size={16} />, accentColor: "var(--gold)", accentBg: "#F8F0E0",
               label: "Capture your employer RRSP match",
-              badge: "Free money",
+              badge: "Free money — if you qualify",
               math: `${fmtMoney(matchAmt)} from you → ${fmtMoney(matchAmt)} matched = instant 100% return`,
-              detail: "The highest guaranteed return you'll find anywhere. Always do this before anything else.",
+              detail: "Assumes you're contributing enough of your own pay to trigger your plan's match rules — check your plan's terms. If you qualify, it's the highest guaranteed return you'll find anywhere, and worth doing before anything else.",
             });
             if (debt > 0) taxSteps.push({
               key: "debt", done: false,
@@ -1311,7 +1319,7 @@ export default function Dashboard({ plan, setPlan }) {
               {n(plan.homePrice) > 0 ? (
                 <>
                   <div className="pp-grid-2" style={{ marginTop: 8 }}>
-                    <div className="pp-rate-chip"><div className="l">Min. down payment</div><div className="v">{fmtMoney(downNeed)}</div><div className="h">on a {fmtMoney(n(plan.homePrice))} home</div></div>
+                    <div className="pp-rate-chip"><div className="l">{plan.homeWithPartner ? "Your share of down payment" : "Min. down payment"}</div><div className="v">{fmtMoney(downNeed)}</div><div className="h">{plan.homeWithPartner ? `${n(plan.homeYourShare) || 50}% of the min. down payment on a ${fmtMoney(n(plan.homePrice))} home` : `on a ${fmtMoney(n(plan.homePrice))} home`}</div></div>
                     <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Projected by age {homeAge || "?"}</div><div className="v">{recSim.downAtHome != null ? fmtMoney(recSim.downAtHome) : "—"}</div><div className="h">FHSA + TFSA + Home Buyers' Plan at {pct1(ret)}</div></div>
                   </div>
                   {(() => {
@@ -1558,6 +1566,12 @@ export default function Dashboard({ plan, setPlan }) {
               ))}
             </div>
           </div>
+          {health.overall < 40 && (
+            <div className="pp-callout" style={{ marginTop: 12 }}>
+              <Info size={18} style={{ flex: "none" }} />
+              <span>A low score here just means there's room to build — it's not a grade on you. Work through your <b>Action Plan</b> above and this climbs fast; most of it just reflects steps you haven't gotten to yet.</span>
+            </div>
+          )}
           <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 14 }}>
             <div className="l" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700, color: "var(--plum-2)", marginBottom: 10 }}>Progress toward your {goals.length > 1 ? "goals" : "goal"}</div>
             <div className="pp-score-bars">
@@ -1853,7 +1867,7 @@ export default function Dashboard({ plan, setPlan }) {
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 14 }}>
               Hover or tap any point on the chart to read the exact value for that year.{" "}
               {stackedSeries
-                ? <>Each coloured band is a different account — they stack up to your total projected wealth{homeEquityArr.some((v) => v > 0) ? ` (home equity included, assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)}/yr appreciation)` : ""}. The dashed purple line shows how much you'd have if you stopped contributing today — everything above it is the extra wealth built by continuing to save.</>
+                ? <>Each coloured band is a different account — they stack up to your total projected wealth{homeEquityArr.some((v) => v > 0) ? ` (${plan.homeWithPartner ? `your ${Math.round(homeEquityShare * 100)}% share of home equity` : "home equity"} included, assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)}/yr appreciation)` : ""}. The dashed purple line shows how much you'd have if you stopped contributing today — everything above it is the extra wealth built by continuing to save.</>
                 : <>The curve grows at your chosen return of <b>{pct1(ret)}/yr</b> — drag the slider lower and you'll see it visibly flatten. {goalWithdrawals.length > 0 && `The dip${goalWithdrawals.length > 1 ? "s" : ""} show money being taken out for goals (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")}). `}{noContribSeries && start > 0 ? "The dashed line shows your current savings growing with zero new contributions — everything above it is the extra wealth built by staying invested." : ""}</>
               }{" "}Illustrative projections only — real returns vary.
             </p>
@@ -2037,8 +2051,9 @@ export default function Dashboard({ plan, setPlan }) {
           {accts.map((ac) => (
             <div className="pp-card pp-acct" key={ac.key}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h4 style={{ fontSize: 20 }}>{ac.name}</h4><PiggyBank size={20} style={{ color: "var(--violet)" }} /></div>
-              <div className="pp-bal">Your balance: <b>{fmtMoney(ac.bal)}</b></div>
-              <div><div className="num">{ac.num}</div><div className="pp-tag">{ac.numLabel}</div></div>
+              <div className="pp-tag">Your balance</div>
+              <div className="num">{fmtMoney(ac.bal)}</div>
+              <div className="pp-acct-room"><span className="pp-acct-room-label">{ac.numLabel}</span><span className="pp-acct-room-val">{ac.num}</span></div>
               <p style={{ fontSize: 14, color: "var(--muted)" }}>{ac.why}</p>
               <button className="pp-btn pp-btn-ghost pp-btn-sm" style={{ alignSelf: "flex-start" }} onClick={() => navigate(`/library/accounts/${ac.key}`)}>
                 Learn more <ChevronRight size={15} />

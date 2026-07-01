@@ -145,11 +145,15 @@ export function fillAcross(budget, section, id, fromIdx) {
 export function deriveFromPlan(plan = {}) {
   const age = num(plan.age);
   const thisYear = new Date().getFullYear();
+  // stageFromAge() assumes <25 = student, but a working 22-year-old isn't one — don't
+  // override the age band when the Planner already shows a job or real income.
+  const hasJob = ["employed", "self", "incorporated"].includes(plan.employmentType) || num(plan.income) > 15000;
+  const lifeStage = age > 0 ? ((age < 25 && hasJob) ? "young_pro" : stageFromAge(age)) : null;
   return {
     monthlyIncome: Math.round(num(plan.income) / 12),
     monthlyExpenses: Math.round(num(plan.livingExpenses)),
     monthlySavings: Math.round(num(plan.monthly)),
-    lifeStage: stageFromAge(age),
+    lifeStage,
     birthYear: num(plan.birthYear) || (age > 0 ? thisYear - age : ""),
   };
 }
@@ -162,8 +166,12 @@ export function seedFromPlan(budget, plan) {
   let next = { ...budget };
   if (d.lifeStage && d.lifeStage !== next.lifeStage) next = swapStage(next, d.lifeStage);
   if (d.birthYear) next.birthYear = d.birthYear;
+  const stageDefaults = STAGE_BY_KEY[next.lifeStage] || STAGE_BY_KEY.young_pro;
+  // Only overwrite row 0 while it still carries the template's default label — once the
+  // user renames it (e.g. "Salary" -> "Rental income"), refreshing shouldn't clobber it.
   const fill = (section, amount) => {
     if (!(amount > 0) || !next[section][0]) return;
+    if (next[section][0].label !== stageDefaults[section][0]) return;
     const rows = next[section].slice();
     rows[0] = { ...rows[0], months: Array(12).fill(amount) };
     next[section] = rows;
@@ -234,7 +242,13 @@ export function addBudgetYear(store) {
   const latest = years[years.length - 1];
   const newYear = latest + 1;
   if (store.years[newYear]) return { ...store, activeYear: newYear };
-  const rolled = { ...cloneBudget(store.years[latest]), year: newYear, syncDismissed: false };
+  const prior = store.years[latest];
+  const rolled = { ...cloneBudget(prior), year: newYear, syncDismissed: false };
+  // Keep the life-stage label honest as the user ages into the new year — update the
+  // stage key itself, but never force-relabel their (possibly customized) rows.
+  const impliedAge = num(prior.birthYear) > 0 ? newYear - num(prior.birthYear) : 0;
+  const impliedStage = stageFromAge(impliedAge);
+  if (impliedStage && impliedStage !== rolled.lifeStage) rolled.lifeStage = impliedStage;
   return { ...store, activeYear: newYear, years: { ...store.years, [newYear]: rolled } };
 }
 

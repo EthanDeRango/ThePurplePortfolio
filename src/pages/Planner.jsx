@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Check, Info, Shield, Sparkles,
@@ -162,7 +162,21 @@ export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
   const set = (k, v) => setPlan((p) => ({ ...p, [k]: v }));
   const [showAssumptions, setShowAssumptions] = useState(false);
-  const [step, setStep] = useState(0); // wizard step: 0 About you · 1 Goals · 2 Money · 3 Accounts
+  // wizard step: 0 About you · 1 Goals · 2 Money · 3 Accounts — remembered per tab so a
+  // refresh mid-flow doesn't silently bounce the user back to step 0.
+  const [step, setStep] = useState(() => {
+    try {
+      const v = parseInt(sessionStorage.getItem("pp-planner-step"), 10);
+      return v >= 0 && v <= 3 ? v : 0;
+    } catch { return 0; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem("pp-planner-step", String(step)); } catch { /* ignore */ }
+  }, [step]);
+  // Account picker: show the everyday accounts by default, tuck the rarer ones (pensions,
+  // LIRA, RDSP...) behind "show more" so a first-timer isn't hit with all 11 at once.
+  const [showMoreAccts, setShowMoreAccts] = useState(false);
+  const COMMON_ACCT_KEYS = ["tfsa", "rrsp", "fhsa", "resp", "nonreg"];
 
 
   const age = n(plan.age), retAge = n(plan.retAge), homeAge = n(plan.homeAge);
@@ -280,9 +294,9 @@ export default function Planner({ plan, setPlan }) {
             <div className="pp-field">
               <label className="pp-label2">Employment type</label>
               <div className="pp-toggle">
-                <button className={plan.employmentType === "employed" ? "on" : ""} onClick={() => set("employmentType", "employed")}>Employed</button>
-                <button className={plan.employmentType === "self" ? "on" : ""} onClick={() => set("employmentType", "self")}>Self-employed</button>
-                <button className={plan.employmentType === "incorporated" ? "on" : ""} onClick={() => set("employmentType", "incorporated")}>Incorporated</button>
+                <button className={plan.employmentType === "employed" ? "on" : ""} aria-pressed={plan.employmentType === "employed"} onClick={() => set("employmentType", "employed")}>Employed</button>
+                <button className={plan.employmentType === "self" ? "on" : ""} aria-pressed={plan.employmentType === "self"} onClick={() => set("employmentType", "self")}>Self-employed</button>
+                <button className={plan.employmentType === "incorporated" ? "on" : ""} aria-pressed={plan.employmentType === "incorporated"} onClick={() => set("employmentType", "incorporated")}>Incorporated</button>
               </div>
               <div className="pp-help">{plan.employmentType === "self"
                 ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan), roughly double the normal deduction. No EI (Employment Insurance) typically applies.</>
@@ -296,9 +310,9 @@ export default function Planner({ plan, setPlan }) {
             <div className="pp-subcard" style={{ marginTop: 8 }}>
               <p className="pp-sub-h">How do you pay yourself?</p>
               <div className="pp-toggle">
-                <button className={(plan.payMix || "salary") === "salary" ? "on" : ""} onClick={() => set("payMix", "salary")}>All salary</button>
-                <button className={plan.payMix === "dividends" ? "on" : ""} onClick={() => set("payMix", "dividends")}>All dividends</button>
-                <button className={plan.payMix === "mix" ? "on" : ""} onClick={() => set("payMix", "mix")}>A mix</button>
+                <button className={(plan.payMix || "salary") === "salary" ? "on" : ""} aria-pressed={(plan.payMix || "salary") === "salary"} onClick={() => set("payMix", "salary")}>All salary</button>
+                <button className={plan.payMix === "dividends" ? "on" : ""} aria-pressed={plan.payMix === "dividends"} onClick={() => set("payMix", "dividends")}>All dividends</button>
+                <button className={plan.payMix === "mix" ? "on" : ""} aria-pressed={plan.payMix === "mix"} onClick={() => set("payMix", "mix")}>A mix</button>
               </div>
               {plan.payMix === "mix" && (
                 <div className="pp-field" style={{ marginTop: 12 }}>
@@ -310,14 +324,18 @@ export default function Planner({ plan, setPlan }) {
                 <div className="pp-field" style={{ marginTop: 12 }}>
                   <label className="pp-label2">Dividend type</label>
                   <div className="pp-toggle">
-                    <button className={(plan.dividendType || "noneligible") === "noneligible" ? "on" : ""} onClick={() => set("dividendType", "noneligible")}>Non-eligible (small business)</button>
-                    <button className={plan.dividendType === "eligible" ? "on" : ""} onClick={() => set("dividendType", "eligible")}>Eligible</button>
+                    <button className={(plan.dividendType || "noneligible") === "noneligible" ? "on" : ""} aria-pressed={(plan.dividendType || "noneligible") === "noneligible"} onClick={() => set("dividendType", "noneligible")}>Non-eligible (small business)</button>
+                    <button className={plan.dividendType === "eligible" ? "on" : ""} aria-pressed={plan.dividendType === "eligible"} onClick={() => set("dividendType", "eligible")}>Eligible</button>
                   </div>
                   <div className="pp-help">Most owner-managers pay <b>non-eligible</b> dividends, from small-business-rate income. Eligible dividends come from income taxed at the general corporate rate.</div>
                 </div>
               )}
               <div className="pp-help" style={{ marginTop: 10 }}>
                 Heads up: <b>dividends don't create RRSP room</b> (only salary does) and don't count toward CPP. Tax figures here are <b>estimates</b>. Confirm with your accountant.
+              </div>
+              <div className="pp-field" style={{ marginTop: 12, marginBottom: 0 }}>
+                <CurrencyField id="f-holdco" label="Corporate investments (holdco), current value" placeholder="0" value={plan.holdco} onChange={(v) => set("holdco", v)} />
+                <div className="pp-help">Counted in your net worth today. We don't project its growth or model corporate tax/retained earnings inside it — that stays with your accountant.</div>
               </div>
             </div>
           )}
@@ -326,13 +344,13 @@ export default function Planner({ plan, setPlan }) {
             <label className="pp-label2">How do you want to invest?</label>
             <div className="pp-seg">
               {RISK.map((r) => (
-                <button key={r.key} className={"pp-segc" + (plan.risk === r.key ? " on" : "")} onClick={() => set("risk", r.key)}>
+                <button key={r.key} className={"pp-segc" + (plan.risk === r.key ? " on" : "")} aria-pressed={plan.risk === r.key} onClick={() => set("risk", r.key)}>
                   <div className="nm">{r.name} <span className="rt">~{Math.round(r.ret * 100)}%/yr</span></div>
                   <div className="ds">{r.desc}</div>
                 </button>
               ))}
             </div>
-            <button className={"pp-segc" + (plan.risk === "custom" ? " on" : "")} style={{ marginTop: 10, display: "block", width: "100%" }} onClick={() => set("risk", "custom")}>
+            <button className={"pp-segc" + (plan.risk === "custom" ? " on" : "")} aria-pressed={plan.risk === "custom"} style={{ marginTop: 10, display: "block", width: "100%" }} onClick={() => set("risk", "custom")}>
               <div className="nm">Set my own rate <span className="rt">{plan.risk === "custom" ? `~${Number(plan.customRate || 0)}%/yr` : "custom"}</span></div>
               <div className="ds">Prefer your own assumption? Use any annual return you like.</div>
             </button>
@@ -351,8 +369,8 @@ export default function Planner({ plan, setPlan }) {
                   </div>
                 )}
                 <div className="pp-toggle" style={{ marginTop: 10 }}>
-                  <button className={plan.includeMER ? "on" : ""} onClick={() => set("includeMER", true)}>Subtract fund fees (MER)</button>
-                  <button className={!plan.includeMER ? "on" : ""} onClick={() => set("includeMER", false)}>Return is already after fees</button>
+                  <button className={plan.includeMER ? "on" : ""} aria-pressed={!!plan.includeMER} onClick={() => set("includeMER", true)}>Subtract fund fees (MER)</button>
+                  <button className={!plan.includeMER ? "on" : ""} aria-pressed={!plan.includeMER} onClick={() => set("includeMER", false)}>Return is already after fees</button>
                 </div>
                 {plan.includeMER && (
                   <div className="pp-input-wrap" style={{ marginTop: 10, maxWidth: 220 }}>
@@ -394,7 +412,7 @@ export default function Planner({ plan, setPlan }) {
               const Ic = g.icon;
               const on = (plan.goals || []).includes(g.key);
               return (
-                <button key={g.key} className={"pp-goalc" + (on ? " on" : "")} onClick={() => {
+                <button key={g.key} className={"pp-goalc" + (on ? " on" : "")} aria-pressed={on} onClick={() => {
                   const cur = plan.goals || [];
                   const next = on ? cur.filter((k) => k !== g.key) : [...cur, g.key];
                   set("goals", next.length ? next : ["retirement"]);
@@ -512,8 +530,8 @@ export default function Planner({ plan, setPlan }) {
           <div className="pp-field">
             <label className="pp-label2">Are you saving for a first home?</label>
             <div className="pp-toggle">
-              <button className={plan.buyHome ? "on" : ""} onClick={() => set("buyHome", true)}>Yes</button>
-              <button className={!plan.buyHome ? "on" : ""} onClick={() => set("buyHome", false)}>Not right now</button>
+              <button className={plan.buyHome ? "on" : ""} aria-pressed={!!plan.buyHome} onClick={() => set("buyHome", true)}>Yes</button>
+              <button className={!plan.buyHome ? "on" : ""} aria-pressed={!plan.buyHome} onClick={() => set("buyHome", false)}>Not right now</button>
             </div>
           </div>
 
@@ -537,8 +555,8 @@ export default function Planner({ plan, setPlan }) {
               <div className="pp-field" style={{ marginTop: 4 }}>
                 <label className="pp-label2">Buying with a partner?</label>
                 <div className="pp-toggle">
-                  <button type="button" className={plan.homeWithPartner ? "on" : ""} onClick={() => set("homeWithPartner", true)}>Yes, together</button>
-                  <button type="button" className={!plan.homeWithPartner ? "on" : ""} onClick={() => set("homeWithPartner", false)}>Just me</button>
+                  <button type="button" className={plan.homeWithPartner ? "on" : ""} aria-pressed={!!plan.homeWithPartner} onClick={() => set("homeWithPartner", true)}>Yes, together</button>
+                  <button type="button" className={!plan.homeWithPartner ? "on" : ""} aria-pressed={!plan.homeWithPartner} onClick={() => set("homeWithPartner", false)}>Just me</button>
                 </div>
                 <div className="pp-help">Couples buying their first home can <b>each</b> use an FHSA and an RRSP Home Buyers' Plan — roughly <b>double</b> the tax-advantaged room toward the down payment. We track <b>your</b> share against your plan.</div>
               </div>
@@ -623,8 +641,8 @@ export default function Planner({ plan, setPlan }) {
                 <div className="pp-label-row">
                   <label className="pp-label2" htmlFor="f-monthly" style={{ marginBottom: 0 }}>How much can you set aside each month?</label>
                   <div className="pp-toggle pp-toggle-sm">
-                    <button type="button" className={savingsMode === "amount" ? "on" : ""} onClick={() => set("savingsMode", "amount")}>$ amount</button>
-                    <button type="button" className={savingsMode === "percent" ? "on" : ""}
+                    <button type="button" className={savingsMode === "amount" ? "on" : ""} aria-pressed={savingsMode === "amount"} onClick={() => set("savingsMode", "amount")}>$ amount</button>
+                    <button type="button" className={savingsMode === "percent" ? "on" : ""} aria-pressed={savingsMode === "percent"}
                       onClick={() => setPlan((p) => ({ ...p, savingsMode: "percent", monthly: Math.round(n(p.income) * (parseFloat(p.savingsPct) || 0) / 100 / 12) || n(p.monthly) }))}>% of income</button>
                   </div>
                 </div>
@@ -667,8 +685,8 @@ export default function Planner({ plan, setPlan }) {
           <div className="pp-field">
             <label className="pp-label2">Do your monthly amounts vary?</label>
             <div className="pp-toggle">
-              <button className={(plan.contribMode || "flat") === "flat" ? "on" : ""} onClick={() => set("contribMode", "flat")}>Same every month</button>
-              <button className={plan.contribMode === "custom" ? "on" : ""} onClick={() => set("contribMode", "custom")}>Set each month</button>
+              <button className={(plan.contribMode || "flat") === "flat" ? "on" : ""} aria-pressed={(plan.contribMode || "flat") === "flat"} onClick={() => set("contribMode", "flat")}>Same every month</button>
+              <button className={plan.contribMode === "custom" ? "on" : ""} aria-pressed={plan.contribMode === "custom"} onClick={() => set("contribMode", "custom")}>Set each month</button>
             </div>
             <div className="pp-help">Pick "Set each month" to enter a different amount per month for <b>this year</b>. Later years fall back to the recurring monthly amount above.</div>
           </div>
@@ -698,9 +716,9 @@ export default function Planner({ plan, setPlan }) {
           <div className="pp-field" style={{ marginTop: 4 }}>
             <label className="pp-label2">Do you have an emergency fund?</label>
             <div className="pp-seg2">
-              <button className={plan.emergencyStatus === "full" ? "on" : ""} onClick={() => set("emergencyStatus", "full")}>Yes, fully</button>
-              <button className={plan.emergencyStatus === "partial" ? "on" : ""} onClick={() => set("emergencyStatus", "partial")}>Partially</button>
-              <button className={(plan.emergencyStatus || "none") === "none" ? "on" : ""} onClick={() => set("emergencyStatus", "none")}>Not yet</button>
+              <button className={plan.emergencyStatus === "full" ? "on" : ""} aria-pressed={plan.emergencyStatus === "full"} onClick={() => set("emergencyStatus", "full")}>Yes, fully</button>
+              <button className={plan.emergencyStatus === "partial" ? "on" : ""} aria-pressed={plan.emergencyStatus === "partial"} onClick={() => set("emergencyStatus", "partial")}>Partially</button>
+              <button className={(plan.emergencyStatus || "none") === "none" ? "on" : ""} aria-pressed={(plan.emergencyStatus || "none") === "none"} onClick={() => set("emergencyStatus", "none")}>Not yet</button>
             </div>
             <div className="pp-help">A cash cushion usually comes before serious investing. It's the foundation of the order of operations.</div>
           </div>
@@ -713,9 +731,9 @@ export default function Planner({ plan, setPlan }) {
                 <div className="pp-field">
                   <label className="pp-label2">How steady is your income?</label>
                   <div className="pp-seg2">
-                    <button className={plan.incomeStability === "stable" ? "on" : ""} onClick={() => set("incomeStability", "stable")}>Very stable</button>
-                    <button className={(plan.incomeStability || "variable") === "variable" ? "on" : ""} onClick={() => set("incomeStability", "variable")}>Somewhat variable</button>
-                    <button className={plan.incomeStability === "risky" ? "on" : ""} onClick={() => set("incomeStability", "risky")}>Unpredictable</button>
+                    <button className={plan.incomeStability === "stable" ? "on" : ""} aria-pressed={plan.incomeStability === "stable"} onClick={() => set("incomeStability", "stable")}>Very stable</button>
+                    <button className={(plan.incomeStability || "variable") === "variable" ? "on" : ""} aria-pressed={(plan.incomeStability || "variable") === "variable"} onClick={() => set("incomeStability", "variable")}>Somewhat variable</button>
+                    <button className={plan.incomeStability === "risky" ? "on" : ""} aria-pressed={plan.incomeStability === "risky"} onClick={() => set("incomeStability", "risky")}>Unpredictable</button>
                   </div>
                 </div>
               </div>
@@ -745,8 +763,8 @@ export default function Planner({ plan, setPlan }) {
                   <div className="pp-label-row">
                     <label className="pp-label2" htmlFor="f-match" style={{ marginBottom: 0 }}>Employer RRSP match <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
                     <div className="pp-toggle pp-toggle-sm">
-                      <button type="button" className={matchMode === "amount" ? "on" : ""} onClick={() => set("employerMatchMode", "amount")}>$ / yr</button>
-                      <button type="button" className={matchMode === "percent" ? "on" : ""} onClick={() => set("employerMatchMode", "percent")}>% of pay</button>
+                      <button type="button" className={matchMode === "amount" ? "on" : ""} aria-pressed={matchMode === "amount"} onClick={() => set("employerMatchMode", "amount")}>$ / yr</button>
+                      <button type="button" className={matchMode === "percent" ? "on" : ""} aria-pressed={matchMode === "percent"} onClick={() => set("employerMatchMode", "percent")}>% of pay</button>
                     </div>
                   </div>
                   {matchMode === "amount" ? (
@@ -828,13 +846,14 @@ export default function Planner({ plan, setPlan }) {
           <p className="pp-fs-sub">Check every account type you hold, including RRSPs, TFSAs, pensions, and more. We'll ask for the details that matter for your plan.</p>
 
           <div className="pp-acct-grid">
-            {CANADIAN_ACCOUNTS.map(({ key, name, full, Icon, accent, blurb }) => {
+            {CANADIAN_ACCOUNTS.filter((a) => COMMON_ACCT_KEYS.includes(a.key)).map(({ key, name, full, Icon, accent, blurb }) => {
               const on = hasAcct(key);
               return (
                 <button
                   key={key}
                   type="button"
                   className={"pp-acct-card" + (on ? " on" : "")}
+                  aria-pressed={on}
                   style={on ? { borderColor: accent, background: accent + "12" } : {}}
                   onClick={() => toggleAcct(key)}
                 >
@@ -847,6 +866,43 @@ export default function Planner({ plan, setPlan }) {
               );
             })}
           </div>
+
+          {(() => {
+            const rareAccounts = CANADIAN_ACCOUNTS.filter((a) => !COMMON_ACCT_KEYS.includes(a.key));
+            const expanded = showMoreAccts || rareAccounts.some((a) => hasAcct(a.key));
+            return (
+              <>
+                {!expanded && (
+                  <button type="button" className="pp-next-link" style={{ marginTop: 10 }} onClick={() => setShowMoreAccts(true)}>
+                    + Show less common accounts (pensions, LIRA, RDSP...)
+                  </button>
+                )}
+                {expanded && (
+                  <div className="pp-acct-grid" style={{ marginTop: 10 }}>
+                    {rareAccounts.map(({ key, name, full, Icon, accent, blurb }) => {
+                      const on = hasAcct(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={"pp-acct-card" + (on ? " on" : "")}
+                          aria-pressed={on}
+                          style={on ? { borderColor: accent, background: accent + "12" } : {}}
+                          onClick={() => toggleAcct(key)}
+                        >
+                          {on && <span className="pp-goalcheck"><Check size={13} /></span>}
+                          <div className="pp-acct-card-icon" style={{ color: on ? accent : "var(--muted)" }}><Icon size={20} /></div>
+                          <div className="pp-acct-card-name">{name}</div>
+                          <div className="pp-acct-card-full">{full}</div>
+                          <div className="pp-acct-card-blurb">{blurb}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {openAccts.length === 0 && (
             <div className="pp-callout" style={{ marginTop: 12 }}>

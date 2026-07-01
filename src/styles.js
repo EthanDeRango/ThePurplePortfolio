@@ -4,6 +4,9 @@
 const STYLES = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
 
+/* Keeps section-jump targets (scrollIntoView + #anchors) from landing under the sticky topnav. */
+html { scroll-padding-top: 90px; }
+
 .pp * { box-sizing: border-box; }
 .pp {
   color-scheme: light;
@@ -16,8 +19,8 @@ const STYLES = `
   --violet: #7044BE;
   --violet-soft: #EDE5F8;
   --violet-mid: #D8C8F2;
-  --gold: #A8761E;
-  --gold-2: #C99A42;
+  --gold: #8A6420; /* darkened from #A8761E — ~4.8:1 on --paper, meets WCAG AA for the eyebrow/tag text that sits on light backgrounds */
+  --gold-2: #C99A42; /* lighter gold — only used on dark plum backgrounds, where contrast is already fine */
   --muted: #6A5872;
   --line: rgba(30,17,40,0.13);
   --line-soft: rgba(30,17,40,0.07);
@@ -598,6 +601,10 @@ const STYLES = `
 .pp-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); }
 .pp-bal { font-size: 13px; color: var(--muted); }
 .pp-bal b { color: var(--ink); }
+/* Room/limit figure is supporting info, not "your money" — kept visually smaller than the balance above it. */
+.pp-acct-room { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+.pp-acct-room-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pp-acct-room-val { font-size: 14px; font-weight: 700; color: var(--gold); }
 
 /* section heading helper */
 .pp-sec-h { font-size: 28px; margin: 10px 0 8px; }

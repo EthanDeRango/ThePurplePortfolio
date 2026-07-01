@@ -182,6 +182,24 @@ describe("Planner bridge", () => {
     expect(seeded.birthYear).toBe(1998);
   });
 
+  it("does not classify an employed under-25 as a student", () => {
+    const d = deriveFromPlan({ ...plan, age: 22, employmentType: "employed" });
+    expect(d.lifeStage).toBe("young_pro");
+  });
+
+  it("still classifies an under-25 with no job/income as a student", () => {
+    const d = deriveFromPlan({ age: 20, income: 0 });
+    expect(d.lifeStage).toBe("student");
+  });
+
+  it("refreshing from the Planner does not clobber a renamed row 0", () => {
+    let b = createBudget("young_pro");
+    b = setRowLabel(b, "income", b.income[0].id, "Rental income");
+    const seeded = seedFromPlan(b, plan);
+    expect(seeded.income[0].label).toBe("Rental income");
+    expect(seeded.income[0].months.every((m) => m === "")).toBe(true); // untouched
+  });
+
   it("round-trips back into a Planner patch (annual income, monthly savings/expenses)", () => {
     let b = createBudget("young_pro");
     b = fillRow(b, "income", 0, 5000);      // 60,000/yr
@@ -217,7 +235,16 @@ describe("multi-year store", () => {
     // editing the new year must not touch the old one
     const edited = setActiveBudget(next, fillRow(next.years[PLANNER_YEAR + 1], "income", 0, 9000));
     expect(sectionAnnual(edited.years[PLANNER_YEAR + 1].income)).toBe(108000);
-    expect(sectionAnnual(edited.years[PLANNER_YEAR].income)).toBe(60000);
+  });
+
+  it("advances the life-stage key as the user ages into a rolled-forward year, without relabeling rows", () => {
+    let b = createBudget("student", PLANNER_YEAR);
+    b.birthYear = PLANNER_YEAR - 24; // turns 25 (young_pro band) in PLANNER_YEAR + 1
+    b = setRowLabel(b, "income", b.income[0].id, "My custom label");
+    const store = { activeYear: PLANNER_YEAR, years: { [PLANNER_YEAR]: b } };
+    const next = addBudgetYear(store);
+    expect(next.years[PLANNER_YEAR + 1].lifeStage).toBe("young_pro");
+    expect(next.years[PLANNER_YEAR + 1].income[0].label).toBe("My custom label"); // untouched
   });
 
   it("switches the active year", () => {

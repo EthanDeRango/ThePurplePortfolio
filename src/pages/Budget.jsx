@@ -323,7 +323,7 @@ function SectionBlock({ sec, rows, monthTotals, annual, onCell, onLabel, onAdd, 
             {row.months.map((v, mi) => (
               <td key={mi} className="pp-bud-numcell">
                 <div className="pp-bud-cellwrap">
-                  <input className="pp-bud-cell" inputMode="numeric" value={cellDisplay(v)} placeholder="0"
+                  <input className="pp-bud-cell" inputMode="numeric" value={cellDisplay(v)} placeholder="–"
                     onChange={(e) => onCell(row.id, mi, parseCell(e.target.value))} aria-label={`${row.label} ${MONTHS[mi]}`} />
                   {v !== "" && v != null && mi < 11 && (
                     <button type="button" className="pp-bud-fill" tabIndex={-1}

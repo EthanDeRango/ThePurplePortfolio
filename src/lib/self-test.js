@@ -34,6 +34,9 @@ export function runSelfTest() {
     ["QPP rate higher than CPP",  contributions(60000, "QC", false).cppBase > contributions(60000, "ON", false).cppBase],
     ["EI = 0 for self-employed",  contributions(80000, "ON", true).ei === 0],
     ["QC EI rate lower than ON",  contributions(60000, "QC", false).ei < contributions(60000, "ON", false).ei],
+    // A loss (negative gross) must floor to $0 contributions, never a negative "refund".
+    ["negative gross → EI floors at 0",   contributions(-5000, "ON", false).ei === 0],
+    ["negative gross → CPP floors at 0",  contributions(-5000, "ON", false).cppBase === 0],
 
     // ── taxEngine sanity ──────────────────────────────────────────────────────
     ["ON $0 income net = 0",    taxEngine(0, "ON", "employed").net === 0],
@@ -141,6 +144,9 @@ export function runSelfTest() {
     ["no OAS clawback at modest spend",  govBenefitsEstimate(80000, 65, 50000).oasClawApplied === 0],
     ["full OAS clawback at $200k spend", govBenefitsEstimate(300000, 65, 200000).oasClawApplied === 8800],
     ["retiring at 60 lowers CPP",        govBenefitsEstimate(80000, 60, 50000).govBenefits < govBenefitsEstimate(80000, 65, 50000).govBenefits],
+    // A big DB pension is taxable whether or not it's spent — low planned spend shouldn't hide the clawback.
+    ["low spend, big pension still claws back", govBenefitsEstimate(80000, 65, 40000, 100000).oasClawApplied > 0],
+    ["no pension falls back to spend-based proxy", govBenefitsEstimate(80000, 65, 40000).oasClawApplied === 0],
 
     // ── savingsSchedule / savingsEventsFor (life events) ──────────────────────
     ["flat schedule when no events",     savingsSchedule(1000, 40, 5, []).every((m) => m === 1000)],

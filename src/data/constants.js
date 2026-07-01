@@ -16,6 +16,7 @@ export const PLAN_DEFAULTS = {
   incomeStability: "variable", goals: ["retirement"], employerMatch: "", highInterestDebt: "",
   employerMatchMode: "amount", employerMatchPct: "", // RRSP match as $/yr or % of pay
   bNonreg: "", bLocked: "", emergencyStatus: "none", emergencySaved: "", retTaxRate: "",
+  holdco: "", // incorporated owners: current value of corporate (holdco) investments — counted in net worth, not projected
   retSpend: "", inflationRate: 2, customGoals: [],
   // Account selection (null = not yet set; infer from existing balances for backward compat)
   openAccounts: null,
