@@ -1547,11 +1547,18 @@ export default function Dashboard({ plan, setPlan }) {
           <div className="pp-score">
             <div className="pp-score-ring">
               <svg width="130" height="130" viewBox="0 0 130 130" aria-label={`Health score: ${health.overall} out of 100`} role="img">
+                <defs>
+                  <linearGradient id="ppScoreRing" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor={scoreColor(health.overall / 10)} stopOpacity="0.72" />
+                    <stop offset="100%" stopColor={scoreColor(health.overall / 10)} stopOpacity="1" />
+                  </linearGradient>
+                </defs>
                 <circle cx="65" cy="65" r="54" fill="none" stroke="var(--panel)" strokeWidth="11" />
-                <circle cx="65" cy="65" r="54" fill="none" stroke={scoreColor(health.overall / 10)} strokeWidth="11" strokeLinecap="round"
+                <circle cx="65" cy="65" r="54" fill="none" stroke="url(#ppScoreRing)" strokeWidth="11" strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 54}
                   strokeDashoffset={2 * Math.PI * 54 * (1 - health.overall / 100)}
-                  transform="rotate(-90 65 65)" />
+                  transform="rotate(-90 65 65)"
+                  style={{ transition: "stroke-dashoffset .6s cubic-bezier(.4,0,.2,1)" }} />
                 <text x="65" y="60" textAnchor="middle" fontSize="34" fontWeight="700" fill="var(--plum)" fontFamily="Fraunces">{health.overall}</text>
                 <text x="65" y="82" textAnchor="middle" fontSize="12" fill="#6E5E78" fontFamily="Hanken Grotesk">/ 100</text>
               </svg>

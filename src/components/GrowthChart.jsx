@@ -202,9 +202,19 @@ export default function GrowthChart({
           aria-hidden="true" onMouseMove={onMove} onClick={onMove} onTouchStart={onMove} onTouchMove={onMove}>
           <defs>
             <linearGradient id="ppArea" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lineColor} stopOpacity="0.18" />
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.24" />
+              <stop offset="55%" stopColor={lineColor} stopOpacity="0.07" />
               <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
             </linearGradient>
+            <filter id="ppLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor={stackedLayers ? "#2E1452" : lineColor} floodOpacity="0.3" />
+            </filter>
+            {stackedLayers && stackedLayers.map((layer) => (
+              <linearGradient key={`g-${layer.key}`} id={`ppLayer-${layer.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={layer.color} stopOpacity="1" />
+                <stop offset="100%" stopColor={layer.color} stopOpacity="0.78" />
+              </linearGradient>
+            ))}
           </defs>
 
           {/* Gridlines + y labels */}
@@ -229,15 +239,15 @@ export default function GrowthChart({
                   ...Array.from({ length: vYears + 1 }, (_, y) => `${X(y)},${Y(layer.top[y])}`),
                   ...Array.from({ length: vYears + 1 }, (_, i) => `${X(vYears - i)},${Y(layer.bottom[vYears - i])}`),
                 ].join(" ");
-                return <polygon key={layer.key} points={pts} fill={layer.color} fillOpacity="0.9"
-                  stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" strokeLinejoin="round" />;
+                return <polygon key={layer.key} points={pts} fill={`url(#ppLayer-${layer.key})`}
+                  stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" strokeLinejoin="round" />;
               })}
               {showNoContrib && ncVals && (
                 <polyline points={seg(ncVals)} fill="none" stroke="rgba(110,94,120,0.6)" strokeWidth="1.8"
                   strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />
               )}
-              <polyline points={seg(totalSeries)} fill="none" stroke="rgba(34,19,48,0.3)" strokeWidth="1.2"
-                strokeLinejoin="round" strokeLinecap="round" />
+              <polyline points={seg(totalSeries)} fill="none" stroke="rgba(34,19,48,0.35)" strokeWidth="1.4"
+                strokeLinejoin="round" strokeLinecap="round" filter="url(#ppLineGlow)" />
             </>
           ) : (
             <>
@@ -250,7 +260,7 @@ export default function GrowthChart({
                 <polyline points={seg(optVals)} fill="none" stroke="#2E8B57" strokeWidth="2" strokeDasharray="7 4"
                   strokeLinejoin="round" strokeLinecap="round" opacity="0.75" />
               )}
-              <polyline points={seg(vals)} fill="none" stroke={lineColor} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
+              <polyline points={seg(vals)} fill="none" stroke={lineColor} strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" filter="url(#ppLineGlow)" />
             </>
           )}
 
@@ -260,6 +270,8 @@ export default function GrowthChart({
             const ey = Y(ev);
             return (
               <g>
+                <circle cx={X(vYears)} cy={ey} r="9" fill={stackedLayers ? "#3A2168" : lineColor} fillOpacity="0.14" />
+                <circle cx={X(vYears)} cy={ey} r="4.5" fill="#fff" />
                 <circle cx={X(vYears)} cy={ey} r="4" fill={stackedLayers ? "#3A2168" : lineColor} />
                 <text x={X(vYears) + 8} y={ey - 4} fontSize="12" fontWeight="800" fill="var(--plum)" fontFamily="Hanken Grotesk">{fmtShort(ev)}</text>
                 {rAge != null && <text x={X(vYears) + 8} y={ey + 9} fontSize="9.5" fill="#8E7AA0" fontFamily="Hanken Grotesk">age {startAge + vYears}</text>}

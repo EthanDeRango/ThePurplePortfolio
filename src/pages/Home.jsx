@@ -48,7 +48,7 @@ export default function Home() {
               { ic: <Calculator size={20} />, t: "2 · Tax savings & room",      d: "See your RRSP/FHSA tax savings, what contribution room you've got left, and your FHSA deadline." },
               { ic: <TrendingUp size={20} />, t: "3 · Your projection",          d: "Watch your portfolio grow to retirement, with after-tax, inflation, and fee views you control." },
             ].map((f) => (
-              <div className="pp-card" key={f.t}>
+              <div className="pp-card pp-featcard" key={f.t}>
                 <div className="pp-feat-ic" style={{ marginBottom: 14 }}>{f.ic}</div>
                 <h4 style={{ fontSize: 19, marginBottom: 8 }}>{f.t}</h4>
                 <p style={{ fontSize: 14.5, color: "var(--muted)" }}>{f.d}</p>
