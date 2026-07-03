@@ -58,9 +58,9 @@ function TopNav({ onReset, hasSaved, onSignIn }) {
   return (
     <nav className="pp-topnav" role="navigation" aria-label="Main navigation">
       <div className="pp-wrap pp-topnav-in">
-        <button className="pp-brand pp-mark" onClick={() => navigate("/")} aria-label="Purple Portfolio home">
+        <button className="pp-brand pp-mark" onClick={() => navigate("/")} aria-label="The Purple Portfolio home">
           <img src="/logo.jpg" alt="The Purple Portfolio crest" className="pp-brand-logo" />
-          <span className="pp-brand-name">Purple <b>Portfolio</b></span>
+          <span className="pp-brand-name">The Purple <b>Portfolio</b></span>
         </button>
 
         <div className="pp-navlinks">
@@ -126,9 +126,9 @@ function Footer() {
     <footer className="pp-footer">
       <div className="pp-wrap pp-footer-cols">
         <div>
-          <button className="pp-brand" onClick={() => navigate("/")} aria-label="Purple Portfolio home" style={{ marginBottom: 10 }}>
+          <button className="pp-brand" onClick={() => navigate("/")} aria-label="The Purple Portfolio home" style={{ marginBottom: 10 }}>
             <img src="/logo.jpg" alt="The Purple Portfolio crest" className="pp-brand-logo" style={{ width: 36, height: 36 }} />
-            <span className="pp-brand-name" style={{ fontSize: 16 }}>Purple <b>Portfolio</b></span>
+            <span className="pp-brand-name" style={{ fontSize: 16 }}>The Purple <b>Portfolio</b></span>
           </button>
           <p style={{ fontSize: 13, color: "#8E7AA0", marginTop: 6 }}>Canadian investing education, not advice.</p>
         </div>
@@ -153,7 +153,7 @@ function Footer() {
         </div>
       </div>
       <div className="pp-wrap pp-footer-fine">
-        Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs; actual returns and tax outcomes will vary.
+        The Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs; actual returns and tax outcomes will vary.
       </div>
     </footer>
   );

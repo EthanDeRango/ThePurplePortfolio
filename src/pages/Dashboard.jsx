@@ -662,7 +662,7 @@ export default function Dashboard({ plan, setPlan }) {
       </div>
 
       <div className="pp-printonly" style={{ marginBottom: 12 }}>
-        <b style={{ fontFamily: "var(--display)", fontSize: 20 }}>Purple Portfolio — your {TAX_YEAR} summary</b>
+        <b style={{ fontFamily: "var(--display)", fontSize: 20 }}>The Purple Portfolio — your {TAX_YEAR} summary</b>
         <div style={{ fontSize: 12, color: "#555" }}>Educational estimates only · {TAX_CONFIG.prov[prov].name}</div>
       </div>
 

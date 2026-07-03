@@ -399,7 +399,7 @@ function buildGuideSheet(wb, logo) {
 
 export function buildWorkbook(ExcelJS, budget, logo = null) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Purple Portfolio";
+  wb.creator = "The Purple Portfolio";
   wb.created = new Date();
   const ref = buildBudgetSheet(wb, budget, logo);
   // Future & Guide use a text letterhead (no logo) so the Future sheet's only

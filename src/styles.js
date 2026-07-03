@@ -211,8 +211,10 @@ html { scroll-padding-top: 90px; }
   overflow: hidden;
   border-bottom: 1px solid var(--line);
   background:
-    radial-gradient(ellipse 110% 90% at 65% -5%, rgba(112,68,190,.12) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 8% 100%, rgba(201,154,66,.08) 0%, transparent 70%),
+    var(--noise),
+    radial-gradient(ellipse 85% 75% at 82% 10%, rgba(112,68,190,.24) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 60% at 100% 60%, rgba(201,154,66,.16) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 55% at 0% 100%, rgba(112,68,190,.12) 0%, transparent 65%),
     var(--paper);
 }
 .pp-hero-grid {
@@ -234,6 +236,9 @@ html { scroll-padding-top: 90px; }
   border-radius: 28px;
   overflow: hidden;
   aspect-ratio: 4 / 5;
+  /* Rich gradient backdrop, not flat black — the crest photo's black background gets
+     screen-blended away against this, so the glow shows through where black used to be. */
+  background: radial-gradient(ellipse 95% 85% at 50% 32%, #5A32A8 0%, #3A1C6C 40%, #23103F 72%, #170a2c 100%);
   box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 8px 24px rgba(46,20,82,.22), 0 28px 64px rgba(46,20,82,.28);
 }
 .pp-hero-crest::after {
@@ -241,7 +246,7 @@ html { scroll-padding-top: 90px; }
   position: absolute;
   inset: 0;
   border-radius: 28px;
-  box-shadow: inset 0 0 0 1px rgba(201,154,66,.35), inset 0 0 60px rgba(112,68,190,.28);
+  box-shadow: inset 0 0 0 1px rgba(201,154,66,.35);
   pointer-events: none;
 }
 .pp-hero-crest img {
@@ -250,6 +255,7 @@ html { scroll-padding-top: 90px; }
   height: 100%;
   object-fit: cover;
   object-position: 50% 42%;
+  mix-blend-mode: screen;
 }
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */

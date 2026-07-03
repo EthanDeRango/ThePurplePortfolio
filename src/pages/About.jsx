@@ -9,9 +9,9 @@ export default function About() {
     <div className="pp-wrap pp-section">
       <div className="pp-topic">
         <span className="pp-eyebrow">About the club</span>
-        <h1 style={{ fontSize: 42, margin: "12px 0 18px" }}>Purple Portfolio</h1>
+        <h1 style={{ fontSize: 42, margin: "12px 0 18px" }}>The Purple Portfolio</h1>
         <div className="pp-prose">
-          <p>Purple Portfolio is an investment-education club built on one belief: people make better financial decisions when they actually understand their options — not when they're sold to.</p>
+          <p>The Purple Portfolio is an investment-education club built on one belief: people make better financial decisions when they actually understand their options — not when they're sold to.</p>
           <p>We focus on Canadians. That means real explanations of the TFSA, RRSP, and FHSA, how your paycheque is actually taxed — federal and provincial tax, CPP/QPP, EI, QPIP — and the core concepts that quietly determine most of your results: fees, diversification, and time. We aim to be useful to a complete beginner and still worthwhile for someone more advanced.</p>
           <p>Crucially, we don't recommend specific investments, prepare your taxes, or promise returns. The planner organizes information around your own numbers — decoding your take-home pay, your contribution room, and an illustrative projection — so you can see possibilities and explore further. The decisions stay yours.</p>
         </div>

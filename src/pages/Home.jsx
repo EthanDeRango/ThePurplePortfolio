@@ -19,9 +19,9 @@ export default function Home() {
         <div className="pp-wrap pp-hero-grid">
           <div>
             <span className="pp-eyebrow"><Sparkles size={14} /> Tax-aware planning, built for Canadians</span>
-            <h1 style={{ marginTop: 16 }}>Stop <em>guessing</em><br />with your money.</h1>
+            <h1 style={{ marginTop: 16 }}>Know where you stand.<br /><em>Chart</em> your next step.</h1>
             <p className="pp-hero-sub">
-              Purple Portfolio is a free planner and learning club. Enter your income and province
+              The Purple Portfolio is a free planner and learning club. Enter your income and province
               and see exactly where your money goes (taxes, CPP, EI), then your contribution room,
               RRSP/FHSA tax savings, and a projection of your future.
             </p>
@@ -66,7 +66,7 @@ export default function Home() {
               <span className="pp-eyebrow">Why we exist</span>
               <h2 style={{ fontSize: 32, margin: "14px 0 16px", color: "#fff" }}>We educate. We don't sell.</h2>
               <p style={{ color: "#D9C9EE", fontSize: 16.5, marginBottom: 14 }}>
-                Most investing content is either selling you something or buried in jargon. Purple Portfolio
+                Most investing content is either selling you something or buried in jargon. The Purple Portfolio
                 does neither. We put your real numbers in, show the honest trade-offs (including the tax
                 ones), and hand the decision back to you.
               </p>
