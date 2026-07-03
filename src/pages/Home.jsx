@@ -34,7 +34,7 @@ export default function Home() {
             </div>
           </div>
           <div className="pp-hero-crest">
-            <img src="/crest-hero.jpg" alt="The Purple Portfolio crest" />
+            <img src="/crest-hero.png" alt="The Purple Portfolio crest" />
           </div>
         </div>
       </header>

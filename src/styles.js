@@ -210,12 +210,15 @@ html { scroll-padding-top: 90px; }
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
+  /* Slightly darker/richer than --paper (used everywhere else) — the crest artwork
+     is a real cutout now (transparent PNG, no card), and needs more contrast than the
+     site's base cream to read well instead of washing out. */
   background:
     var(--noise),
-    radial-gradient(ellipse 85% 75% at 82% 10%, rgba(112,68,190,.24) 0%, transparent 60%),
-    radial-gradient(ellipse 65% 60% at 100% 60%, rgba(201,154,66,.16) 0%, transparent 65%),
-    radial-gradient(ellipse 70% 55% at 0% 100%, rgba(112,68,190,.12) 0%, transparent 65%),
-    var(--paper);
+    radial-gradient(ellipse 85% 75% at 82% 10%, rgba(112,68,190,.26) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 60% at 100% 60%, rgba(201,154,66,.18) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 55% at 0% 100%, rgba(112,68,190,.14) 0%, transparent 65%),
+    #E6DABF;
 }
 .pp-hero-grid {
   display: grid;
@@ -233,29 +236,15 @@ html { scroll-padding-top: 90px; }
 .pp-hero-deco { position: absolute; right: -120px; top: -80px; width: 520px; height: 520px; opacity: 0.5; pointer-events: none; }
 .pp-hero-crest {
   position: relative;
-  border-radius: 28px;
-  overflow: hidden;
-  aspect-ratio: 4 / 5;
-  /* Rich gradient backdrop, not flat black — the crest photo's black background gets
-     screen-blended away against this, so the glow shows through where black used to be. */
-  background: radial-gradient(ellipse 95% 85% at 50% 32%, #5A32A8 0%, #3A1C6C 40%, #23103F 72%, #170a2c 100%);
-  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 8px 24px rgba(46,20,82,.22), 0 28px 64px rgba(46,20,82,.28);
-}
-.pp-hero-crest::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 28px;
-  box-shadow: inset 0 0 0 1px rgba(201,154,66,.35);
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pp-hero-crest img {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 42%;
-  mix-blend-mode: screen;
+  height: auto;
+  filter: drop-shadow(0 18px 40px rgba(46,20,82,.28));
 }
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
