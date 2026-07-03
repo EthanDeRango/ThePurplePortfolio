@@ -637,12 +637,17 @@ html { scroll-padding-top: 90px; }
 .pp-sec-h { font-size: 28px; margin: 10px 0 8px; }
 .pp-sec-lead { color: var(--muted); font-size: 15px; max-width: 46em; margin-bottom: 18px; line-height: 1.6; }
 
-/* Chapter heading — one per dashboard tab, sized well above pp-sec-h so the tab you're in
-   is unmistakable at a glance, distinct from the smaller sub-section headers within it. */
-.pp-chapter { border-top: 2px solid var(--line); padding-top: 30px; }
-.pp-chapter .pp-eyebrow { font-size: 12px; letter-spacing: 0.22em; }
-.pp-chapter-h { font-size: 40px; margin: 8px 0 10px; letter-spacing: -0.02em; line-height: 1.06; }
-@media (max-width: 760px) { .pp-chapter-h { font-size: 30px; } .pp-chapter { padding-top: 22px; } }
+/* Chapter heading — one per dashboard tab, sized well above pp-sec-h so the tab you're in is
+   unmistakable at a glance. Restrained/editorial on purpose (quiet rule + inline numbering,
+   not a badge) — this app may be shown to wealth managers, so "clear" beats "loud". */
+.pp-chapter { border-top: 1px solid var(--line); padding-top: 40px; margin-top: 8px; }
+.pp-chapter .pp-eyebrow { font-size: 12.5px; font-weight: 800; letter-spacing: 0.2em; }
+.pp-chapter-num { color: var(--gold); font-weight: 800; margin-right: 1px; }
+.pp-chapter-h { font-size: 46px; margin: 10px 0 14px; letter-spacing: -0.02em; line-height: 1.04; }
+@media (max-width: 760px) {
+  .pp-chapter-h { font-size: 32px; }
+  .pp-chapter { padding-top: 28px; }
+}
 
 /* ── Paycheque breakdown ──────────────────────────────────────────────────── */
 .pp-pay-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 24px; align-items: start; }

@@ -904,8 +904,8 @@ export default function Dashboard({ plan, setPlan }) {
       </div>
 
       {/* ACTION PLAN */}
-      {activeTabs.has("sec-plan") && <div id="sec-plan" style={{ marginTop: 32 }}>
-        <span className="pp-eyebrow"><ListOrdered size={14} /> Your action plan</span>
+      {activeTabs.has("sec-plan") && <div id="sec-plan" className="pp-chapter" style={{ marginTop: 32 }}>
+        <span className="pp-eyebrow"><span className="pp-chapter-num">01</span> <ListOrdered size={14} /> Your action plan</span>
         <h3 className="pp-chapter-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
         <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside, not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
         {thisMonth && (
@@ -981,7 +981,7 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}
       {activeTabs.has("sec-compare") && <div id="sec-compare" className="pp-chapter" style={{ marginTop: 34 }}>
-        <span className="pp-eyebrow"><Scale size={14} /> Your game plan</span>
+        <span className="pp-eyebrow"><span className="pp-chapter-num">02</span> <Scale size={14} /> Your game plan</span>
         <h3 className="pp-chapter-h">The order to fund your accounts</h3>
         <p className="pp-sec-lead">Here&apos;s the priority we&apos;d suggest for your situation, in plain words. Want the full side-by-side? Open the comparison below.</p>
 
@@ -1307,7 +1307,7 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* GOAL TRACKER + SCORECARD */}
       {activeTabs.has("sec-goal") && <><div id="sec-goal" className="pp-chapter" style={{ marginTop: 34 }}>
-        <span className="pp-eyebrow"><Sparkles size={14} /> Goal tracker</span>
+        <span className="pp-eyebrow"><span className="pp-chapter-num">03</span> <Sparkles size={14} /> Goal tracker</span>
         <h3 className="pp-chapter-h">{goals.length > 1 ? "Your goals" : "Your goal"}</h3>
         {income > 0 && (() => {
           const savingsRate = monthly > 0 ? (monthly * 12) / income : 0;
@@ -1636,7 +1636,7 @@ export default function Dashboard({ plan, setPlan }) {
       {/* PAYCHEQUE */}
       {income > 0 && activeTabs.has("sec-pay") && (
         <div id="sec-pay" className="pp-chapter" style={{ marginTop: 30 }}>
-          <span className="pp-eyebrow"><Receipt size={14} /> Your paycheque, decoded</span>
+          <span className="pp-eyebrow"><span className="pp-chapter-num">04</span> <Receipt size={14} /> Your paycheque, decoded</span>
           <h3 className="pp-chapter-h">Where your {fmtMoney(income)} actually goes</h3>
           <p className="pp-sec-lead">Your {incorporated ? "personal pay" : "gross income"} in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : incorporated ? "incorporated owner" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
           <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
@@ -1756,7 +1756,7 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* ROOM + FHSA DEADLINE */}
       {activeTabs.has("sec-room") && <><div id="sec-room" className="pp-chapter" style={{ marginTop: 34 }}>
-        <span className="pp-eyebrow"><Wallet size={14} /> Contribution limits</span>
+        <span className="pp-eyebrow"><span className="pp-chapter-num">05</span> <Wallet size={14} /> Contribution limits</span>
         <h3 className="pp-chapter-h">How much you can still put in each account this year</h3>
         <div className="pp-room">
           <div className="pp-roomc">
@@ -1829,7 +1829,7 @@ export default function Dashboard({ plan, setPlan }) {
       {/* GROWTH CHART + WHAT-IF */}
       {hasData && activeTabs.has("sec-grow") && (
         <div id="sec-grow" className="pp-chapter" style={{ marginTop: 34 }}>
-          <span className="pp-eyebrow"><TrendingUp size={14} /> Growth</span>
+          <span className="pp-eyebrow"><span className="pp-chapter-num">06</span> <TrendingUp size={14} /> Growth</span>
           <h3 className="pp-chapter-h">How your money could grow</h3>
           <div className="pp-card pp-noprint" style={{ marginTop: 22 }}>
             <span className="pp-eyebrow">Play with the numbers</span>
