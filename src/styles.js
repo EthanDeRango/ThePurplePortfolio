@@ -210,15 +210,12 @@ html { scroll-padding-top: 90px; }
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
-  /* Slightly darker/richer than --paper (used everywhere else) — the crest artwork
-     is a real cutout now (transparent PNG, no card), and needs more contrast than the
-     site's base cream to read well instead of washing out. */
   background:
     var(--noise),
-    radial-gradient(ellipse 85% 75% at 82% 10%, rgba(112,68,190,.26) 0%, transparent 60%),
-    radial-gradient(ellipse 65% 60% at 100% 60%, rgba(201,154,66,.18) 0%, transparent 65%),
-    radial-gradient(ellipse 70% 55% at 0% 100%, rgba(112,68,190,.14) 0%, transparent 65%),
-    #E6DABF;
+    radial-gradient(ellipse 85% 75% at 82% 10%, rgba(112,68,190,.14) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 60% at 100% 60%, rgba(201,154,66,.09) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 55% at 0% 100%, rgba(112,68,190,.08) 0%, transparent 65%),
+    var(--paper);
 }
 .pp-hero-grid {
   display: grid;
@@ -234,18 +231,6 @@ html { scroll-padding-top: 90px; }
 .pp-hero-fine { margin-top: 22px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .pp-orb { position: relative; aspect-ratio: 1; }
 .pp-hero-deco { position: absolute; right: -120px; top: -80px; width: 520px; height: 520px; opacity: 0.5; pointer-events: none; }
-.pp-hero-crest {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pp-hero-crest img {
-  display: block;
-  width: 100%;
-  height: auto;
-  filter: drop-shadow(0 18px 40px rgba(46,20,82,.28));
-}
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
 .pp-card {
@@ -1252,7 +1237,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .pp-hero-grid { grid-template-columns: 1fr; gap: 10px; padding: 46px 0 56px; }
-  .pp-orb, .pp-hero-crest { display: none; }
+  .pp-orb { display: none; }
   .pp-hero h1 { font-size: 38px; }
   .pp-grid-3, .pp-grid-2, .pp-grid-money, .pp-seg, .pp-row2, .pp-scn, .pp-pay-grid, .pp-room, .pp-sliders, .pp-brackets { grid-template-columns: 1fr; }
   .pp-months { grid-template-columns: repeat(3, 1fr); }

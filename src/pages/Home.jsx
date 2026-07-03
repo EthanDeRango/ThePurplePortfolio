@@ -3,6 +3,7 @@ import {
   ArrowRight, Shield, TrendingUp, Calculator, MapPin,
   Receipt, Percent, GraduationCap, Sparkles,
 } from "lucide-react";
+import Orb from "../components/Orb.jsx";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -33,9 +34,7 @@ export default function Home() {
               <Shield size={15} /> Private by default. Your numbers stay in your browser. Sign in only if you want to save across devices.
             </div>
           </div>
-          <div className="pp-hero-crest">
-            <img src="/crest-hero.png" alt="The Purple Portfolio crest" />
-          </div>
+          <Orb />
         </div>
       </header>
 
