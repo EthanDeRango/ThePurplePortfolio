@@ -204,6 +204,15 @@ export function govBenefitsEstimate(income, retAge, retSpend, pensionIncome = 0)
   return { govBenefits: Math.max(0, cpp) + oasNet, oasClawApplied: oasClaw };
 }
 
+// Rough DB pension estimate for someone who doesn't have their statement handy yet: a common
+// ballpark formula is years of pensionable service x an accrual rate x salary. 1.5% is a
+// reasonable middle estimate (public-sector plans often run closer to 2%, some private plans
+// lower) — always a rough placeholder, not a substitute for the real number on a statement.
+export function estimateDBPension(income, yearsOfService, accrualRate = 0.015) {
+  const annual = Math.max(0, n(income)) * Math.max(0, n(yearsOfService)) * accrualRate;
+  return { annual: Math.round(annual), monthly: Math.round(annual / 12) };
+}
+
 // Safe-withdrawal rate scales down as retirement lengthens (sequence-of-returns risk).
 // Planning horizon: age 95. Returns the rate, the nest-egg multiple (1/rate), and length.
 export function retirementWithdrawal(retAge) {

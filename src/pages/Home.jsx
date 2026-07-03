@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight, Shield, TrendingUp, Calculator, MapPin,
-  Receipt, Percent, GraduationCap, Sparkles,
+  Receipt, Percent, GraduationCap, Sparkles, Info,
 } from "lucide-react";
 import Orb from "../components/Orb.jsx";
 
@@ -32,6 +32,9 @@ export default function Home() {
             </div>
             <div className="pp-hero-fine">
               <Shield size={15} /> Private by default. Your numbers stay in your browser. Sign in only if you want to save across devices.
+            </div>
+            <div className="pp-hero-fine" style={{ marginTop: 6 }}>
+              <Info size={15} /> A planning tool, not financial advice — it helps you explore your own numbers, not a recommendation to buy or sell anything.
             </div>
           </div>
           <Orb />
@@ -65,13 +68,15 @@ export default function Home() {
               <span className="pp-eyebrow">Why we exist</span>
               <h2 style={{ fontSize: 32, margin: "14px 0 16px", color: "#fff" }}>We educate. We don't sell.</h2>
               <p style={{ color: "#D9C9EE", fontSize: 16.5, marginBottom: 14 }}>
-                Most investing content is either selling you something or buried in jargon. The Purple Portfolio
+                We're an independent investment-education project, not a bank, broker, or advisory firm. Most
+                investing content is either selling you something or buried in jargon. The Purple Portfolio
                 does neither. We put your real numbers in, show the honest trade-offs (including the tax
                 ones), and hand the decision back to you.
               </p>
               <p style={{ color: "#D9C9EE", fontSize: 16.5 }}>
-                The goal is simple: help as many people as possible become confident, informed investors,
-                whatever their budget.
+                To be direct about it: this is a planning tool, not financial advice. We don't manage money,
+                recommend specific investments, or earn anything from what you choose. The goal is simple —
+                help as many people as possible become confident, informed investors, whatever their budget.
               </p>
             </div>
             <div className="pp-grid-2" style={{ gap: 14 }}>

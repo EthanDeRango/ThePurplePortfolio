@@ -6,10 +6,10 @@ export function Disclaimer() {
     <div className="pp-disclaimer">
       <AlertTriangle size={18} style={{ flex: "none", marginTop: 1 }} />
       <span>
-        <b>Educational information, not financial advice.</b> The Purple Portfolio helps you learn
-        and explore. It doesn't recommend specific securities or guarantee results. Figures are
-        for the {TAX_YEAR} tax year; verify current limits at canada.ca and consider a licensed
-        advisor before deciding.
+        <b>This is a planning tool, not financial advice.</b> The Purple Portfolio helps you learn,
+        explore, and organize your own numbers — it doesn't recommend specific securities, tell you
+        what to buy, or guarantee results. Figures are for the {TAX_YEAR} tax year; verify current
+        limits at canada.ca and talk to a licensed advisor before making decisions with real money.
       </span>
     </div>
   );

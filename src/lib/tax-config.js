@@ -84,10 +84,15 @@ export const PROV_LIST = [
   ["SK","Saskatchewan"],["YT","Yukon"],
 ];
 
+// `who` is a loss-tolerance gut-check, not a feature list — the point is to help someone
+// self-identify by how a bad year would actually feel, not by staring at a bare percentage.
 export const RISK = [
-  { key: "conservative", name: "Conservative", ret: 0.06, color: "#5B8C5A", desc: "Steadier, smaller swings. Leans on bonds and cash." },
-  { key: "moderate",     name: "Moderate",     ret: 0.08, color: "#7C4DC4", desc: "A balanced mix of growth and stability." },
-  { key: "aggressive",   name: "Aggressive",   ret: 0.10, color: "#34185A", desc: "Maximizes long-term growth; bigger ups and downs." },
+  { key: "conservative", name: "Conservative", ret: 0.04, color: "#5B8C5A", desc: "Steadier, smaller swings. Leans on bonds and cash.",
+    who: "A 5% dip in a month would bother you. You want this to feel more like a savings account than an investment." },
+  { key: "moderate",     name: "Moderate",     ret: 0.08, color: "#7C4DC4", desc: "A balanced mix of growth and stability.",
+    who: "A bad year of -10 to -15% wouldn't make you sell, but you'd be checking your balance more than usual." },
+  { key: "aggressive",   name: "Aggressive",   ret: 0.12, color: "#34185A", desc: "Maximizes long-term growth; bigger ups and downs.",
+    who: "You could sit through a 2008- or 2022-style 25-30% drop without touching it — you're not spending this money for 15+ years." },
 ];
 
 export const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];

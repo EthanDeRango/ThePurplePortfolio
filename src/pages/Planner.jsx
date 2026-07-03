@@ -7,7 +7,7 @@ import {
   Briefcase, Gift, TrendingUp,
 } from "lucide-react";
 import { NumberField, CurrencyField, SelectField, Accordion } from "../components/InputFields.jsx";
-import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget } from "../lib/calculations.js";
+import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget, estimateDBPension } from "../lib/calculations.js";
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
 import { taxEngine } from "../lib/tax-engine.js";
@@ -119,14 +119,29 @@ const CANADIAN_ACCOUNTS = [
     key: "pension_db", name: "DB Pension", full: "Defined Benefit Pension",
     Icon: Building2, accent: "#2A7A5E",
     blurb: "A guaranteed monthly income from your employer in retirement, not market-based.",
-    renderDetail: (plan, set) => (
-      <>
-        <CurrencyField id="ab-dbmonthly" label="Expected monthly income at retirement" placeholder="e.g. 2,500" value={plan.pensionDBMonthly} onChange={(v) => set("pensionDBMonthly", v)}
-          help="From your pension statement or HR. Usually shown as an estimated amount at age 65." />
-        <NumberField id="ab-dbstart" label="Pension start age" placeholder="65" value={plan.pensionDBStartAge} onChange={(v) => set("pensionDBStartAge", v)}
-          suffix="yrs" help="Often 60 or 65. Taking it earlier usually reduces the monthly amount." />
-      </>
-    ),
+    renderDetail: (plan, set) => {
+      const estYears = n(plan.pensionDBYearsService);
+      const est = estYears > 0 ? estimateDBPension(plan.income, estYears) : null;
+      return (
+        <>
+          <CurrencyField id="ab-dbmonthly" label="Expected monthly income at retirement" placeholder="e.g. 2,500" value={plan.pensionDBMonthly} onChange={(v) => set("pensionDBMonthly", v)}
+            help="From your pension statement or HR. Usually shown as an estimated amount at age 65." />
+          <NumberField id="ab-dbstart" label="Pension start age" placeholder="65" value={plan.pensionDBStartAge} onChange={(v) => set("pensionDBStartAge", v)}
+            suffix="yrs" help="Often 60 or 65. Taking it earlier usually reduces the monthly amount." />
+          <div className="pp-subcard" style={{ marginTop: 4 }}>
+            <p className="pp-sub-h">Don't have your statement yet? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· rough estimate</span></p>
+            <NumberField id="ab-dbyears" label="Expected years of service by retirement" placeholder="e.g. 30" value={plan.pensionDBYearsService} onChange={(v) => set("pensionDBYearsService", v)}
+              suffix="yrs" help="A common ballpark: years of service × ~1.5% × your salary. Public-sector plans often run a bit higher; swap in your real number once you have your statement." />
+            {est && (
+              <div className="pp-help" style={{ marginTop: 8 }}>
+                Rough estimate: <b>{fmtMoney(est.monthly)}/mo</b> ({fmtMoney(est.annual)}/yr).{" "}
+                <button type="button" className="pp-inlinelink" onClick={() => set("pensionDBMonthly", est.monthly)}>Use this estimate</button>
+              </div>
+            )}
+          </div>
+        </>
+      );
+    },
   },
   {
     key: "pension_dc", name: "DC Pension", full: "Defined Contribution Pension",
@@ -347,6 +362,7 @@ export default function Planner({ plan, setPlan }) {
                 <button key={r.key} className={"pp-segc" + (plan.risk === r.key ? " on" : "")} aria-pressed={plan.risk === r.key} onClick={() => set("risk", r.key)}>
                   <div className="nm">{r.name} <span className="rt">~{Math.round(r.ret * 100)}%/yr</span></div>
                   <div className="ds">{r.desc}</div>
+                  <div className="who">Is this you? <i>{r.who}</i></div>
                 </button>
               ))}
             </div>

@@ -292,6 +292,11 @@ export default function Dashboard({ plan, setPlan }) {
   // A DB pension pays out (and is taxed) whether or not it's spent, so taxable income in
   // retirement is at least gov benefits + pension, even if planned spending is lower.
   const retTaxableIncome = Math.max(govBenefits + pensionDBIncome, retSpend);
+  // OAS clawback risk — hoisted to top level (not just inside the Paycheque & Tax tab) so the
+  // Action Plan, which is open by default, can flag it too. Saving/growing "too well" into a
+  // high retirement income is a real, counterintuitive way to lose OAS — worth surfacing early.
+  const oasClawRisk = oasClawback(retTaxableIncome);
+  const oasNearClaw = retTaxableIncome > TAX_CONFIG.oas.thresholdMin - 15000 && retTaxableIncome <= TAX_CONFIG.oas.thresholdMin;
   const retMarginalAuto = retTaxableIncome > 0 ? retirementMarginal(retTaxableIncome, prov) : 0;
   const retMarginal = n(plan.retTaxRate) > 0 ? Math.min(0.6, n(plan.retTaxRate) / 100) : retMarginalAuto;
   const dispVal = (v) => { let x = afterTax ? v * (1 - retMarginal * rrspShare) : v; if (inflation) x = x / Math.pow(1 + inflRate, years); return x; };
@@ -677,8 +682,8 @@ export default function Dashboard({ plan, setPlan }) {
               In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * safeWithdrawalRate)}/yr</b> throughout retirement without running out.
             </div>
             <div style={{ marginTop: 12, fontSize: 13.5, color: "rgba(220,205,240,.92)", lineHeight: 1.55 }}>
-              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at 6%/yr to {fmtMoney(dispVal(finals.aggressive))} at 10%/yr). They are not a downturn simulation.
-              {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk, the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at an 8% long-run average.</>} Plan for a range, not one number.
+              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at {pct1(RISK.find((r) => r.key === "conservative").ret)}/yr to {fmtMoney(dispVal(finals.aggressive))} at {pct1(RISK.find((r) => r.key === "aggressive").ret)}/yr). They are not a downturn simulation.
+              {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk, the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at a {pct1(ret)} long-run average.</>} Plan for a range, not one number.
               {glidePathOn && <> <b style={{ color: "#fff" }}>Glide path on:</b> your assumed return steps down the closer you get to {retAge} — full rate with 10+ years left, capped near 2%/yr (cash/HISA-like) in the final year — instead of one flat rate the whole way.</>}
             </div>
             <div className="pp-scn">
@@ -901,7 +906,7 @@ export default function Dashboard({ plan, setPlan }) {
       {/* ACTION PLAN */}
       {activeTabs.has("sec-plan") && <div id="sec-plan" style={{ marginTop: 32 }}>
         <span className="pp-eyebrow"><ListOrdered size={14} /> Your action plan</span>
-        <h3 className="pp-sec-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
+        <h3 className="pp-chapter-h">Where your {monthly > 0 ? fmtMoney(monthly) + "/month goes" : "savings go"}, in order</h3>
         <p className="pp-sec-lead">Everything on this list comes from the same <b>{monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"}</b> you set aside, not on top of it. Complete each step fully, then redirect your savings to the next one.</p>
         {thisMonth && (
           <div className="pp-thismonth">
@@ -942,6 +947,14 @@ export default function Dashboard({ plan, setPlan }) {
             </div>
           ))}
         </div>
+        {(oasClawRisk > 0 || oasNearClaw) && (
+          <div className="pp-callout" style={{ marginTop: 12, background: "#F3E4C8", borderColor: "#C98A2E" }}>
+            <AlertTriangle size={18} style={{ flex: "none", color: "#9A6010" }} />
+            <span>{oasClawRisk > 0
+              ? <><b>Saving well can cost you OAS.</b> On your current path, retirement income of ~{fmtMoney(retTaxableIncome)}/yr would trigger the OAS clawback — about <b>{fmtMoney(oasClawRisk)}/yr</b> lost to the 15% recovery tax. See Paycheque &amp; tax below for what helps (TFSA withdrawals don't count toward it).</>
+              : <><b>You're close to the OAS clawback threshold</b> (~{fmtMoney(TAX_CONFIG.oas.thresholdMin)}/yr). Worth keeping an eye on as your plan grows — see Paycheque &amp; tax below.</>}</span>
+          </div>
+        )}
         {eligibleUnopened.length > 0 && (
           <div className="pp-opt-open">
             <div className="pp-opt-open-hd"><Sparkles size={13} /> Accounts you should open</div>
@@ -967,9 +980,9 @@ export default function Dashboard({ plan, setPlan }) {
       </div>}
 
       {/* ACCOUNT BREAKDOWN + COMPARE STRATEGIES */}
-      {activeTabs.has("sec-compare") && <div id="sec-compare" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-compare") && <div id="sec-compare" className="pp-chapter" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Scale size={14} /> Your game plan</span>
-        <h3 className="pp-sec-h">The order to fund your accounts</h3>
+        <h3 className="pp-chapter-h">The order to fund your accounts</h3>
         <p className="pp-sec-lead">Here&apos;s the priority we&apos;d suggest for your situation, in plain words. Want the full side-by-side? Open the comparison below.</p>
 
         {annInv > 0 ? (() => {
@@ -1293,9 +1306,9 @@ export default function Dashboard({ plan, setPlan }) {
       )}
 
       {/* GOAL TRACKER + SCORECARD */}
-      {activeTabs.has("sec-goal") && <><div id="sec-goal" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-goal") && <><div id="sec-goal" className="pp-chapter" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Sparkles size={14} /> Goal tracker</span>
-        <h3 className="pp-sec-h">{goals.length > 1 ? "Your goals" : "Your goal"}</h3>
+        <h3 className="pp-chapter-h">{goals.length > 1 ? "Your goals" : "Your goal"}</h3>
         {income > 0 && (() => {
           const savingsRate = monthly > 0 ? (monthly * 12) / income : 0;
           const v = savingsRateVerdict(savingsRate);
@@ -1622,9 +1635,9 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* PAYCHEQUE */}
       {income > 0 && activeTabs.has("sec-pay") && (
-        <div id="sec-pay" style={{ marginTop: 30 }}>
+        <div id="sec-pay" className="pp-chapter" style={{ marginTop: 30 }}>
           <span className="pp-eyebrow"><Receipt size={14} /> Your paycheque, decoded</span>
-          <h3 className="pp-sec-h">Where your {fmtMoney(income)} actually goes</h3>
+          <h3 className="pp-chapter-h">Where your {fmtMoney(income)} actually goes</h3>
           <p className="pp-sec-lead">Your {incorporated ? "personal pay" : "gross income"} in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : incorporated ? "incorporated owner" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
           <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
           <div className="pp-card">
@@ -1685,8 +1698,8 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* TFSA vs RRSP — merged into the Paycheque & tax tab */}
       {income > 0 && activeTabs.has("sec-pay") && (() => {
-        const claw = oasClawback(retTaxableIncome);
-        const nearClaw = retTaxableIncome > TAX_CONFIG.oas.thresholdMin - 15000 && retTaxableIncome <= TAX_CONFIG.oas.thresholdMin;
+        const claw = oasClawRisk;
+        const nearClaw = oasNearClaw;
         const lowIncomeRet = retTaxableIncome > 0 && retTaxableIncome < 32000;
         return (
           <div id="sec-vs" style={{ marginTop: 34 }}>
@@ -1742,9 +1755,9 @@ export default function Dashboard({ plan, setPlan }) {
       })()}
 
       {/* ROOM + FHSA DEADLINE */}
-      {activeTabs.has("sec-room") && <><div id="sec-room" style={{ marginTop: 34 }}>
+      {activeTabs.has("sec-room") && <><div id="sec-room" className="pp-chapter" style={{ marginTop: 34 }}>
         <span className="pp-eyebrow"><Wallet size={14} /> Contribution limits</span>
-        <h3 className="pp-sec-h">How much you can still put in each account this year</h3>
+        <h3 className="pp-chapter-h">How much you can still put in each account this year</h3>
         <div className="pp-room">
           <div className="pp-roomc">
             <h4>TFSA <PiggyBank size={18} style={{ color: "var(--violet)" }} /></h4>
@@ -1815,8 +1828,10 @@ export default function Dashboard({ plan, setPlan }) {
 
       {/* GROWTH CHART + WHAT-IF */}
       {hasData && activeTabs.has("sec-grow") && (
-        <div id="sec-grow">
-          <div className="pp-card pp-noprint" style={{ marginTop: 34 }}>
+        <div id="sec-grow" className="pp-chapter" style={{ marginTop: 34 }}>
+          <span className="pp-eyebrow"><TrendingUp size={14} /> Growth</span>
+          <h3 className="pp-chapter-h">How your money could grow</h3>
+          <div className="pp-card pp-noprint" style={{ marginTop: 22 }}>
             <span className="pp-eyebrow">Play with the numbers</span>
             <h3 style={{ fontSize: 22, margin: "8px 0 16px" }}>Change these sliders and watch your projection update</h3>
             <div className="pp-sliders">

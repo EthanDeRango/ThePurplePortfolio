@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates, estimateDBPension } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -190,6 +190,13 @@ export function runSelfTest() {
     ["glide path ends capped low",         glidePathRates(20, 0.08)[19] === goalRate(1, 0.08)],
     ["glide path monotonically de-risks",  (() => { const r = glidePathRates(15, 0.08); return r.every((v, i) => i === 0 || v <= r[i - 1]); })()],
     ["glide path never exceeds full rate", glidePathRates(10, 0.06).every((v) => v <= 0.06)],
+
+    // ── estimateDBPension (rough fallback for someone without a pension statement) ─
+    ["DB estimate: 30yrs at $80k income",  estimateDBPension(80000, 30).annual === 36000],
+    ["DB estimate monthly matches annual/12", estimateDBPension(80000, 30).monthly === Math.round(36000 / 12)],
+    ["DB estimate is zero with no service", estimateDBPension(80000, 0).annual === 0],
+    ["DB estimate never goes negative",    estimateDBPension(80000, -5).annual === 0],
+    ["DB estimate scales with accrual rate", estimateDBPension(80000, 30, 0.02).annual > estimateDBPension(80000, 30, 0.015).annual],
 
     // ── projectSeriesSchedule with a per-year rate array ────────────────────────
     ["flat-rate array behaves like a flat number", (() => {
