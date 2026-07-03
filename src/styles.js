@@ -229,6 +229,28 @@ html { scroll-padding-top: 90px; }
 .pp-hero-fine { margin-top: 22px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .pp-orb { position: relative; aspect-ratio: 1; }
 .pp-hero-deco { position: absolute; right: -120px; top: -80px; width: 520px; height: 520px; opacity: 0.5; pointer-events: none; }
+.pp-hero-crest {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 8px 24px rgba(46,20,82,.22), 0 28px 64px rgba(46,20,82,.28);
+}
+.pp-hero-crest::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  box-shadow: inset 0 0 0 1px rgba(201,154,66,.35), inset 0 0 60px rgba(112,68,190,.28);
+  pointer-events: none;
+}
+.pp-hero-crest img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 42%;
+}
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
 .pp-card {
@@ -1235,7 +1257,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .pp-hero-grid { grid-template-columns: 1fr; gap: 10px; padding: 46px 0 56px; }
-  .pp-orb { display: none; }
+  .pp-orb, .pp-hero-crest { display: none; }
   .pp-hero h1 { font-size: 38px; }
   .pp-grid-3, .pp-grid-2, .pp-grid-money, .pp-seg, .pp-row2, .pp-scn, .pp-pay-grid, .pp-room, .pp-sliders, .pp-brackets { grid-template-columns: 1fr; }
   .pp-months { grid-template-columns: repeat(3, 1fr); }

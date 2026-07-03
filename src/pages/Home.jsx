@@ -3,7 +3,6 @@ import {
   ArrowRight, Shield, TrendingUp, Calculator, MapPin,
   Receipt, Percent, GraduationCap, Sparkles,
 } from "lucide-react";
-import Orb from "../components/Orb.jsx";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -20,7 +19,7 @@ export default function Home() {
         <div className="pp-wrap pp-hero-grid">
           <div>
             <span className="pp-eyebrow"><Sparkles size={14} /> Tax-aware planning, built for Canadians</span>
-            <h1 style={{ marginTop: 16 }}>Your paycheque, <em>decoded</em>.<br />Your future, projected.</h1>
+            <h1 style={{ marginTop: 16 }}>Stop <em>guessing</em><br />with your money.</h1>
             <p className="pp-hero-sub">
               Purple Portfolio is a free planner and learning club. Enter your income and province
               and see exactly where your money goes (taxes, CPP, EI), then your contribution room,
@@ -34,7 +33,9 @@ export default function Home() {
               <Shield size={15} /> Private by default. Your numbers stay in your browser. Sign in only if you want to save across devices.
             </div>
           </div>
-          <Orb />
+          <div className="pp-hero-crest">
+            <img src="/crest-hero.jpg" alt="The Purple Portfolio crest" />
+          </div>
         </div>
       </header>
 
