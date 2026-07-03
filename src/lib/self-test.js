@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -183,6 +183,42 @@ export function runSelfTest() {
     ["12-yr goal uses full rate",          goalRate(12, 0.08) === 0.08],
     ["never exceeds the user's own rate",  goalRate(20, 0.04) === 0.04],
     ["short goal still capped by low rate", goalRate(1, 0.015) === 0.015],
+
+    // ── glidePathRates (retirement-wide glide path) ────────────────────────────
+    ["glide path length matches years",    glidePathRates(20, 0.08).length === 20],
+    ["glide path starts near the full rate", glidePathRates(20, 0.08)[0] === goalRate(20, 0.08)],
+    ["glide path ends capped low",         glidePathRates(20, 0.08)[19] === goalRate(1, 0.08)],
+    ["glide path monotonically de-risks",  (() => { const r = glidePathRates(15, 0.08); return r.every((v, i) => i === 0 || v <= r[i - 1]); })()],
+    ["glide path never exceeds full rate", glidePathRates(10, 0.06).every((v) => v <= 0.06)],
+
+    // ── projectSeriesSchedule with a per-year rate array ────────────────────────
+    ["flat-rate array behaves like a flat number", (() => {
+      const flat = projectSeriesSchedule(0.08, 5, 1000, [100, 100, 100, 100, 100], 0, null);
+      const arr  = projectSeriesSchedule([0.08, 0.08, 0.08, 0.08, 0.08], 5, 1000, [100, 100, 100, 100, 100], 0, null);
+      return near(flat[5], arr[5], 0.01);
+    })()],
+    ["a declining rate array grows less than the flat starting rate", (() => {
+      const flat = projectSeriesSchedule(0.08, 10, 1000, [500,500,500,500,500,500,500,500,500,500], 0, null);
+      const glide = projectSeriesSchedule(glidePathRates(10, 0.08), 10, 1000, [500,500,500,500,500,500,500,500,500,500], 0, null);
+      return glide[10] < flat[10];
+    })()],
+
+    // ── savingsSchedule: negative growth (rising costs outpacing income) + endAge ──
+    ["negative growth rate shrinks contributions over time", (() => {
+      const s = savingsSchedule(1000, 40, 5, [], -0.05);
+      return s[0] === 1000 && s[4] < s[0];
+    })()],
+    ["a life event with an endAge stops applying", (() => {
+      const events = [{ type: "invest-less", amount: 300, age: 48, endAge: 58 }];
+      const s = savingsSchedule(1000, 40, 25, events, 0);
+      // age 48 = year 8 (event active), age 58 = year 18 (event should have ended)
+      return s[8] === 700 && s[18] === 1000;
+    })()],
+    ["a life event without an endAge applies forever after", (() => {
+      const events = [{ type: "invest-less", amount: 300, age: 48 }];
+      const s = savingsSchedule(1000, 40, 25, events, 0);
+      return s[8] === 700 && s[24] === 700;
+    })()],
   ];
 
   const failed = checks.filter(([, ok]) => !ok);

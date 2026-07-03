@@ -96,9 +96,11 @@ export function projectFinal(rate, years, startBal, monthly, monthsArr, startMon
 
 // Projection where the monthly contribution changes by year (life events / variable savings).
 // monthlyByYear[y] = monthly contribution applied during year y (0 = first year from now).
+// `rate` is normally a flat annual number, but can also be an array (rate[y] per year) —
+// used for a glide path that de-risks as a goal/retirement approaches, via goalRate().
 // startMonth applies only to year 0; withdrawals: [{year, amount}] (1-indexed) as elsewhere.
 export function projectSeriesSchedule(rate, years, startBal, monthlyByYear, startMonth, withdrawals) {
-  const i  = rate / 12;
+  const rateFor = (y) => (Array.isArray(rate) ? (rate[y] != null ? rate[y] : rate[rate.length - 1]) : rate) || 0;
   const sm = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
   let bal  = startBal;
   const out = [bal];
@@ -107,6 +109,7 @@ export function projectSeriesSchedule(rate, years, startBal, monthlyByYear, star
     if (w.year >= 1 && w.year <= years && w.amount > 0) wMap[w.year] = (wMap[w.year] || 0) + w.amount;
   }
   for (let y = 0; y < years; y++) {
+    const i = rateFor(y) / 12;
     const m = n(monthlyByYear[y] != null ? monthlyByYear[y] : monthlyByYear[monthlyByYear.length - 1]);
     for (let mo = 0; mo < 12; mo++) {
       if (y === 0 && mo < sm) continue;
@@ -222,15 +225,18 @@ export function savingsEventsFor(lifeEvents, age, retAge) {
 }
 
 // Per-year monthly contribution, shifting at each savings event's age (drives the projection).
-// growthRate (e.g. 0.03) compounds the base monthly each year, reflecting rising income/raises;
-// life-event step changes are absolute dollar amounts and are applied on top of the grown base.
+// growthRate (e.g. 0.03) compounds the base monthly each year — pass a NET rate (income growth
+// minus expense growth) to reflect both raises and a rising cost of living. life-event step
+// changes are absolute dollar amounts applied on top of the grown base; an optional `endAge`
+// on an event stops it from applying once reached (e.g. a kid's activity that runs for a few years).
 export function savingsSchedule(effectiveMonthly, age, years, savingsEvents, growthRate = 0) {
   const arr = new Array(Math.max(1, years)).fill(0);
   for (let y = 0; y < arr.length; y++) {
     let m = effectiveMonthly * Math.pow(1 + (growthRate || 0), y);
     const atAge = age + y;
     for (const e of (savingsEvents || [])) {
-      if (atAge >= n(e.age)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);
+      const ends = n(e.endAge);
+      if (atAge >= n(e.age) && (!ends || atAge < ends)) m += (e.type === "invest-more" ? 1 : -1) * n(e.amount);
     }
     arr[y] = Math.max(0, m);
   }
@@ -315,6 +321,15 @@ export function goalRate(years, fullRate) {
   if (years < 7)  return Math.min(r, 0.05);   // medium — balanced
   if (years < 10) return Math.min(r, 0.065);  // longer — growth-leaning
   return r;                                    // 10y+ — full growth
+}
+
+// A retirement "glide path": the same horizon-based de-risking as goalRate(), applied to
+// every year of the main projection instead of just a single goal's target date. Year 0 is
+// today (full rate, since retirement is `years` away); the final year is 1 year out (capped
+// near cash-like return). Feed this into projectSeriesSchedule()'s rate argument.
+export function glidePathRates(years, fullRate) {
+  const n2 = Math.max(1, Math.round(years) || 1);
+  return Array.from({ length: n2 }, (_, y) => goalRate(Math.max(1, n2 - y), fullRate));
 }
 
 // Employer RRSP match as a dollar amount, whether the user entered $/yr or % of pay.

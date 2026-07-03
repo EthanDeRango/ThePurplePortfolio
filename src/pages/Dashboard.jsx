@@ -13,7 +13,7 @@ import {
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, yourHomeDownPayment, bracketInfo,
-  yearsToTarget, simulateStrategy, goalRate,
+  yearsToTarget, simulateStrategy, goalRate, glidePathRates,
   recommendOrder, healthScore, investedFromMonth, employerMatchAmount, insights, accounts,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
@@ -152,26 +152,33 @@ export default function Dashboard({ plan, setPlan }) {
   const lifeEvents = Array.isArray(plan.lifeEvents) ? plan.lifeEvents : [];
   const savingsEvents = savingsEventsFor(lifeEvents, age, retAge);
   const hasLifeEvents = savingsEvents.length > 0;
-  // Income growth: as you earn more (raises), your monthly investing grows with it.
+  // Income growth (raises) grows what you invest; rising living costs eat into it — net the
+  // two into a single compounding rate applied to your monthly contribution.
   const incomeGrowthRate = Math.max(0, n(plan.incomeGrowth) / 100);
-  const contributionsGrow = incomeGrowthRate > 0 && effectiveMonthly > 0;
-  // Use the per-year schedule whenever contributions vary across years (life events OR growth).
-  const useSchedule = hasLifeEvents || contributionsGrow;
+  const expenseGrowthRate = Math.max(0, n(plan.expenseGrowth) / 100);
+  const netContribGrowth = incomeGrowthRate - expenseGrowthRate;
+  const contributionsGrow = netContribGrowth !== 0 && effectiveMonthly > 0;
+  // Glide path: shift toward safer, lower-return holdings as retirement nears (same de-risking
+  // goalRate() already applies to individual goals, now applied across the whole horizon).
+  const glidePathOn = !!plan.glidePath;
+  const rateFor = (baseRate) => (glidePathOn ? glidePathRates(years, baseRate) : baseRate);
+  // Use the per-year schedule whenever contributions vary across years (life events, growth, or glide path).
+  const useSchedule = hasLifeEvents || contributionsGrow || glidePathOn;
   const monthlyByYear = useMemo(
-    () => savingsSchedule(effectiveMonthly, age, years, savingsEvents, contributionsGrow ? incomeGrowthRate : 0),
+    () => savingsSchedule(effectiveMonthly, age, years, savingsEvents, contributionsGrow ? netContribGrowth : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [years, age, effectiveMonthly, JSON.stringify(savingsEvents), contributionsGrow, incomeGrowthRate]
+    [years, age, effectiveMonthly, JSON.stringify(savingsEvents), contributionsGrow, netContribGrowth]
   );
 
   // memoized expensive computations
-   
+
   const selSeries = useMemo(
     () => useSchedule
-      ? projectSeriesSchedule(ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals)
+      ? projectSeriesSchedule(rateFor(ret - fee), years, start, monthlyByYear, startMonth, goalWithdrawals)
       : projectSeriesWithWithdrawals(ret - fee, years, start, effectiveMonthly, monthsArr, startMonth, goalWithdrawals),
     // gwKey serializes goalWithdrawals so the memo only re-runs when goal data actually changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, useSchedule, JSON.stringify(monthlyByYear)]
+    [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, useSchedule, JSON.stringify(monthlyByYear), glidePathOn]
   );
   const selFinal = selSeries[selSeries.length - 1];
   const contribSeries = useMemo(
@@ -183,10 +190,10 @@ export default function Dashboard({ plan, setPlan }) {
   );
   const finals = useMemo(
     () => Object.fromEntries(RISK.map((r) => [r.key, useSchedule
-      ? projectSeriesSchedule(r.ret - fee, years, start, monthlyByYear, startMonth, goalWithdrawals).slice(-1)[0]
+      ? projectSeriesSchedule(rateFor(r.ret - fee), years, start, monthlyByYear, startMonth, goalWithdrawals).slice(-1)[0]
       : projectFinal(r.ret - fee, years, start, effectiveMonthly, monthsArr, startMonth)])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fee, years, start, effectiveMonthly, monthsArr, startMonth, useSchedule, JSON.stringify(monthlyByYear), gwKey]
+    [fee, years, start, effectiveMonthly, monthsArr, startMonth, useSchedule, JSON.stringify(monthlyByYear), gwKey, glidePathOn]
   );
   const scaleRef = useMemo(
     () => projectFinal(0.10, years, start, effectiveMonthly, monthsArr, startMonth),
@@ -369,9 +376,10 @@ export default function Dashboard({ plan, setPlan }) {
   );
   const stackedSeries = useMemo(() => {
     if (!byAcct) return null;
-    // When life events change savings over time, the per-account breakdown (steady contributions)
-    // would disagree with the schedule-aware projection line — show the line view instead.
-    if (hasLifeEvents) return null;
+    // When life events (or a glide path) change savings/return over time, the per-account
+    // breakdown (steady contributions, one flat rate) would disagree with the schedule-aware
+    // projection line — show the line view instead.
+    if (hasLifeEvents || glidePathOn) return null;
     const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0;
     const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
     const hasResp     = (Array.isArray(plan.resps) && plan.resps.some(r => n(r.balance) > 0 || n(r.monthlyContrib) > 0)) || n(plan.bResp) > 0;
@@ -664,13 +672,14 @@ export default function Dashboard({ plan, setPlan }) {
         {hasData ? (
           <>
             <div className="big">{fmtMoney(dispVal(selFinal))}</div>
-            <div className="cap">Projected by age {retAge} ({years} years) on your <b style={{ color: "var(--gold-2)" }}>{sel.name.toLowerCase()}</b> path{fee > 0 ? `, after ~${pct1(fee)} fees` : ""}{inflation ? ", in today's dollars" : ""}{afterTax ? ", after estimated retirement tax" : ""}.</div>
+            <div className="cap">Projected by age {retAge} ({years} years) on your <b style={{ color: "var(--gold-2)" }}>{sel.name.toLowerCase()}</b> path{fee > 0 ? `, after ~${pct1(fee)} fees` : ""}{inflation ? ", in today's dollars" : ""}{afterTax ? ", after estimated retirement tax" : ""}{glidePathOn ? ", gliding to safer holdings as you near retirement" : ""}.</div>
             <div style={{ marginTop: 10, fontSize: 13.5, color: "rgba(220,205,240,.9)", background: "rgba(255,255,255,.09)", borderRadius: 10, padding: "8px 14px", display: "inline-block" }}>
               In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * safeWithdrawalRate)}/yr</b> throughout retirement without running out.
             </div>
             <div style={{ marginTop: 12, fontSize: 13.5, color: "rgba(220,205,240,.92)", lineHeight: 1.55 }}>
               The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at 6%/yr to {fmtMoney(dispVal(finals.aggressive))} at 10%/yr). They are not a downturn simulation.
               {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk, the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at an 8% long-run average.</>} Plan for a range, not one number.
+              {glidePathOn && <> <b style={{ color: "#fff" }}>Glide path on:</b> your assumed return steps down the closer you get to {retAge} — full rate with 10+ years left, capped near 2%/yr (cash/HISA-like) in the final year — instead of one flat rate the whole way.</>}
             </div>
             <div className="pp-scn">
               {RISK.map((r) => (
@@ -1439,7 +1448,7 @@ export default function Dashboard({ plan, setPlan }) {
                       <div className="pp-grid-3" style={{ marginTop: 6 }}>
                         <div className="pp-rate-chip"><div className="l">You'll need</div><div className="v">{fmtMoney(g.amt)}</div><div className="h">{g.dueLabel ? `by ${g.dueLabel}` : g.yrs > 0 ? "in " + g.yrs + (g.yrs === 1 ? " year" : " years") : "no timeframe"}</div></div>
                         <div className="pp-rate-chip" style={{ background: "var(--violet-soft)" }}><div className="l">Save to fund it</div><div className="v" style={g.reqMonthly === 0 ? { color: "var(--green)" } : {}}>{g.reqMonthly == null ? "—" : g.reqMonthly === 0 ? "Covered ✓" : fmtMoney(g.reqMonthly) + "/mo"}</div><div className="h">{g.reqMonthly == null ? "add a target & date" : g.fromLump > 0 ? `${fmtMoney(g.fromLump)} from your lump sum${g.reqMonthly > 0 ? " + saving" : ""} · ~${pct1(g.gRate)}/yr` : `assuming ~${pct1(g.gRate)}/yr`}</div></div>
-                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Hold it in</div><div className="v" style={{ fontSize: 15 }}>{g.yrs < 3 ? "Cash / HISA" : g.yrs < 7 ? "Balanced" : "Growth"}</div><div className="h">{g.yrs < 3 ? "too soon to risk it" : g.yrs < 7 ? "stocks + bonds mix" : "mostly stocks"}</div></div>
+                        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Hold it in</div><div className="v" style={{ fontSize: 15 }}>{g.yrs < 3 ? "Cash / HISA" : g.yrs < 7 ? "Balanced" : "Growth"}</div><div className="h">{g.yrs < 3 ? "too soon to risk it" : g.yrs < 7 ? "stocks + bonds mix" : "mostly stocks"} · assumes {pct1(g.gRate)}/yr</div></div>
                       </div>
                     </div>
                   ))}
@@ -1875,7 +1884,7 @@ export default function Dashboard({ plan, setPlan }) {
               Hover or tap any point on the chart to read the exact value for that year.{" "}
               {stackedSeries
                 ? <>Each coloured band is a different account — they stack up to your total projected wealth{homeEquityArr.some((v) => v > 0) ? ` (${plan.homeWithPartner ? `your ${Math.round(homeEquityShare * 100)}% share of home equity` : "home equity"} included, assuming a ${pct1(mortgageRateDecimal)} mortgage rate and ${pct1(homeApprecDecimal)}/yr appreciation)` : ""}. The dashed purple line shows how much you'd have if you stopped contributing today — everything above it is the extra wealth built by continuing to save.</>
-                : <>The curve grows at your chosen return of <b>{pct1(ret)}/yr</b> — drag the slider lower and you'll see it visibly flatten. {goalWithdrawals.length > 0 && `The dip${goalWithdrawals.length > 1 ? "s" : ""} show money being taken out for goals (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")}). `}{noContribSeries && start > 0 ? "The dashed line shows your current savings growing with zero new contributions — everything above it is the extra wealth built by staying invested." : ""}</>
+                : <>{glidePathOn ? <>Your return glides down from <b>{pct1(ret)}/yr</b> toward safer, lower-return holdings as retirement nears. </> : <>The curve grows at your chosen return of <b>{pct1(ret)}/yr</b> — drag the slider lower and you'll see it visibly flatten. </>}{byAcct && (hasLifeEvents || glidePathOn) && <>The per-account breakdown isn't shown while {hasLifeEvents && glidePathOn ? "life events and the glide path are" : hasLifeEvents ? "life events are" : "the glide path is"} active, since the steady, flat-rate math it relies on wouldn't match this line. </>}{goalWithdrawals.length > 0 && `The dip${goalWithdrawals.length > 1 ? "s" : ""} show money being taken out for goals (${goalWithdrawals.map((w) => fmtMoney(w.amount)).join(" + ")}). `}{noContribSeries && start > 0 ? "The dashed line shows your current savings growing with zero new contributions — everything above it is the extra wealth built by staying invested." : ""}</>
               }{" "}Illustrative projections only — real returns vary.
             </p>
 
@@ -2011,7 +2020,14 @@ export default function Dashboard({ plan, setPlan }) {
                 ) : (
                   <>
                     <div className="pp-acct"><div className="num">{fmtMoney(effectiveMonthly)}/mo</div></div>
-                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(effectiveMonthly * 12)} a year going to work for you{dcEmployerMonthly > 0 ? `, including ${fmtMoney(dcEmployerMonthly * 12)}/yr employer match` : ""}.{contributionsGrow && <> Growing about <b style={{ color: "var(--violet)" }}>{n(plan.incomeGrowth)}%/yr</b> as your income rises, reaching {fmtMoney(monthlyByYear[monthlyByYear.length - 1])}/mo by age {retAge}.</>}</p>
+                    <p style={{ fontSize: 13.5, color: "var(--muted)", marginTop: 10 }}>That's {fmtMoney(effectiveMonthly * 12)} a year going to work for you{dcEmployerMonthly > 0 ? `, including ${fmtMoney(dcEmployerMonthly * 12)}/yr employer match` : ""}.
+                      {contributionsGrow && netContribGrowth > 0 && (
+                        expenseGrowthRate > 0
+                          ? <> Growing about <b style={{ color: "var(--violet)" }}>{pct1(netContribGrowth)}/yr net</b> (income +{pct1(incomeGrowthRate)}/yr minus rising costs of {pct1(expenseGrowthRate)}/yr), reaching {fmtMoney(monthlyByYear[monthlyByYear.length - 1])}/mo by age {retAge}.</>
+                          : <> Growing about <b style={{ color: "var(--violet)" }}>{pct1(incomeGrowthRate)}/yr</b> as your income rises, reaching {fmtMoney(monthlyByYear[monthlyByYear.length - 1])}/mo by age {retAge}.</>
+                      )}
+                      {contributionsGrow && netContribGrowth < 0 && <> Shrinking about <b style={{ color: "var(--rose)" }}>{pct1(Math.abs(netContribGrowth))}/yr net</b> — rising costs ({pct1(expenseGrowthRate)}/yr) outpacing income growth ({pct1(incomeGrowthRate)}/yr) — down to {fmtMoney(monthlyByYear[monthlyByYear.length - 1])}/mo by age {retAge}.</>}
+                    </p>
                   </>
                 )}
               </div>

@@ -33,12 +33,16 @@ export const PLAN_DEFAULTS = {
   // Buying with a partner: split the down payment, track only your share
   homeWithPartner: false, homeYourShare: 50,
   // Life events — future changes to savings/income at a given age.
-  // [{ id, age, type: 'invest-more'|'invest-less'|'income', amount, label }]
+  // [{ id, age, endAge, type: 'invest-more'|'invest-less'|'income', amount, label }]
+  // endAge is optional — set it for a temporary cost/boost (e.g. a kid's activity for a few years).
   lifeEvents: [],
   // Incorporated business owner: how they pay themselves (personal-side modeling only)
   payMix: "salary", // 'salary' | 'dividends' | 'mix'
   dividendType: "noneligible", // 'eligible' | 'noneligible' — small-biz dividends are usually non-eligible
   salaryShare: 50, // when payMix === 'mix', % of income taken as salary
+  // Advanced (Fine-tune assumptions): shift toward safer, lower-return holdings as retirement
+  // nears, mirroring the same horizon-based de-risking already used for individual goals.
+  glidePath: false,
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";

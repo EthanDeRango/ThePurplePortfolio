@@ -585,7 +585,7 @@ export default function Planner({ plan, setPlan }) {
             open={showAssumptions}
             onToggle={() => setShowAssumptions((v) => !v)}
           >
-            <div className="pp-field" style={{ marginBottom: plan.buyHome ? 14 : 0 }}>
+            <div className="pp-field" style={{ marginBottom: 14 }}>
               <label className="pp-label2" htmlFor="f-infl">Inflation rate</label>
               <div className="pp-input-wrap" style={{ maxWidth: 200 }}>
                 <input id="f-infl" className="pp-input" inputMode="decimal" value={plan.inflationRate != null ? plan.inflationRate : ""} placeholder="2"
@@ -593,6 +593,17 @@ export default function Planner({ plan, setPlan }) {
                 <span className="pp-adorn r">%/yr</span>
               </div>
               <div className="pp-help">Prices rise a little each year, so a dollar buys less over time. Canada has averaged about <b>2%</b>. We use this to show your retirement target in today's dollars. Defaults to 2%.</div>
+            </div>
+
+            <div className="pp-field" style={{ marginBottom: plan.buyHome ? 14 : 0 }}>
+              <label className="pp-label2">Shift to safer investments as retirement nears?</label>
+              <div className="pp-toggle">
+                <button type="button" className={plan.glidePath ? "on" : ""} aria-pressed={!!plan.glidePath} onClick={() => set("glidePath", true)}>Yes, use a glide path</button>
+                <button type="button" className={!plan.glidePath ? "on" : ""} aria-pressed={!plan.glidePath} onClick={() => set("glidePath", false)}>No, one rate the whole way</button>
+              </div>
+              <div className="pp-help">
+                Many advisors move money from stocks toward bonds/cash the closer you get to retirement, trading some growth for stability right when you need the money most. If you turn this on, your assumed return steps down the same way we already do for individual goals — full rate with 10+ years left, capped near <b>2%/yr</b> in your last year. Off by default; we assume one flat rate for the whole horizon otherwise.
+              </div>
             </div>
 
             {plan.buyHome && (
@@ -673,14 +684,25 @@ export default function Planner({ plan, setPlan }) {
             );
           })()}
           <CurrencyField id="f-lump" label="One-time lump sum to invest now (optional)" placeholder="e.g. 5,000" value={plan.lumpSum} onChange={(v) => set("lumpSum", v)} />
-          <div className="pp-field">
-            <label className="pp-label2" htmlFor="f-incgrowth">Do you expect your income to grow? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
-            <div className="pp-input-wrap" style={{ maxWidth: 220 }}>
-              <input id="f-incgrowth" className="pp-input" inputMode="decimal" placeholder="e.g. 3"
-                value={plan.incomeGrowth ?? ""} onChange={(e) => set("incomeGrowth", e.target.value.replace(/[^0-9.]/g, ""))} />
-              <span className="pp-adorn r">%/yr</span>
+          <div className="pp-row2">
+            <div className="pp-field" style={{ marginBottom: 0 }}>
+              <label className="pp-label2" htmlFor="f-incgrowth">Do you expect your income to grow? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
+              <div className="pp-input-wrap" style={{ maxWidth: 220 }}>
+                <input id="f-incgrowth" className="pp-input" inputMode="decimal" placeholder="e.g. 3"
+                  value={plan.incomeGrowth ?? ""} onChange={(e) => set("incomeGrowth", e.target.value.replace(/[^0-9.]/g, ""))} />
+                <span className="pp-adorn r">%/yr</span>
+              </div>
+              <div className="pp-help">As your pay rises, your investing usually rises with it. We grow your monthly contributions by this each year. Canadian raises have averaged around <b>3%</b>. Leave blank to keep contributions flat.</div>
             </div>
-            <div className="pp-help">As your pay rises, your investing usually rises with it. We grow your monthly contributions by this each year. Canadian raises have averaged around <b>3%</b>. Leave blank to keep contributions flat.</div>
+            <div className="pp-field" style={{ marginBottom: 0 }}>
+              <label className="pp-label2" htmlFor="f-expgrowth">Do your living costs rise over time? <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></label>
+              <div className="pp-input-wrap" style={{ maxWidth: 220 }}>
+                <input id="f-expgrowth" className="pp-input" inputMode="decimal" placeholder="e.g. 2"
+                  value={plan.expenseGrowth ?? ""} onChange={(e) => set("expenseGrowth", e.target.value.replace(/[^0-9.]/g, ""))} />
+                <span className="pp-adorn r">%/yr</span>
+              </div>
+              <div className="pp-help">Kids' activities, a growing family, general inflation — rising costs eat into what you can invest. We shrink your monthly contributions by this each year (net against income growth, if any). Leave blank to assume flat costs.</div>
+            </div>
           </div>
           <div className="pp-field">
             <label className="pp-label2">Do your monthly amounts vary?</label>
@@ -805,14 +827,14 @@ export default function Planner({ plan, setPlan }) {
             const rm = (id) => set("lifeEvents", events.filter((e) => e.id !== id));
             const TYPES = [
               { v: "invest-more", label: "Free up money to invest (+$/mo)" },
-              { v: "invest-less", label: "New ongoing cost (−$/mo)" },
+              { v: "invest-less", label: "New recurring cost (−$/mo) — e.g. kids' activities" },
               { v: "income", label: "Income changes to ($/yr)" },
             ];
             return (
               <div className="pp-subcard" style={{ marginTop: 16 }}>
                 <p className="pp-sub-h">Life changes over time <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></p>
                 <div className="pp-help" style={{ marginTop: 0 }}>
-                  Know something will shift? Add it and your projection follows along. For example: a child finishes university so you can invest <b>$1,200/mo more</b> at age 52, a new cost begins, or your income changes.
+                  Know something will shift? Add it and your projection follows along. For example: a child finishes university so you can invest <b>$1,200/mo more</b> at age 52, a new recurring cost begins (kids' hockey, a second car), or your income changes. Recurring costs can have an end age too — set one if it's temporary.
                 </div>
                 {events.map((e) => (
                   <div key={e.id} className="pp-lifeevent">
@@ -828,6 +850,11 @@ export default function Planner({ plan, setPlan }) {
                       <div className="pp-input-wrap" style={{ maxWidth: 120 }}>
                         <input className="pp-input" inputMode="numeric" placeholder="age" value={e.age || ""} onChange={(ev) => upd(e.id, "age", ev.target.value.replace(/[^0-9]/g, ""))} />
                         <span className="pp-adorn r">at age</span></div>
+                      {e.type !== "income" && (
+                        <div className="pp-input-wrap" style={{ maxWidth: 130 }}>
+                          <input className="pp-input" inputMode="numeric" placeholder="optional" value={e.endAge || ""} onChange={(ev) => upd(e.id, "endAge", ev.target.value.replace(/[^0-9]/g, ""))} />
+                          <span className="pp-adorn r">until age</span></div>
+                      )}
                       <button type="button" className="pp-lifeevent-rm" onClick={() => rm(e.id)} aria-label="Remove">✕</button>
                     </div>
                   </div>
