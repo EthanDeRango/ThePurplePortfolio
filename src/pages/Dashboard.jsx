@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, Check, ChevronRight, Shield, Sparkles,
   AlertTriangle, Wallet, Landmark, PiggyBank, Coins, Scale,
   Receipt, Calculator, CalendarClock, ListOrdered, Printer,
-  Info, Home as HomeIcon, TrendingUp, GraduationCap,
+  Info, Home as HomeIcon, TrendingUp, GraduationCap, Heart,
 } from "lucide-react";
 import {
   n, fmtMoney, fmtShort, pct1, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
@@ -15,6 +15,7 @@ import {
   oasClawback, emergencyFundTarget, yourHomeDownPayment, bracketInfo,
   yearsToTarget, simulateStrategy, goalRate, glidePathRates,
   recommendOrder, healthScore, investedFromMonth, employerMatchAmount, insights, accounts,
+  recommendHouseholdOrder, spousalRrspSaving, spousalRrspRoomCheck, optimizePensionSplit,
   projectByAccount, mortgageEquitySeries, projectRespToAge18,
 } from "../lib/calculations.js";
 import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from "../lib/tax-engine.js";
@@ -56,7 +57,8 @@ export default function Dashboard({ plan, setPlan }) {
   // emergency cash, minus high-interest debt. Grounds the big projected number in reality.
   const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp) + n(plan.holdco)
     + (plan.emergencyStatus === "partial" ? n(plan.emergencySaved) : 0)
-    - n(plan.highInterestDebt);
+    - n(plan.highInterestDebt)
+    + (plan.hasPartner ? n(plan.partner?.bTfsa) + n(plan.partner?.bRrsp) + n(plan.partner?.bFhsa) + n(plan.partner?.bNonreg) : 0);
   const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0 || n(plan.holdco) > 0;
   const monthsArr = plan.contribMode === "custom" ? (plan.months || null) : null;
   const emergencyFull = plan.emergencyStatus === "full";
@@ -78,6 +80,27 @@ export default function Dashboard({ plan, setPlan }) {
     return salaryIncome > 0 ? marginalRate(salaryIncome, prov, empType) : 0;
   }, [income, prov, empType, incorporated, salaryIncome, dividendIncome, dividendType]);
   const brk = useMemo(() => salaryIncome > 0 ? bracketInfo(salaryIncome, prov, empType) : null, [salaryIncome, prov, empType]);
+
+  // ── Household mode: partner's own numbers, computed the same way as yours — never combined
+  // into one pool (contribution room is always per-person under Canadian law). ────────────────
+  const hasPartner = !!plan.hasPartner;
+  const partner = plan.partner || {};
+  const partnerIncome = n(partner.income);
+  const partnerProv = partner.province || prov;
+  const partnerEmpType = partner.employmentType || "employed";
+  const partnerAge = n(partner.age);
+  const partnerTax = useMemo(
+    () => (hasPartner && partnerIncome > 0) ? taxEngine(partnerIncome, partnerProv, partnerEmpType) : null,
+    [hasPartner, partnerIncome, partnerProv, partnerEmpType]
+  );
+  const partnerMarginal = useMemo(
+    () => (hasPartner && partnerIncome > 0) ? marginalRate(partnerIncome, partnerProv, partnerEmpType) : 0,
+    [hasPartner, partnerIncome, partnerProv, partnerEmpType]
+  );
+  const partnerStartBal = n(partner.bTfsa) + n(partner.bRrsp) + n(partner.bFhsa) + n(partner.bNonreg);
+  const partnerBirthYear = partnerAge > 0 ? TAX_YEAR - partnerAge : 0;
+  const partnerTfsaCum = tfsaCumulativeRoom(partnerBirthYear);
+  const partnerRrspLimit = rrspEstimatedLimit(partnerIncome);
 
   // what-if controls
   const [monthly, setMonthly] = useState(n(plan.monthly));
@@ -181,6 +204,20 @@ export default function Dashboard({ plan, setPlan }) {
     [ret, fee, years, start, effectiveMonthly, monthsArr, startMonth, gwKey, useSchedule, JSON.stringify(monthlyByYear), glidePathOn]
   );
   const selFinal = selSeries[selSeries.length - 1];
+
+  // Household: partner's own simple projection (current balance + their own monthly, at the
+  // household's shared return assumption — one combined portfolio strategy, not two). Kept
+  // simple on purpose: life events, the glide path, and goal withdrawals stay primary-only
+  // for now, so this combined line is a reasonable but not fully-featured household view.
+  const partnerSeries = useMemo(
+    () => (hasPartner && (partnerStartBal > 0 || n(partner.monthly) > 0))
+      ? projectSeriesWithWithdrawals(ret - fee, years, partnerStartBal, n(partner.monthly), null, 0, null)
+      : null,
+    [hasPartner, partnerStartBal, partner.monthly, ret, fee, years]
+  );
+  const householdSeries = partnerSeries ? selSeries.map((v, i) => v + (partnerSeries[i] || 0)) : null;
+  const householdFinal = householdSeries ? householdSeries[householdSeries.length - 1] : null;
+
   const contribSeries = useMemo(
     () => useSchedule
       ? contributedSeriesSchedule(years, start, monthlyByYear, startMonth)
@@ -188,6 +225,11 @@ export default function Dashboard({ plan, setPlan }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [years, start, effectiveMonthly, monthsArr, startMonth, useSchedule, JSON.stringify(monthlyByYear)]
   );
+  const partnerContribSeries = useMemo(
+    () => partnerSeries ? contributedSeries(years, partnerStartBal, n(partner.monthly), null, 0) : null,
+    [partnerSeries, years, partnerStartBal, partner.monthly]
+  );
+  const householdContribSeries = partnerContribSeries ? contribSeries.map((v, i) => v + (partnerContribSeries[i] || 0)) : null;
   const finals = useMemo(
     () => Object.fromEntries(RISK.map((r) => [r.key, useSchedule
       ? projectSeriesSchedule(rateFor(r.ret - fee), years, start, monthlyByYear, startMonth, goalWithdrawals).slice(-1)[0]
@@ -218,7 +260,8 @@ export default function Dashboard({ plan, setPlan }) {
 
   // Every section that can be shown right now (some depend on having income / data).
   const allSectionIds = ["sec-plan", "sec-compare", "sec-goal",
-    ...(income > 0 ? ["sec-pay"] : []), "sec-room", ...(hasData ? ["sec-grow"] : [])];
+    ...(income > 0 ? ["sec-pay"] : []), "sec-room", ...(hasData ? ["sec-grow"] : []),
+    ...(hasPartner ? ["sec-household"] : [])];
   const allOpen = allSectionIds.every((id) => activeTabs.has(id));
   const toggleAll = () => setActiveTabs(allOpen ? new Set(["sec-plan"]) : new Set(allSectionIds));
 
@@ -304,6 +347,17 @@ export default function Dashboard({ plan, setPlan }) {
   const projInvestIncome = Math.round(dispVal(selFinal) * safeWithdrawalRate);
   const totalRetIncome = projInvestIncome + govBenefits + pensionDBIncome;
 
+  // Household: partner's own rough retirement income, from their own projected balance only —
+  // we don't yet model their CPP/OAS or a workplace pension separately (Tier 2 simplification,
+  // disclosed in the UI). Feeds the pension-income-split optimizer below.
+  const partnerFinalBal = partnerSeries ? partnerSeries[partnerSeries.length - 1] : 0;
+  const partnerRetIncome = Math.round(partnerFinalBal * safeWithdrawalRate);
+  const pensionSplit = (hasPartner && partnerIncome > 0 && partnerRetIncome > 0 && retAge >= 60)
+    ? optimizePensionSplit(totalRetIncome, partnerRetIncome, prov, partnerProv, projInvestIncome + pensionDBIncome, partnerRetIncome)
+    : null;
+  const spousalContrib = n(partner.spousalRrspContrib);
+  const spousalSaving = spousalContrib > 0 ? spousalRrspSaving(income, prov, empType, spousalContrib) : null;
+
   // Both use the LIVE `monthly` what-if (not the saved plan.monthly), so the
   // "invested this year" figure and the account allocations track the slider —
   // exactly like the projection does. (Was a bug: these read plan.monthly and
@@ -336,6 +390,9 @@ export default function Dashboard({ plan, setPlan }) {
   const simCtx = { years, r: ret - fee, income, marginal, retMarginal, startTfsa: n(plan.bTfsa), startRrsp: n(plan.bRrsp) + n(plan.bLocked), startFhsa: n(plan.bFhsa), annualInvest: annInv, homeIdx, eligFhsa: buyingHome, buyingHome, fhsaCloseIdx };
   const recOrder = recommendOrder(goal, buyingHome, marginal);
   const recSim = useMemo(() => simulateStrategy(recOrder, simCtx), [JSON.stringify(simCtx), recOrder.join(",")]);
+  const houseOrder = (hasPartner && partnerIncome > 0)
+    ? recommendHouseholdOrder(goal, buyingHome, marginal, partnerMarginal)
+    : null;
 
   // Optimal-path series: current monthly + reinvested tax refund from RRSP/FHSA contributions
   const optRefundMonthly = (recSim.refundYr1 || 0) / 12;
@@ -383,8 +440,9 @@ export default function Dashboard({ plan, setPlan }) {
     if (!byAcct) return null;
     // When life events (or a glide path) change savings/return over time, the per-account
     // breakdown (steady contributions, one flat rate) would disagree with the schedule-aware
-    // projection line — show the line view instead.
-    if (hasLifeEvents || glidePathOn) return null;
+    // projection line — show the line view instead. Same when a partner's balance is combined
+    // in, since it isn't broken out into per-account bands.
+    if (hasLifeEvents || glidePathOn || (hasPartner && householdSeries)) return null;
     const hasPension  = n(plan.bPensionDC) + n(plan.bDpsp) > 0 || n(plan.pensionDCEmployerPct) > 0;
     const hasFhsaData = n(plan.bFhsa) > 0 || n(plan.fhsaYearOpened) > 0;
     const hasResp     = (Array.isArray(plan.resps) && plan.resps.some(r => n(r.balance) > 0 || n(r.monthlyContrib) > 0)) || n(plan.bResp) > 0;
@@ -639,6 +697,7 @@ export default function Dashboard({ plan, setPlan }) {
   const rrspUsed = n(plan.rrspUsed);
   const rrspLeft = Math.max(0, rrspLimit - rrspUsed);
   const rrspOver = rrspUsed - rrspLimit > TAX_CONFIG.rrsp.overBuffer;
+  const spousalRoomCheck = spousalContrib > 0 ? spousalRrspRoomCheck(rrspLeft, spousalContrib) : null;
   const fhsaRoom = fhsaRoomInfo(n(plan.fhsaYearOpened), plan.fhsaLifetimeUsed);
   const fhsaLifeUsed = fhsaRoom.used;
   const fhsaLifeLeft = fhsaRoom.available;
@@ -752,7 +811,7 @@ export default function Dashboard({ plan, setPlan }) {
             <div className="h">{n(plan.highInterestDebt) > 0 ? "your account balances, minus debt" : "across the accounts you entered"}</div>
           </div>
         )}
-        {hasData && <div className="pp-snapc"><div className="l">Projected total</div><div className="v">{fmtMoney(dispVal(selFinal))}</div><div className="h">by age {retAge}</div></div>}
+        {hasData && <div className="pp-snapc"><div className="l">Projected total{hasPartner && householdFinal ? " (combined)" : ""}</div><div className="v">{fmtMoney(dispVal(hasPartner && householdFinal ? householdFinal : selFinal))}</div><div className="h">by age {retAge}</div></div>}
         {buyingHome && homeIdx != null && homeDown > 0 && (recSim.downAtHome || 0) > 0 && (
           <div className="pp-snapc" style={recSim.downAtHome >= homeDown ? { borderColor: "var(--green)" } : {}}>
             <div className="l">Home down payment</div>
@@ -818,6 +877,7 @@ export default function Dashboard({ plan, setPlan }) {
           ...(income > 0 ? [["sec-pay", "Paycheque & tax"]] : []),
           ["sec-room", "Contribution limits"],
           ...(hasData ? [["sec-grow", "Growth"]] : []),
+          ...(hasPartner ? [["sec-household", "Household"]] : []),
         ].map(([id, label]) => (
           <button key={id} type="button"
             className={activeTabs.has(id) ? "active" : ""}
@@ -984,6 +1044,19 @@ export default function Dashboard({ plan, setPlan }) {
         <span className="pp-eyebrow"><span className="pp-chapter-num">02</span> <Scale size={14} /> Your game plan</span>
         <h3 className="pp-chapter-h">The order to fund your accounts</h3>
         <p className="pp-sec-lead">Here&apos;s the priority we&apos;d suggest for your situation, in plain words. Want the full side-by-side? Open the comparison below.</p>
+
+        {houseOrder && (
+          <div className="pp-callout" style={{ marginBottom: 14 }}>
+            <Scale size={18} style={{ flex: "none" }} />
+            <div>
+              <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: houseOrder.note ? 10 : 0 }}>
+                <span><b>You</b> ({pct1(marginal)} bracket): {houseOrder.you.filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}</span>
+                <span><b>{partner.name || "Partner"}</b> ({pct1(partnerMarginal)} bracket): {houseOrder.partner.filter((a) => a !== "fhsa" || buyingHome).map((a) => ACCT_NAME[a]).join(" → ")}</span>
+              </div>
+              {houseOrder.note && <span>{houseOrder.note}</span>}
+            </div>
+          </div>
+        )}
 
         {annInv > 0 ? (() => {
           const tfsaS = strats.find((s) => s.key === "tfsa");
@@ -1640,9 +1713,22 @@ export default function Dashboard({ plan, setPlan }) {
           <h3 className="pp-chapter-h">Where your {fmtMoney(income)} actually goes</h3>
           <p className="pp-sec-lead">Your {incorporated ? "personal pay" : "gross income"} in {TAX_CONFIG.prov[prov].name} ({empType === "self" ? "self-employed" : incorporated ? "incorporated owner" : "employed"}), broken into tax, contributions, and take-home for {TAX_YEAR}.</p>
           <div className="pp-cra-badge"><Shield size={12} /> Based on official {TAX_YEAR} CRA &amp; {TAX_CONFIG.prov[prov].name} tax tables</div>
-          <div className="pp-card">
-            <PaycheckBreakdown tax={tax} marginal={marginal} />
-          </div>
+          {hasPartner && partnerTax ? (
+            <div className="pp-grid-2">
+              <div className="pp-card">
+                <div className="pp-tag" style={{ marginBottom: 8 }}>You</div>
+                <PaycheckBreakdown tax={tax} marginal={marginal} />
+              </div>
+              <div className="pp-card">
+                <div className="pp-tag" style={{ marginBottom: 8 }}>{partner.name || "Partner"}</div>
+                <PaycheckBreakdown tax={partnerTax} marginal={partnerMarginal} />
+              </div>
+            </div>
+          ) : (
+            <div className="pp-card">
+              <PaycheckBreakdown tax={tax} marginal={marginal} />
+            </div>
+          )}
           <div style={{ height: 14 }} />
           <TaxDisclaimer />
         </div>
@@ -1799,6 +1885,25 @@ export default function Dashboard({ plan, setPlan }) {
             {(fhsaLifeOver || fhsaYrOver) && <div className="pp-overwarn"><AlertTriangle size={15} style={{ flex: "none" }} /><span>{fhsaLifeOver ? "Past the $40k lifetime cap" : "Past this year's $16k max"} — <b>1%/month</b> penalty.</span></div>}
           </div>
         </div>
+
+        {hasPartner && (partnerIncome > 0 || partnerAge > 0) && (
+          <div style={{ marginTop: 24 }}>
+            <div className="pp-tag" style={{ marginBottom: 10 }}>{partner.name || "Partner"}'s contribution room</div>
+            <div className="pp-room">
+              <div className="pp-roomc">
+                <h4>TFSA <PiggyBank size={18} style={{ color: "var(--violet)" }} /></h4>
+                <div className="pp-room-big">{fmtMoney(partnerTfsaCum)}</div>
+                <div className="pp-room-sub">{partnerAge > 0 ? "Estimated total room accumulated since age 18" : "Add their age above to estimate this"}</div>
+              </div>
+              <div className="pp-roomc">
+                <h4>RRSP <Landmark size={18} style={{ color: "var(--gold)" }} /></h4>
+                <div className="pp-room-big">{fmtMoney(partnerRrspLimit)}{partnerIncome > 0 && <span style={{ fontSize: 15, color: "var(--gold)", fontWeight: 600 }}> · est.</span>}</div>
+                <div className="pp-room-sub">{partnerIncome > 0 ? "Rough estimate (18% of their income, this year only) — their real limit includes carry-forward room; check their Notice of Assessment." : "Add their income above to estimate this"}</div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Contribution room is always per-person — {partner.name || "your partner"}'s TFSA/RRSP room is entirely separate from yours, never combined into one pool.</p>
+          </div>
+        )}
         <div style={{ height: 14 }} />
         <TaxDisclaimer />
       </div>
@@ -1882,10 +1987,15 @@ export default function Dashboard({ plan, setPlan }) {
 
           <div className="pp-card" style={{ marginTop: 18 }}>
             <span className="pp-eyebrow">Growth over time</span>
-            <h3 style={{ fontSize: 22, margin: "8px 0 18px" }}>How your money could grow to age {retAge}</h3>
+            <h3 style={{ fontSize: 22, margin: "8px 0 18px" }}>How your {hasPartner && householdSeries ? "household's" : ""} money could grow to age {retAge}</h3>
+            {hasPartner && householdSeries && (
+              <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -10, marginBottom: 14 }}>
+                Combined with {partner.name || "your partner"}'s own balance and monthly contribution, both growing at your shared {pct1(ret)}/yr assumption.
+              </p>
+            )}
             <GrowthChart
-              series={selSeries} optSeries={stackedSeries ? null : optSeries}
-              scaleRef={scaleRef} contribSeries={contribSeries}
+              series={hasPartner && householdSeries ? householdSeries : selSeries} optSeries={stackedSeries ? null : optSeries}
+              scaleRef={scaleRef} contribSeries={hasPartner && householdContribSeries ? householdContribSeries : contribSeries}
               years={years} startAge={age} startMonth={startMonth}
               homeIdx={homeIdx} homeAge={homeAge} fhsaIdx={fhsaIdx}
               color={plan.risk === "custom" ? "var(--violet)" : sel.color}
@@ -2078,6 +2188,55 @@ export default function Dashboard({ plan, setPlan }) {
               <ul className="pp-list" style={{ marginTop: 14 }}>{ins.watch.length ? ins.watch.map((w, i) => (<li key={i}><AlertTriangle className="ic pp-warn" size={16} /><span>{w}</span></li>)) : <li style={{ color: "var(--muted)" }}>Nothing major stands out — nice work.</li>}</ul>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* HOUSEHOLD — spousal RRSP + retirement pension-income-split optimizer */}
+      {hasPartner && activeTabs.has("sec-household") && (
+        <div id="sec-household" className="pp-chapter" style={{ marginTop: 34 }}>
+          <span className="pp-eyebrow"><span className="pp-chapter-num">07</span> <Heart size={14} /> Household</span>
+          <h3 className="pp-chapter-h">You and {partner.name || "your partner"}, together</h3>
+          <p className="pp-sec-lead">The two couple-specific moves that don't exist for a single filer: contributing to a spousal RRSP, and splitting eligible pension income in retirement.</p>
+
+          <div className="pp-snap" style={{ marginBottom: 18 }}>
+            <div className="pp-snapc"><div className="l">Combined net worth today</div><div className="v">{fmtMoney(netWorthToday)}</div><div className="h">you + {partner.name || "partner"}</div></div>
+            {householdFinal != null && <div className="pp-snapc"><div className="l">Combined projected total</div><div className="v">{fmtMoney(dispVal(householdFinal))}</div><div className="h">by age {retAge}</div></div>}
+          </div>
+
+          <div className="pp-card" style={{ marginBottom: 18 }}>
+            <span className="pp-eyebrow">Spousal RRSP</span>
+            <h4 style={{ fontSize: 19, margin: "8px 0 10px" }}>Contributing into {partner.name || "their"} RRSP</h4>
+            {spousalContrib > 0 ? (
+              <>
+                <p style={{ fontSize: 13.5, color: "var(--muted)", marginBottom: 10 }}>The <b>{fmtMoney(spousalContrib)}</b> you're contributing this year is deducted on <b>your</b> tax return, not theirs, and uses <b>your</b> RRSP room.</p>
+                <div className="pp-grid-2">
+                  <div className="pp-rate-chip"><div className="l">Estimated tax saved</div><div className="v">{fmtMoney(spousalSaving?.taxSaved || 0)}</div><div className="h">on your return, this year</div></div>
+                  <div className="pp-rate-chip" style={spousalRoomCheck?.excess > 0 ? { background: "#FBE9E9" } : { background: "var(--violet-soft)" }}>
+                    <div className="l">Your RRSP room used</div>
+                    <div className="v">{spousalRoomCheck?.excess > 0 ? fmtMoney(spousalRoomCheck.excess) + " over" : "Within room"}</div>
+                    <div className="h">{spousalRoomCheck?.excess > 0 ? "reduce the contribution or use next year's room" : "counts against your own limit above"}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p style={{ fontSize: 13.5, color: "var(--muted)" }}>If your incomes (and so your tax brackets) differ a lot, contributing to a spousal RRSP lets the higher earner take the deduction now while the money is ultimately withdrawn — and taxed — in the lower-income spouse's hands later. Add an amount under {partner.name || "your partner"}'s accounts in your Planner to see the estimated saving.</p>
+            )}
+          </div>
+
+          {pensionSplit && (
+            <div className="pp-card">
+              <span className="pp-eyebrow">Retirement pension-income splitting</span>
+              <h4 style={{ fontSize: 19, margin: "8px 0 10px" }}>Splitting eligible income at {retAge}</h4>
+              <p style={{ fontSize: 13.5, color: "var(--muted)", marginBottom: 10 }}>
+                Up to 50% of eligible pension/RRIF income can be reallocated between spouses on your tax returns — no money actually moves — to reduce combined tax and OAS clawback. Based on your <b>rough</b> projected retirement incomes ({fmtMoney(totalRetIncome)} for you, {fmtMoney(partnerRetIncome)} for {partner.name || "your partner"} — we don't yet model their CPP/OAS or a separate workplace pension).
+              </p>
+              <div className="pp-grid-2">
+                <div className="pp-rate-chip"><div className="l">Suggested split</div><div className="v">{pensionSplit.bestPct}%</div><div className="h">of the higher earner's eligible pension income, moved to the other</div></div>
+                <div className="pp-rate-chip" style={{ background: pensionSplit.savings > 0 ? "#EDF7ED" : "var(--violet-soft)" }}><div className="l">Combined tax + clawback saved</div><div className="v">{fmtMoney(pensionSplit.savings)}/yr</div><div className="h">{fmtMoney(pensionSplit.combinedTaxBefore)} → {fmtMoney(pensionSplit.combinedTaxAfter)}</div></div>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Illustrative only — actual eligibility and amounts depend on the type of pension income and your ages when you retire. Confirm with a tax professional before relying on this.</p>
+            </div>
+          )}
         </div>
       )}
 

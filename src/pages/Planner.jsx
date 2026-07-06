@@ -176,6 +176,7 @@ const CANADIAN_ACCOUNTS = [
 export default function Planner({ plan, setPlan }) {
   const navigate = useNavigate();
   const set = (k, v) => setPlan((p) => ({ ...p, [k]: v }));
+  const setPartner = (k, v) => setPlan((p) => ({ ...p, partner: { ...p.partner, [k]: v } }));
   const [showAssumptions, setShowAssumptions] = useState(false);
   // wizard step: 0 About you · 1 Goals · 2 Money · 3 Accounts — remembered per tab so a
   // refresh mid-flow doesn't silently bounce the user back to step 0.
@@ -352,6 +353,47 @@ export default function Planner({ plan, setPlan }) {
                 <CurrencyField id="f-holdco" label="Corporate investments (holdco), current value" placeholder="0" value={plan.holdco} onChange={(v) => set("holdco", v)} />
                 <div className="pp-help">Counted in your net worth today. We don't project its growth or model corporate tax/retained earnings inside it — that stays with your accountant.</div>
               </div>
+            </div>
+          )}
+
+          <div className="pp-field" style={{ marginTop: 18 }}>
+            <label className="pp-label2">Planning with a partner?</label>
+            <div className="pp-toggle">
+              <button className={plan.hasPartner ? "on" : ""} aria-pressed={!!plan.hasPartner} onClick={() => set("hasPartner", true)}>Yes, together</button>
+              <button className={!plan.hasPartner ? "on" : ""} aria-pressed={!plan.hasPartner} onClick={() => set("hasPartner", false)}>Just me</button>
+            </div>
+            <div className="pp-help">Add their numbers to see your household picture — combined net worth, side-by-side tax and contribution room, and who should prioritize what. Contribution room (TFSA/RRSP/FHSA) is always per-person under Canadian law, so we never combine it into one pool.</div>
+          </div>
+
+          {plan.hasPartner && (
+            <div className="pp-subcard" style={{ marginTop: 8 }}>
+              <p className="pp-sub-h"><Heart size={15} style={{ verticalAlign: -2, marginRight: 6 }} />Your partner</p>
+              <div className="pp-row2">
+                <NumberField id="f-partner-age" label="Partner's age" placeholder="e.g. 30" value={plan.partner?.age} onChange={(v) => setPartner("age", v)} suffix="years" />
+                <CurrencyField id="f-partner-income" label="Partner's annual income (CAD)" placeholder="e.g. 45,000" value={plan.partner?.income} onChange={(v) => setPartner("income", v)} />
+              </div>
+              <div className="pp-row2">
+                <div className="pp-field" style={{ marginBottom: 0 }}>
+                  <label className="pp-label2">Partner's employment type</label>
+                  <div className="pp-toggle">
+                    <button className={(plan.partner?.employmentType || "employed") === "employed" ? "on" : ""} aria-pressed={(plan.partner?.employmentType || "employed") === "employed"} onClick={() => setPartner("employmentType", "employed")}>Employed</button>
+                    <button className={plan.partner?.employmentType === "self" ? "on" : ""} aria-pressed={plan.partner?.employmentType === "self"} onClick={() => setPartner("employmentType", "self")}>Self-employed</button>
+                  </div>
+                </div>
+                <div className="pp-field" style={{ marginBottom: 0 }}>
+                  <label className="pp-label2">Same province as you?</label>
+                  <div className="pp-toggle">
+                    <button className={!plan.partner?.province ? "on" : ""} aria-pressed={!plan.partner?.province} onClick={() => setPartner("province", null)}>Yes</button>
+                    <button className={plan.partner?.province ? "on" : ""} aria-pressed={!!plan.partner?.province} onClick={() => setPartner("province", plan.partner?.province || (plan.province === "ON" ? "BC" : "ON"))}>No</button>
+                  </div>
+                </div>
+              </div>
+              {plan.partner?.province && (
+                <SelectField id="f-partner-prov" label="Partner's province / territory" value={plan.partner.province} onChange={(v) => setPartner("province", v)} options={PROV_LIST} />
+              )}
+              <CurrencyField id="f-partner-monthly" label="How much can they set aside each month?" placeholder="e.g. 300" value={plan.partner?.monthly} onChange={(v) => setPartner("monthly", v)}
+                help="Feeds your combined household projection, on top of what you're already investing." />
+              <div className="pp-help" style={{ marginTop: 10 }}>We'll compute their own take-home pay, tax bracket, and contribution room the same way we do yours — side by side, never combined into one pool.</div>
             </div>
           )}
 
@@ -967,6 +1009,28 @@ export default function Planner({ plan, setPlan }) {
               {acct.renderDetail(plan, set, fmtMoney, TAX_CONFIG)}
             </div>
           ))}
+
+          {plan.hasPartner && (
+            <div className="pp-acct-detail" style={{ borderLeftColor: "#9E3D65" }}>
+              <div className="pp-acct-detail-hd">
+                <Heart size={15} style={{ color: "#9E3D65", flexShrink: 0 }} />
+                <span>Partner's accounts</span>
+              </div>
+              <div className="pp-row2">
+                <CurrencyField id="f-partner-tfsa" label="Partner's TFSA balance" placeholder="0" value={plan.partner?.bTfsa} onChange={(v) => setPartner("bTfsa", v)} />
+                <CurrencyField id="f-partner-rrsp" label="Partner's RRSP balance" placeholder="0" value={plan.partner?.bRrsp} onChange={(v) => setPartner("bRrsp", v)} />
+              </div>
+              <div className="pp-row2" style={{ marginTop: 8 }}>
+                <CurrencyField id="f-partner-fhsa" label="Partner's FHSA balance" placeholder="0" value={plan.partner?.bFhsa} onChange={(v) => setPartner("bFhsa", v)} />
+                <CurrencyField id="f-partner-nonreg" label="Partner's non-registered balance" placeholder="0" value={plan.partner?.bNonreg} onChange={(v) => setPartner("bNonreg", v)} />
+              </div>
+              <div className="pp-help" style={{ marginTop: 8 }}>Just the essentials for now — TFSA, RRSP, FHSA, and non-registered. Their own contribution room and tax bracket are estimated from their age, income, and province above.</div>
+              <div className="pp-field" style={{ marginTop: 12, marginBottom: 0 }}>
+                <CurrencyField id="f-spousal-rrsp" label="Spousal RRSP contribution this year (optional)" placeholder="0" value={plan.partner?.spousalRrspContrib} onChange={(v) => setPartner("spousalRrspContrib", v)}
+                  help="Money you contribute into their RRSP. The tax deduction is yours, not theirs — it uses your own RRSP room." />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="pp-wizard-nav">

@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates, estimateDBPension } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates, estimateDBPension, recommendOrder, householdMarginalRates, recommendHouseholdOrder, spousalRrspSaving, spousalRrspRoomCheck, optimizePensionSplit } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -225,6 +225,58 @@ export function runSelfTest() {
       const events = [{ type: "invest-less", amount: 300, age: 48 }];
       const s = savingsSchedule(1000, 40, 25, events, 0);
       return s[8] === 700 && s[24] === 700;
+    })()],
+
+    // ── Household mode ─────────────────────────────────────────────────────────
+    ["householdMarginalRates: no partner -> partner null", householdMarginalRates({ income: 80000, province: "ON", employmentType: "employed", hasPartner: false }).partner === null],
+    ["householdMarginalRates: partner with income -> a real rate", (() => {
+      const r = householdMarginalRates({ income: 80000, province: "ON", employmentType: "employed", hasPartner: true, partner: { income: 40000, employmentType: "employed" } });
+      return r.you > 0 && r.partner > 0 && r.you !== r.partner;
+    })()],
+    ["recommendHouseholdOrder: no partner rate -> partner null, no note", (() => {
+      const r = recommendHouseholdOrder("retirement", false, 0.30, null);
+      return r.partner === null && r.note === null && r.you.length === 3;
+    })()],
+    ["recommendHouseholdOrder: both 3-element orders when partner rate given", (() => {
+      const r = recommendHouseholdOrder("retirement", false, 0.30, 0.20);
+      return r.you.length === 3 && r.partner.length === 3;
+    })()],
+    ["recommendHouseholdOrder: note only when rates differ by >5pp", (() => {
+      const close = recommendHouseholdOrder("retirement", false, 0.30, 0.28);
+      const far   = recommendHouseholdOrder("retirement", false, 0.30, 0.15);
+      return close.note === null && typeof far.note === "string";
+    })()],
+    ["recommendHouseholdOrder: matches recommendOrder per person", (() => {
+      const r = recommendHouseholdOrder("house", true, 0.30, 0.15);
+      return r.you.join(",") === recommendOrder("house", true, 0.30).join(",")
+        && r.partner.join(",") === recommendOrder("house", true, 0.15).join(",");
+    })()],
+
+    ["spousalRrspSaving matches deductionSaving at the contributor's bracket", (() => {
+      const s = spousalRrspSaving(120000, "ON", "employed", 5000);
+      return s.taxSaved === deductionSaving(120000, "ON", "employed", 5000, 0);
+    })()],
+    ["spousalRrspRoomCheck: within room", spousalRrspRoomCheck(10000, 5000).withinRoom === true && spousalRrspRoomCheck(10000, 5000).excess === 0],
+    ["spousalRrspRoomCheck: over room flags the excess", (() => {
+      const c = spousalRrspRoomCheck(3000, 5000);
+      return c.withinRoom === false && c.excess === 2000;
+    })()],
+
+    ["optimizePensionSplit: bestPct always within 0-50", (() => {
+      const r = optimizePensionSplit(90000, 20000, "ON", "ON", 90000, 20000);
+      return r.bestPct >= 0 && r.bestPct <= 50;
+    })()],
+    ["optimizePensionSplit: never worse than not splitting", (() => {
+      const r = optimizePensionSplit(150000, 10000, "ON", "ON", 150000, 10000);
+      return r.combinedTaxAfter <= r.combinedTaxBefore;
+    })()],
+    ["optimizePensionSplit: equal incomes -> no benefit to splitting", (() => {
+      const r = optimizePensionSplit(60000, 60000, "ON", "ON", 60000, 60000);
+      return r.bestPct === 0 && r.savings === 0;
+    })()],
+    ["optimizePensionSplit: lopsided incomes -> meaningful savings", (() => {
+      const r = optimizePensionSplit(140000, 0, "ON", "ON", 140000, 0);
+      return r.savings > 500;
     })()],
   ];
 

@@ -43,6 +43,25 @@ export const PLAN_DEFAULTS = {
   // Advanced (Fine-tune assumptions): shift toward safer, lower-return holdings as retirement
   // nears, mirroring the same horizon-based de-risking already used for individual goals.
   glidePath: false,
+  // Household mode — opt-in, additive. Off by default so an existing single-filer plan (or
+  // one with no "partner" key at all) renders byte-identical to today. Contribution room
+  // (TFSA/RRSP/FHSA) is always per-person under Canadian law — never combine the two people's
+  // room into one pool anywhere this is used.
+  hasPartner: false,
+  partner: {
+    name: "",                // optional display label, defaults to "Partner" in the UI
+    income: "", employmentType: "employed",
+    province: null,          // null = inherit plan.province (same household, the common case)
+    age: "", birthYear: "",
+    retAge: null,             // null = inherit plan.retAge
+    monthly: "",
+    bTfsa: "", bRrsp: "", bFhsa: "", bNonreg: "",
+    tfsaUsed: "", rrspLimitNOA: "",
+    fhsaYearOpened: "", fhsaLifetimeUsed: "",
+    spousalRrspContrib: "",  // this year's contribution BY the primary filer INTO the partner's RRSP
+  },
+  // Retirement pension-income splitting: null = auto-optimize, 0-50 = manual override (%).
+  pensionSplitPct: null,
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";

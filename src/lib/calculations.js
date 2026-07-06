@@ -1,6 +1,6 @@
 // Pure calculation helpers — no React. Import anywhere (tests, engine, UI).
 import { TAX_CONFIG, TAX_YEAR, RISK, HBP_LIMIT } from './tax-config.js';
-import { taxEngine, marginalRate, retirementMarginal, deductionSaving } from './tax-engine.js';
+import { taxEngine, marginalRate, retirementMarginal, deductionSaving, pensionTax } from './tax-engine.js';
 
 // ── Numeric helpers ───────────────────────────────────────────────────────────
 export const n = (v) => (v === "" || v == null || isNaN(Number(v)) ? 0 : Number(v));
@@ -422,6 +422,93 @@ export function simulateStrategy(order, ctx, mode) {
   const gross    = bal.tfsa + bal.rrsp + bal.fhsa + bal.taxable;
   const afterTax = bal.tfsa + bal.fhsa + bal.taxable + bal.rrsp * (1 - retMarginal);
   return { gross, afterTax, refundYr1, downAtHome, bal, yr1 };
+}
+
+// ── Household mode ─────────────────────────────────────────────────────────────
+// Contribution room (TFSA/RRSP/FHSA) is always per-person under Canadian law — these
+// helpers compute each partner's OWN numbers and never pool them into one shared figure.
+
+// Each person's own marginal rate, computed the same simple-salary way (incorporated/dividend
+// nuance isn't modeled for a partner in this pass — only for the primary filer elsewhere).
+export function householdMarginalRates(plan) {
+  const you = n(plan.income) > 0
+    ? marginalRate(n(plan.income), plan.province || "ON", plan.employmentType || "employed")
+    : 0;
+  const p = plan.partner;
+  const partner = (plan.hasPartner && p && n(p.income) > 0)
+    ? marginalRate(n(p.income), p.province || plan.province || "ON", p.employmentType || "employed")
+    : null;
+  return { you, partner };
+}
+
+// Household-aware account priority: each person gets their own order (room is per-person,
+// never combined), plus a disclosed note when the two marginal rates differ meaningfully —
+// the higher earner's RRSP deduction is worth more, so they should prioritize it while the
+// lower earner leans TFSA first.
+export function recommendHouseholdOrder(goal, buyHome, marginalYou, marginalPartner) {
+  const you = recommendOrder(goal, buyHome, marginalYou);
+  if (marginalPartner == null) return { you, partner: null, note: null };
+  const partner = recommendOrder(goal, buyHome, marginalPartner);
+  const diff = Math.abs(marginalYou - marginalPartner);
+  const note = diff > 0.05
+    ? (marginalYou > marginalPartner
+        ? "You're in the higher tax bracket, so your RRSP deduction is worth more — prioritize it there, while your partner leans TFSA first."
+        : "Your partner is in the higher tax bracket, so their RRSP deduction is worth more — prioritize it there, while you lean TFSA first.")
+    : null;
+  return { you, partner, note };
+}
+
+// Spousal RRSP: a contribution BY the contributor INTO the partner's RRSP. The tax deduction
+// belongs to the CONTRIBUTOR's return (not the recipient's) — this is deductionSaving() computed
+// at the contributor's own income/bracket, named so the caller can't mix the two up.
+export function spousalRrspSaving(contributorGross, contributorProv, contributorEmpType, contributionAmount, contributorExistingDeductions = 0) {
+  return { taxSaved: deductionSaving(contributorGross, contributorProv, contributorEmpType, n(contributionAmount), contributorExistingDeductions) };
+}
+
+// A spousal contribution uses the CONTRIBUTOR's own RRSP room, not the recipient's — the single
+// most common misconception about spousal RRSPs.
+export function spousalRrspRoomCheck(contributorRrspRoomLeft, contributionAmount) {
+  const excess = Math.max(0, n(contributionAmount) - Math.max(0, n(contributorRrspRoomLeft)));
+  return { withinRoom: excess === 0, excess };
+}
+
+// Retirement pension-income splitting: up to 50% of ELIGIBLE pension/RRIF/annuity income can be
+// reallocated between spouses on tax returns (no funds actually move) to reduce combined tax and
+// reduce/avoid OAS clawback. Brute-force search over the split % for the minimum combined liability
+// — no new tax rules, just an optimizer loop over the existing pensionTax()/oasClawback() functions.
+export function optimizePensionSplit(personAIncome, personBIncome, personAProv, personBProv, personAPensionEligible, personBPensionEligible) {
+  const aOther = Math.max(0, n(personAIncome) - n(personAPensionEligible)); // non-pension income, doesn't move
+  const bOther = Math.max(0, n(personBIncome) - n(personBPensionEligible));
+  const aHasMore = n(personAPensionEligible) >= n(personBPensionEligible);
+
+  const liabilityAt = (pct) => {
+    // Always moves from whoever has more eligible pension income toward the other, up to 50%.
+    const moved = (aHasMore ? n(personAPensionEligible) : n(personBPensionEligible)) * (pct / 100);
+    const aPension = aHasMore ? n(personAPensionEligible) - moved : n(personAPensionEligible) + moved;
+    const bPension = aHasMore ? n(personBPensionEligible) + moved : n(personBPensionEligible) - moved;
+    const aIncome = aOther + aPension;
+    const bIncome = bOther + bPension;
+    const aTax = pensionTax(aIncome, personAProv) + oasClawback(aIncome);
+    const bTax = pensionTax(bIncome, personBProv) + oasClawback(bIncome);
+    return { combined: aTax + bTax, aIncome, bIncome, aTax, bTax };
+  };
+
+  let best = { pct: 0, ...liabilityAt(0) };
+  for (let pct = 1; pct <= 50; pct++) {
+    const r = liabilityAt(pct);
+    if (r.combined < best.combined) best = { pct, ...r };
+  }
+  const base = liabilityAt(0);
+  return {
+    bestPct: best.pct,
+    combinedTaxBefore: Math.round(base.combined),
+    combinedTaxAfter: Math.round(best.combined),
+    savings: Math.round(Math.max(0, base.combined - best.combined)),
+    perPerson: [
+      { who: "A", incomeAfter: Math.round(best.aIncome), taxAfter: Math.round(best.aTax) },
+      { who: "B", incomeAfter: Math.round(best.bIncome), taxAfter: Math.round(best.bTax) },
+    ],
+  };
 }
 
 // ── RESP projection helper ────────────────────────────────────────────────────
