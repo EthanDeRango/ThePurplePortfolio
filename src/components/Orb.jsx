@@ -1,3 +1,4 @@
+import { Sparkles } from "lucide-react";
 import { deductionSaving, marginalRate } from "../lib/tax-engine.js";
 import { fmtMoney } from "../lib/calculations.js";
 import { TAX_YEAR } from "../lib/tax-config.js";
@@ -29,25 +30,27 @@ export default function Orb() {
       </svg>
 
       <div className="pp-hero-preview" aria-hidden="true">
-        <span className="pp-hero-preview-tag">A real {TAX_YEAR} example · {fmtMoney(contrib)} RRSP contribution</span>
+        <span className="pp-hero-preview-tag"><Sparkles size={11} /> A real {TAX_YEAR} example</span>
+
         <div className="pp-hero-preview-flow">
           <span>{fmtMoney(income)} income</span>
           <span className="arrow">→</span>
-          <span>{fmtMoney(contrib)} into your RRSP</span>
+          <span>{fmtMoney(contrib)} RRSP contribution</span>
         </div>
-        <div className="pp-hero-preview-stats">
-          <div className="pp-hero-preview-chip win">
-            <div className="l">Tax refund</div>
-            <div className="v">{fmtMoney(refund)}</div>
+
+        <div className="pp-hero-preview-hero">
+          <div className="l">Your real tax refund</div>
+          <div className="vrow">
+            <span className="v">{fmtMoney(refund)}</span>
+            <span className="was">{fmtMoney(flatGuess)}</span>
           </div>
-          <div className="pp-hero-preview-chip">
-            <div className="l">Real cost to invest</div>
-            <div className="v">{fmtMoney(realCost)}</div>
-          </div>
+          <div className="cap">Bracket-aware math beats a flat-rate guess.</div>
         </div>
-        <p className="pp-hero-preview-callout">
-          A flat-rate estimate would say <b>{fmtMoney(flatGuess)}</b> — bracket-aware math gets it right.
-        </p>
+
+        <div className="pp-hero-preview-sub">
+          Real cost to invest: <b>{fmtMoney(realCost)}</b> — the government covers the rest.
+        </div>
+
         <div className="pp-hero-preview-fine">Real {TAX_YEAR} CRA math — not a mockup.</div>
       </div>
     </div>
