@@ -16,26 +16,31 @@ export default function Orb() {
       <svg className="pp-orb-glow" viewBox="0 0 400 400" aria-hidden="true">
         <defs>
           <radialGradient id="heroGlow" cx="50%" cy="45%" r="60%">
-            <stop offset="0%" stopColor="#7C4DC4" stopOpacity="0.20" />
+            <stop offset="0%" stopColor="#7C4DC4" stopOpacity="0.32" />
             <stop offset="100%" stopColor="#7C4DC4" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="heroGlowGold" cx="70%" cy="80%" r="45%">
+            <stop offset="0%" stopColor="#C99A42" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#C99A42" stopOpacity="0" />
           </radialGradient>
         </defs>
         <circle cx="200" cy="200" r="190" fill="url(#heroGlow)" />
+        <circle cx="260" cy="260" r="150" fill="url(#heroGlowGold)" />
       </svg>
 
       <div className="pp-hero-preview" aria-hidden="true">
-        <div className="pp-hero-preview-tag">A real {TAX_YEAR} example · {fmtMoney(contrib)} RRSP contribution</div>
+        <span className="pp-hero-preview-tag">A real {TAX_YEAR} example · {fmtMoney(contrib)} RRSP contribution</span>
         <div className="pp-hero-preview-flow">
           <span>{fmtMoney(income)} income</span>
           <span className="arrow">→</span>
           <span>{fmtMoney(contrib)} into your RRSP</span>
         </div>
         <div className="pp-hero-preview-stats">
-          <div>
+          <div className="pp-hero-preview-chip win">
             <div className="l">Tax refund</div>
             <div className="v">{fmtMoney(refund)}</div>
           </div>
-          <div>
+          <div className="pp-hero-preview-chip">
             <div className="l">Real cost to invest</div>
             <div className="v">{fmtMoney(realCost)}</div>
           </div>
