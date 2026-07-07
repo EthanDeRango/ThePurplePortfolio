@@ -245,12 +245,10 @@ html { scroll-padding-top: 90px; }
   box-shadow: var(--shadow-lg);
 }
 .pp-hero-preview-tag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--plum-2); margin-bottom: 16px; }
-.pp-hero-preview-bar { display: flex; height: 26px; border-radius: 7px; overflow: hidden; }
-.pp-hero-preview-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; }
-.pp-hero-preview-legend span { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
-.pp-hero-preview-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
-.pp-hero-preview-note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 12px 0 0; }
-.pp-hero-preview-note b { color: var(--plum-2); }
+.pp-hero-preview-flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; font-weight: 600; color: var(--ink); }
+.pp-hero-preview-flow .arrow { color: var(--gold); font-weight: 400; }
+.pp-hero-preview-callout { font-size: 12.5px; color: #5C400A; line-height: 1.5; margin: 16px 0 0; background: #F8F0E0; border: 1px solid rgba(168,118,30,.25); border-radius: 10px; padding: 10px 12px; }
+.pp-hero-preview-callout b { color: #5C400A; }
 .pp-hero-preview-stats { display: flex; gap: 26px; margin: 18px 0 14px; padding-top: 14px; border-top: 1px solid rgba(30,17,40,.08); }
 .pp-hero-preview-stats .l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; color: var(--plum-2); }
 .pp-hero-preview-stats .v { font-family: var(--display); font-size: 25px; font-weight: 600; color: var(--plum); margin-top: 3px; }
