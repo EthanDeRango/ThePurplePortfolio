@@ -1,40 +1,57 @@
+import { taxEngine } from "../lib/tax-engine.js";
+import { fmtMoney, pct1 } from "../lib/calculations.js";
+import { TAX_YEAR } from "../lib/tax-config.js";
+
+// A real preview, not decoration: runs the same taxEngine() the rest of the app uses, on a
+// representative $85,000 Ontario income, so the hero shows an actually-accurate result instead
+// of an abstract shape or invented numbers.
 export default function Orb() {
-  const pts = [[40,260],[100,225],[150,235],[210,160],[270,180],[340,90]];
-  const lineStr = pts.map((p) => p.join(",")).join(" ");
+  const tax = taxEngine(85000, "ON", "employed");
+  const g = Math.max(1, tax.gross);
+  const rows = [
+    { key: "net",  label: "Take-home",      val: tax.net,      color: "var(--violet)" },
+    { key: "fed",  label: "Federal tax",     val: tax.fedTax,   color: "var(--plum)" },
+    { key: "prov", label: "Ontario tax",     val: tax.provTax,  color: "var(--gold)" },
+    { key: "cpp",  label: "CPP",             val: tax.cppTotal, color: "var(--teal)" },
+    { key: "ei",   label: "EI",              val: tax.ei,       color: "var(--blue)" },
+  ];
+
   return (
     <div className="pp-orb">
-      <svg viewBox="0 0 400 400" width="100%" aria-hidden="true">
+      <svg className="pp-orb-glow" viewBox="0 0 400 400" aria-hidden="true">
         <defs>
-          <radialGradient id="g1" cx="50%" cy="45%" r="60%">
+          <radialGradient id="heroGlow" cx="50%" cy="45%" r="60%">
             <stop offset="0%" stopColor="#7C4DC4" stopOpacity="0.20" />
             <stop offset="100%" stopColor="#7C4DC4" stopOpacity="0" />
           </radialGradient>
-          <linearGradient id="orbLine" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="#5B3A9E" />
-            <stop offset="100%" stopColor="#B0822B" />
-          </linearGradient>
-          <linearGradient id="orbFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#B0822B" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#B0822B" stopOpacity="0" />
-          </linearGradient>
-          <filter id="orbGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="4" />
-          </filter>
         </defs>
-        <circle cx="200" cy="195" r="190" fill="url(#g1)" />
-        {[170, 130, 92, 56].map((r, i) => (
-          <circle key={r} cx="200" cy="195" r={r} fill="none" stroke="#34185A" strokeOpacity={0.10 + i * 0.04} strokeWidth="1.2" />
-        ))}
-        <polygon points={`40,320 ${lineStr} 340,320`} fill="url(#orbFill)" />
-        <polyline points={lineStr} fill="none" stroke="url(#orbLine)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-        {pts.slice(0, -1).map(([x,y],i) => (
-          <circle key={i} cx={x} cy={y} r="3.4" fill="#34185A" />
-        ))}
-        <circle cx="340" cy="90" r="11" fill="#B0822B" fillOpacity="0.35" filter="url(#orbGlow)" />
-        <circle cx="340" cy="90" r="5.5" fill="#fff" />
-        <circle cx="340" cy="90" r="4.5" fill="#B0822B" />
-        <circle cx="340" cy="90" r="9" fill="none" stroke="#B0822B" strokeWidth="1.5" strokeOpacity="0.5" />
+        <circle cx="200" cy="200" r="190" fill="url(#heroGlow)" />
       </svg>
+
+      <div className="pp-hero-preview" aria-hidden="true">
+        <div className="pp-hero-preview-tag">A real {TAX_YEAR} example · $85,000 in Ontario</div>
+        <div className="pp-hero-preview-bar">
+          {rows.map((r) => r.val > 0 && (
+            <div key={r.key} title={`${r.label}: ${fmtMoney(r.val)}`} style={{ width: (r.val / g) * 100 + "%", background: r.color }} />
+          ))}
+        </div>
+        <div className="pp-hero-preview-legend">
+          {rows.filter((r) => r.val > 0).map((r) => (
+            <span key={r.key}><i style={{ background: r.color }} />{r.label}</span>
+          ))}
+        </div>
+        <div className="pp-hero-preview-stats">
+          <div>
+            <div className="l">Take-home</div>
+            <div className="v">{fmtMoney(tax.net)}</div>
+          </div>
+          <div>
+            <div className="l">Average tax rate</div>
+            <div className="v">{pct1(tax.avgRate)}</div>
+          </div>
+        </div>
+        <div className="pp-hero-preview-fine">Real {TAX_YEAR} CRA math — not a mockup.</div>
+      </div>
     </div>
   );
 }

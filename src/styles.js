@@ -226,11 +226,33 @@ html { scroll-padding-top: 90px; }
 }
 .pp-hero h1 { font-size: 60px; letter-spacing: -0.025em; line-height: 1.05; }
 .pp-hero h1 em { font-style: italic; color: var(--violet); }
-.pp-hero-sub { font-size: 18px; color: var(--muted); margin-top: 22px; max-width: 30em; line-height: 1.6; }
+.pp-hero-sub { font-size: 18px; color: var(--muted); margin-top: 34px; max-width: 30em; line-height: 1.6; }
 .pp-hero-cta { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
 .pp-hero-fine { margin-top: 22px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.pp-orb { position: relative; aspect-ratio: 1; }
+.pp-orb { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+.pp-orb-glow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .pp-hero-deco { position: absolute; right: -120px; top: -80px; width: 520px; height: 520px; opacity: 0.5; pointer-events: none; }
+
+.pp-hero-preview {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  background: var(--paper-card);
+  border: 1px solid rgba(30,17,40,.08);
+  border-radius: 20px;
+  padding: 24px 26px;
+  box-shadow: var(--shadow-lg);
+}
+.pp-hero-preview-tag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--plum-2); margin-bottom: 16px; }
+.pp-hero-preview-bar { display: flex; height: 26px; border-radius: 7px; overflow: hidden; }
+.pp-hero-preview-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; }
+.pp-hero-preview-legend span { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.pp-hero-preview-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.pp-hero-preview-stats { display: flex; gap: 26px; margin: 18px 0 14px; padding-top: 14px; border-top: 1px solid rgba(30,17,40,.08); }
+.pp-hero-preview-stats .l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; color: var(--plum-2); }
+.pp-hero-preview-stats .v { font-family: var(--display); font-size: 25px; font-weight: 600; color: var(--plum); margin-top: 3px; }
+.pp-hero-preview-fine { font-size: 11.5px; color: var(--muted); }
 
 /* ── Cards ─────────────────────────────────────────────────────────────────── */
 .pp-card {
