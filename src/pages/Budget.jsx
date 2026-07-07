@@ -3,6 +3,7 @@ import {
   Wallet, Download, RefreshCw, Plus, X, Check, Info, Sparkles, Lock, Send, ChevronsRight,
 } from "lucide-react";
 import { fmtMoney } from "../lib/calculations.js";
+import { Disclaimer } from "../components/Disclaimer.jsx";
 import { STAGE_OPTIONS, STAGE_BY_KEY, ACCOUNT_TIPS, LIFE_STAGE_GUIDE } from "../data/budgetStages.js";
 import {
   BUDGET_STORAGE_KEY, MONTHS, num, PLANNER_YEAR,
@@ -109,6 +110,8 @@ export default function Budget({ plan, setPlan }) {
         <Lock size={15} />
         <span><b>Private by default.</b> Everything here stays in your browser. Nothing is sent anywhere, and completing it is entirely optional.</span>
       </div>
+      <div style={{ height: 10 }} />
+      <Disclaimer />
       {exportErr && (
         <div className="pp-bud-alert err"><Info size={15} /> Couldn't build the Excel file. Please try again.</div>
       )}

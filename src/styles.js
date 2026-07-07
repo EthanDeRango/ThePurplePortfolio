@@ -1125,6 +1125,10 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-footer button, .pp-footer a { display: block; background: none; border: 0; color: #B09CC6; font-size: 14px; padding: 5px 0; text-align: left; text-decoration: none; transition: color .13s; }
 .pp-footer button:hover, .pp-footer a:hover { color: #fff; }
 .pp-footer-fine { font-size: 12px; color: #6A5882; border-top: 1px solid rgba(255,255,255,.08); padding-top: 22px; line-height: 1.65; }
+.pp-footer-legal { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; }
+.pp-footer-legal a { display: inline; padding: 0; color: #8672A0; }
+.pp-footer-legal a:hover { color: #fff; }
+.pp-footer-legal span { color: #4A3D62; }
 
 /* ── Invest banner + custom savings goals ─────────────────────────────────── */
 .pp-invest-banner {

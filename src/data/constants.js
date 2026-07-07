@@ -59,6 +59,8 @@ export const PLAN_DEFAULTS = {
     tfsaUsed: "", rrspLimitNOA: "",
     fhsaYearOpened: "", fhsaLifetimeUsed: "",
     spousalRrspContrib: "",  // this year's contribution BY the primary filer INTO the partner's RRSP
+    // Incorporated partner (personal-side pay split only, same as the primary filer's fields)
+    payMix: "salary", dividendType: "noneligible", salaryShare: 50,
   },
   // Retirement pension-income splitting: null = auto-optimize, 0-50 = manual override (%).
   pensionSplitPct: null,

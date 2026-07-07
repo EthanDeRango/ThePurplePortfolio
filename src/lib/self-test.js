@@ -2,7 +2,7 @@
 // Add a check here whenever TAX_CONFIG changes — if all pass, the engine is good.
 import { TAX_CONFIG } from './tax-config.js';
 import { contributions, taxEngine, marginalRate, pensionTax, retirementMarginal, deductionSaving } from './tax-engine.js';
-import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates, estimateDBPension, recommendOrder, householdMarginalRates, recommendHouseholdOrder, spousalRrspSaving, spousalRrspRoomCheck, optimizePensionSplit } from './calculations.js';
+import { projectFinal, projectSeriesSchedule, contributedSeriesSchedule, yearsUntil, minDownPayment, tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, oasClawback, emergencyFundTarget, splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule, investedFromMonth, employerMatchAmount, yourHomeDownPayment, goalRate, glidePathRates, estimateDBPension, recommendOrder, householdMarginalRates, recommendHouseholdOrder, spousalRrspSaving, spousalRrspRoomCheck, optimizePensionSplit, simulateStrategy, projectRespToAge18, projectByAccount } from './calculations.js';
 
 export function runSelfTest() {
   const near = (a, b, t = 0.005) => Math.abs(a - b) <= t;
@@ -278,6 +278,43 @@ export function runSelfTest() {
       const r = optimizePensionSplit(140000, 0, "ON", "ON", 140000, 0);
       return r.savings > 500;
     })()],
+
+    // ── HNW edge-case fixes: non-reg tax, RESP CESG lifetime cap, RRSP-71 cutoff ────
+    ["simulateStrategy: non-reg growth is taxed, not treated like a TFSA", (() => {
+      const ctx = { years: 10, r: 0.07, income: 80000, marginal: 0.30, retMarginal: 0.20, startTfsa: 0, startRrsp: 0, startFhsa: 0, startNonreg: 100000, annualInvest: 0, homeIdx: null, eligFhsa: false, buyingHome: false, fhsaCloseIdx: null };
+      const sim = simulateStrategy(["tfsa", "rrsp", "fhsa"], ctx);
+      return sim.afterTax < sim.gross;
+    })()],
+    ["simulateStrategy: no non-reg balance/overflow -> unaffected (no regression)", (() => {
+      const ctx = { years: 5, r: 0.07, income: 60000, marginal: 0.20, retMarginal: 0.15, startTfsa: 0, startRrsp: 0, startFhsa: 0, startNonreg: 0, annualInvest: 5000, homeIdx: null, eligFhsa: false, buyingHome: false, fhsaCloseIdx: null };
+      const sim = simulateStrategy(["tfsa", "rrsp", "fhsa"], ctx);
+      return sim.bal.taxable === 0 && sim.afterTax === sim.bal.tfsa + sim.bal.fhsa + sim.bal.rrsp * (1 - 0.15);
+    })()],
+
+    ["projectRespToAge18: CESG lifetime-capped at $7,200, not $500/yr uncapped", (() => {
+      // $210/mo = $2,520/yr contribution, well above the $2,500 threshold that maxes the $500/yr grant.
+      // With rate=0 (no compounding), final balance = total contributions + total CESG exactly.
+      const bal = projectRespToAge18(0, 0, 210, 0);
+      const contributions = 210 * 12 * 18;
+      return bal - contributions === C.resp.cesgLifetimeMax;
+    })()],
+
+    ["projectByAccount: RRSP contributions stop past age 71 (redirect to non-reg)", (() => {
+      const plan = { age: 68, income: 300000, bTfsa: 0, bRrsp: 500000, bFhsa: 0, bNonreg: 0, contribMode: "flat" };
+      const proj = projectByAccount(plan, 0.06, 8, 3000, null, 0, null, null);
+      // Index 4 and 5 both land past age 71 (68+4=72, 68+5=73) — RRSP should grow by pure
+      // investment return only (no new contributions), while non-reg keeps receiving them.
+      const growthOnly = proj.rrsp[5] / proj.rrsp[4];
+      const expectedGrowthOnly = Math.pow(1 + 0.06 / 12, 12);
+      return near(growthOnly, expectedGrowthOnly, 0.0005) && proj.nonreg[5] > proj.nonreg[4];
+    })()],
+    ["projectByAccount: age unset -> no RRSP cutoff (no regression)", (() => {
+      const plan = { age: 0, income: 120000, bTfsa: 0, bRrsp: 0, bFhsa: 0, bNonreg: 0, contribMode: "flat" };
+      const proj = projectByAccount(plan, 0.06, 5, 2000, null, 0, null, null);
+      return proj.rrsp[5] > proj.rrsp[4] * 1.001;
+    })()],
+
+    ["rrspEstimatedLimit: negative income floors at 0 (not a negative room)", rrspEstimatedLimit(-50000) === 0],
   ];
 
   const failed = checks.filter(([, ok]) => !ok);

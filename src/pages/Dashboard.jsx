@@ -89,18 +89,34 @@ export default function Dashboard({ plan, setPlan }) {
   const partnerProv = partner.province || prov;
   const partnerEmpType = partner.employmentType || "employed";
   const partnerAge = n(partner.age);
+  // Incorporated partner: same salary-vs-dividends split as the primary filer (personal-side
+  // modeling only) — dividends carry no CPP and create no RRSP room, only salary does.
+  const partnerIncorporated = partnerEmpType === "incorporated";
+  const partnerDividendType = partner.dividendType === "eligible" ? "eligible" : "nonEligible";
+  const { salaryIncome: partnerSalaryIncome, dividendIncome: partnerDividendIncome } = useMemo(
+    () => splitIncome(partnerIncome, partnerEmpType, partner.payMix, partner.salaryShare),
+    [partnerIncome, partnerEmpType, partner.payMix, partner.salaryShare]
+  );
+  const partnerDivObj = partnerIncorporated && partnerDividendIncome > 0 ? { [partnerDividendType]: partnerDividendIncome } : null;
+  const partnerDivKey = partnerDivObj ? `${partnerDividendType}:${Math.round(partnerDividendIncome)}` : "";
+  const partnerEarnedIncome = partnerIncorporated ? partnerSalaryIncome : partnerIncome;
   const partnerTax = useMemo(
-    () => (hasPartner && partnerIncome > 0) ? taxEngine(partnerIncome, partnerProv, partnerEmpType) : null,
-    [hasPartner, partnerIncome, partnerProv, partnerEmpType]
+    () => (hasPartner && partnerIncome > 0) ? taxEngine(partnerSalaryIncome, partnerProv, partnerEmpType, 0, partnerDivObj) : null,
+    [hasPartner, partnerIncome, partnerSalaryIncome, partnerProv, partnerEmpType, partnerDivKey]
   );
-  const partnerMarginal = useMemo(
-    () => (hasPartner && partnerIncome > 0) ? marginalRate(partnerIncome, partnerProv, partnerEmpType) : 0,
-    [hasPartner, partnerIncome, partnerProv, partnerEmpType]
-  );
+  const partnerMarginal = useMemo(() => {
+    if (!hasPartner || partnerIncome <= 0) return 0;
+    if (partnerIncorporated && partnerDividendIncome > partnerSalaryIncome) {
+      const a = taxEngine(partnerSalaryIncome, partnerProv, partnerEmpType, 0, { [partnerDividendType]: partnerDividendIncome }).totalTax;
+      const b = taxEngine(partnerSalaryIncome, partnerProv, partnerEmpType, 0, { [partnerDividendType]: partnerDividendIncome + 100 }).totalTax;
+      return Math.max(0, (b - a) / 100);
+    }
+    return partnerSalaryIncome > 0 ? marginalRate(partnerSalaryIncome, partnerProv, partnerEmpType) : 0;
+  }, [hasPartner, partnerIncome, partnerSalaryIncome, partnerProv, partnerEmpType, partnerIncorporated, partnerDividendIncome, partnerDividendType]);
   const partnerStartBal = n(partner.bTfsa) + n(partner.bRrsp) + n(partner.bFhsa) + n(partner.bNonreg);
   const partnerBirthYear = partnerAge > 0 ? TAX_YEAR - partnerAge : 0;
   const partnerTfsaCum = tfsaCumulativeRoom(partnerBirthYear);
-  const partnerRrspLimit = rrspEstimatedLimit(partnerIncome);
+  const partnerRrspLimit = rrspEstimatedLimit(partnerEarnedIncome);
 
   // what-if controls
   const [monthly, setMonthly] = useState(n(plan.monthly));
@@ -387,7 +403,7 @@ export default function Dashboard({ plan, setPlan }) {
     : 0;
   const fhsaCloseIdx = fhsaForceCloseYear != null ? Math.max(0, fhsaForceCloseYear - TAX_YEAR) : null;
 
-  const simCtx = { years, r: ret - fee, income, marginal, retMarginal, startTfsa: n(plan.bTfsa), startRrsp: n(plan.bRrsp) + n(plan.bLocked), startFhsa: n(plan.bFhsa), annualInvest: annInv, homeIdx, eligFhsa: buyingHome, buyingHome, fhsaCloseIdx };
+  const simCtx = { years, r: ret - fee, income, marginal, retMarginal, startTfsa: n(plan.bTfsa), startRrsp: n(plan.bRrsp) + n(plan.bLocked), startFhsa: n(plan.bFhsa), startNonreg: n(plan.bNonreg), annualInvest: annInv, homeIdx, eligFhsa: buyingHome, buyingHome, fhsaCloseIdx };
   const recOrder = recommendOrder(goal, buyingHome, marginal);
   const recSim = useMemo(() => simulateStrategy(recOrder, simCtx), [JSON.stringify(simCtx), recOrder.join(",")]);
   const houseOrder = (hasPartner && partnerIncome > 0)
@@ -1067,10 +1083,10 @@ export default function Dashboard({ plan, setPlan }) {
           const bestDown = buyingHome ? Math.max(...strats.map((s) => s.sim.downAtHome || 0)) : 0;
           return (
             <>
-              {/* Recommended strategy — lead with the instruction, in plain words */}
+              {/* Suggested strategy — lead with the instruction, in plain words */}
               <div className="pp-card" style={{ borderColor: "var(--violet)", boxShadow: "0 0 0 2px rgba(112,68,190,.14)", marginBottom: 14, padding: "22px 24px" }}>
                 <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#fff", background: "linear-gradient(135deg, var(--plum), var(--plum-2))", padding: "3px 10px", borderRadius: 999, marginBottom: 12 }}>
-                  Recommended for your situation
+                  A starting point for your situation
                 </span>
                 <h4 style={{ fontFamily: "var(--display)", fontSize: 24, color: "var(--plum)", margin: "0 0 6px" }}>{recS.name}</h4>
                 <div style={{ fontSize: 14, color: "var(--muted)", marginBottom: 12 }}>
@@ -1091,7 +1107,7 @@ export default function Dashboard({ plan, setPlan }) {
                   <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Yearly income in retirement</div><div className="v">{fmtMoney(recS.sim.afterTax * 0.04)}/yr</div><div className="h">withdrawing {pct1(safeWithdrawalRate)}/yr — the safe-withdrawal rule</div></div>
                 </div>
                 <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>
-                  <b>Key assumptions:</b> spendable figures assume ~{pct1(retMarginal)} tax on registered (RRSP) withdrawals in retirement{n(plan.retTaxRate) > 0 ? " (your override)" : " — estimated from your spending"}, and a {pct1(safeWithdrawalRate)}/yr safe-withdrawal rate over a ~{retLengthYears}-year retirement (to age 95). <button className="pp-inlinelink" onClick={edit}>Adjust in your numbers →</button>
+                  <b>Key assumptions:</b> spendable figures assume ~{pct1(retMarginal)} tax on registered (RRSP) withdrawals in retirement{n(plan.retTaxRate) > 0 ? " (your override)" : " — estimated from your spending"}, and a {pct1(safeWithdrawalRate)}/yr safe-withdrawal rate over a ~{retLengthYears}-year retirement (to age 95). This simplified view shows non-registered and TFSA balances pre-tax, and assumes RRSP contributions stop at 71 (converting to a RRIF) — mandatory minimum withdrawals after that aren't modelled. <button className="pp-inlinelink" onClick={edit}>Adjust in your numbers →</button>
                 </p>
               </div>
 
@@ -1220,12 +1236,12 @@ export default function Dashboard({ plan, setPlan }) {
         )}
       </div>}
 
-      {/* OPTIMIZED TAX PLAN — merged into the Accounts tab */}
+      {/* TAX PLAN TO CONSIDER — merged into the Accounts tab */}
       {income > 0 && activeTabs.has("sec-compare") && (
         <div id="sec-taxplan" style={{ marginTop: 34 }}>
-          <span className="pp-eyebrow"><Calculator size={14} /> Optimized tax plan</span>
-          <h3 className="pp-sec-h">Exactly what to do with your money in {TAX_YEAR}</h3>
-          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} tax rate on your next dollar earned, here&apos;s the optimal contribution order, with the math shown.</p>
+          <span className="pp-eyebrow"><Calculator size={14} /> A tax plan to consider</span>
+          <h3 className="pp-sec-h">One way to sequence your money in {TAX_YEAR}</h3>
+          <p className="pp-sec-lead">Based on your {fmtMoney(income)} income and {pct1(marginal)} tax rate on your next dollar earned, here&apos;s a contribution order worth considering, with the math shown.</p>
           {(() => {
             const yr1 = recSim.yr1 || { fhsa: 0, tfsa: 0, rrsp: 0, taxable: 0 };
             const deductibleTotal = (yr1.rrsp || 0) + (yr1.fhsa || 0);
@@ -1298,7 +1314,7 @@ export default function Dashboard({ plan, setPlan }) {
               label: `Non-registered — ${fmtMoney(yr1.taxable)}/yr`,
               badge: null,
               math: "All registered accounts are full — overflow goes here.",
-              detail: "Growth is taxed at reduced rates (capital gains, eligible dividends). Still worth it once registered room is maxed.",
+              detail: "We assume growth here is taxed as capital gains (50% inclusion) at your estimated retirement rate — real returns may include dividends or interest taxed differently. Still worth it once registered room is maxed.",
             });
 
             const firstUndoneIdx = taxSteps.findIndex((s) => !s.done);
@@ -1364,7 +1380,7 @@ export default function Dashboard({ plan, setPlan }) {
                       <div style={{ marginLeft: "auto" }}>
                         <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--plum-2)" }}>After-tax at {retAge}</div>
                         <div style={{ fontFamily: "var(--display)", fontSize: 30, fontWeight: 600, color: "var(--plum)", lineHeight: 1.1 }}>{fmtMoney(recSim.afterTax)}</div>
-                        <div style={{ fontSize: 12, color: "var(--muted)" }}>on your recommended path</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>on this suggested path</div>
                       </div>
                     )}
                   </div>
@@ -1624,7 +1640,7 @@ export default function Dashboard({ plan, setPlan }) {
               )}
 
               <div className="pp-grid-2" style={{ marginTop: 12 }}>
-                <div className="pp-rate-chip"><div className="l">Projected after-tax at {retAge}</div><div className="v">{fmtMoney(recSim.afterTax)}</div><div className="h">on your recommended path</div></div>
+                <div className="pp-rate-chip"><div className="l">Projected after-tax at {retAge}</div><div className="v">{fmtMoney(recSim.afterTax)}</div><div className="h">on this suggested path</div></div>
                 <div className="pp-rate-chip"><div className="l">That sustainably pays</div><div className="v">{fmtMoney(recSim.afterTax * safeWithdrawalRate)}/yr</div><div className="h">{recSim.afterTax >= retNeedFuture ? "on track ✓" : "keep building"}</div></div>
               </div>
               <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>Safe-withdrawal rule: withdrawing ~{pct1(safeWithdrawalRate)}/yr from a nest egg of {nestEggMultiple}× {govBenefits > 0 || pensionDBIncome > 0 ? "your investment gap" : "your spending"} — <b>{fmtMoney(retNeedToday)}</b> — should last a {retLengthYears}-year retirement to age 95.{safeWithdrawalRate < 0.04 ? ` We use ${pct1(safeWithdrawalRate)} rather than the textbook 4% because a ${retLengthYears}-year retirement must survive a rough run of early returns.` : ""} CPP, OAS, and pensions aren't in this number; they're shown above.</p>
@@ -1898,7 +1914,7 @@ export default function Dashboard({ plan, setPlan }) {
               <div className="pp-roomc">
                 <h4>RRSP <Landmark size={18} style={{ color: "var(--gold)" }} /></h4>
                 <div className="pp-room-big">{fmtMoney(partnerRrspLimit)}{partnerIncome > 0 && <span style={{ fontSize: 15, color: "var(--gold)", fontWeight: 600 }}> · est.</span>}</div>
-                <div className="pp-room-sub">{partnerIncome > 0 ? "Rough estimate (18% of their income, this year only) — their real limit includes carry-forward room; check their Notice of Assessment." : "Add their income above to estimate this"}</div>
+                <div className="pp-room-sub">{partnerIncome > 0 ? <>Rough estimate (18% of their {partnerIncorporated ? "salary — dividends don't create RRSP room" : "income"}, this year only) — their real limit includes carry-forward room; check their Notice of Assessment.</> : "Add their income above to estimate this"}</div>
               </div>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>Contribution room is always per-person — {partner.name || "your partner"}'s TFSA/RRSP room is entirely separate from yours, never combined into one pool.</p>
@@ -2109,7 +2125,7 @@ export default function Dashboard({ plan, setPlan }) {
               <div className="pp-opt-callout-icon"><TrendingUp size={18} /></div>
               <div>
                 <div className="pp-opt-callout-hd">
-                  Optimal strategy adds <span>{fmtMoney(optBoost)}</span> to retirement
+                  This strategy could add <span>{fmtMoney(optBoost)}</span> to retirement
                 </div>
                 <div className="pp-opt-callout-body">
                   The <b style={{ color: "#2E8B57" }}>green dashed line</b> models what happens when you reinvest your ~{fmtMoney(Math.round(recSim.refundYr1))}/yr tax refund from {recOrder.filter(k => k === "rrsp" || k === "fhsa").map(k => k.toUpperCase()).join(" + ")} contributions back into your portfolio. Same income, same monthly amount — just smarter account use.

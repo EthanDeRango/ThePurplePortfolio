@@ -15,6 +15,8 @@ import Library from "./pages/Library.jsx";
 import LibraryCategory from "./pages/LibraryCategory.jsx";
 import Topic from "./pages/Topic.jsx";
 import About from "./pages/About.jsx";
+import Privacy from "./pages/Privacy.jsx";
+import Terms from "./pages/Terms.jsx";
 
 function loadSavedPlan() {
   try {
@@ -155,6 +157,11 @@ function Footer() {
       <div className="pp-wrap pp-footer-fine">
         The Purple Portfolio is an educational tool only. It is not a registered financial adviser, broker, or tax professional. All projections are illustrative and based on your inputs; actual returns and tax outcomes will vary.
       </div>
+      <div className="pp-wrap pp-footer-legal">
+        <Link to="/privacy">Privacy Policy</Link>
+        <span aria-hidden="true">·</span>
+        <Link to="/terms">Terms of Use</Link>
+      </div>
     </footer>
   );
 }
@@ -190,6 +197,8 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
           <Route path="/library/:cat" element={<LibraryCategory />} />
           <Route path="/library/:cat/:topic" element={<Topic />} />
           <Route path="/about" element={<About />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

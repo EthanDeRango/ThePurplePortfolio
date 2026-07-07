@@ -7,6 +7,7 @@ import {
   Briefcase, Gift, TrendingUp,
 } from "lucide-react";
 import { NumberField, CurrencyField, SelectField, Accordion } from "../components/InputFields.jsx";
+import { Disclaimer } from "../components/Disclaimer.jsx";
 import { n, fmtMoney, todayISO, monthIndexOf, emergencyFundTarget, estimateDBPension } from "../lib/calculations.js";
 import { TAX_CONFIG, PROV_LIST, RISK, TAX_YEAR } from "../lib/tax-config.js";
 import { minDownPayment } from "../lib/calculations.js";
@@ -276,6 +277,8 @@ export default function Planner({ plan, setPlan }) {
           <Lock size={15} />
           <span><b>Private by default.</b> Everything you enter stays on this device, in your browser. Nothing is sent anywhere unless you create a free account to sync across your devices.</span>
         </div>
+        <div style={{ height: 10 }} />
+        <Disclaimer />
 
         {/* Progress / step nav across the 4 sections */}
         <div className="pp-progress" role="tablist" aria-label="Plan steps">
@@ -362,7 +365,7 @@ export default function Planner({ plan, setPlan }) {
               <button className={plan.hasPartner ? "on" : ""} aria-pressed={!!plan.hasPartner} onClick={() => set("hasPartner", true)}>Yes, together</button>
               <button className={!plan.hasPartner ? "on" : ""} aria-pressed={!plan.hasPartner} onClick={() => set("hasPartner", false)}>Just me</button>
             </div>
-            <div className="pp-help">Add their numbers to see your household picture — combined net worth, side-by-side tax and contribution room, and who should prioritize what. Contribution room (TFSA/RRSP/FHSA) is always per-person under Canadian law, so we never combine it into one pool.</div>
+            <div className="pp-help">Add their numbers to see your household picture — combined net worth, side-by-side tax and contribution room, and which accounts to consider prioritizing first. Contribution room (TFSA/RRSP/FHSA) is always per-person under Canadian law, so we never combine it into one pool.</div>
           </div>
 
           {plan.hasPartner && (
@@ -378,6 +381,7 @@ export default function Planner({ plan, setPlan }) {
                   <div className="pp-toggle">
                     <button className={(plan.partner?.employmentType || "employed") === "employed" ? "on" : ""} aria-pressed={(plan.partner?.employmentType || "employed") === "employed"} onClick={() => setPartner("employmentType", "employed")}>Employed</button>
                     <button className={plan.partner?.employmentType === "self" ? "on" : ""} aria-pressed={plan.partner?.employmentType === "self"} onClick={() => setPartner("employmentType", "self")}>Self-employed</button>
+                    <button className={plan.partner?.employmentType === "incorporated" ? "on" : ""} aria-pressed={plan.partner?.employmentType === "incorporated"} onClick={() => setPartner("employmentType", "incorporated")}>Incorporated</button>
                   </div>
                 </div>
                 <div className="pp-field" style={{ marginBottom: 0 }}>
@@ -390,6 +394,34 @@ export default function Planner({ plan, setPlan }) {
               </div>
               {plan.partner?.province && (
                 <SelectField id="f-partner-prov" label="Partner's province / territory" value={plan.partner.province} onChange={(v) => setPartner("province", v)} options={PROV_LIST} />
+              )}
+              {plan.partner?.employmentType === "incorporated" && (
+                <div className="pp-subcard" style={{ marginTop: 8 }}>
+                  <p className="pp-sub-h">How do they pay themselves?</p>
+                  <div className="pp-toggle">
+                    <button className={(plan.partner?.payMix || "salary") === "salary" ? "on" : ""} aria-pressed={(plan.partner?.payMix || "salary") === "salary"} onClick={() => setPartner("payMix", "salary")}>All salary</button>
+                    <button className={plan.partner?.payMix === "dividends" ? "on" : ""} aria-pressed={plan.partner?.payMix === "dividends"} onClick={() => setPartner("payMix", "dividends")}>All dividends</button>
+                    <button className={plan.partner?.payMix === "mix" ? "on" : ""} aria-pressed={plan.partner?.payMix === "mix"} onClick={() => setPartner("payMix", "mix")}>A mix</button>
+                  </div>
+                  {plan.partner?.payMix === "mix" && (
+                    <div className="pp-field" style={{ marginTop: 12 }}>
+                      <label className="pp-label2" htmlFor="f-partner-salaryshare">Share taken as salary: <b>{n(plan.partner?.salaryShare) || 50}%</b> salary · {100 - (n(plan.partner?.salaryShare) || 50)}% dividends</label>
+                      <input id="f-partner-salaryshare" className="pp-range" type="range" min="0" max="100" step="5" value={n(plan.partner?.salaryShare) || 50} onChange={(e) => setPartner("salaryShare", e.target.value)} />
+                    </div>
+                  )}
+                  {plan.partner?.payMix !== "salary" && (
+                    <div className="pp-field" style={{ marginTop: 12 }}>
+                      <label className="pp-label2">Dividend type</label>
+                      <div className="pp-toggle">
+                        <button className={(plan.partner?.dividendType || "noneligible") === "noneligible" ? "on" : ""} aria-pressed={(plan.partner?.dividendType || "noneligible") === "noneligible"} onClick={() => setPartner("dividendType", "noneligible")}>Non-eligible (small business)</button>
+                        <button className={plan.partner?.dividendType === "eligible" ? "on" : ""} aria-pressed={plan.partner?.dividendType === "eligible"} onClick={() => setPartner("dividendType", "eligible")}>Eligible</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="pp-help" style={{ marginTop: 10 }}>
+                    Heads up: <b>dividends don't create RRSP room</b> (only salary does) and don't count toward CPP. We don't model their corporate tax, retained earnings, or holdco investments — same as we don't for you.
+                  </div>
+                </div>
               )}
               <CurrencyField id="f-partner-monthly" label="How much can they set aside each month?" placeholder="e.g. 300" value={plan.partner?.monthly} onChange={(v) => setPartner("monthly", v)}
                 help="Feeds your combined household projection, on top of what you're already investing." />

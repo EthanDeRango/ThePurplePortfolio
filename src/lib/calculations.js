@@ -263,7 +263,7 @@ export function tfsaCumulativeRoom(birthYear) {
 }
 
 export function rrspEstimatedLimit(prevIncome) {
-  return Math.min((prevIncome || 0) * TAX_CONFIG.rrsp.pct, TAX_CONFIG.rrsp.dollarMax);
+  return Math.min(Math.max(0, prevIncome || 0) * TAX_CONFIG.rrsp.pct, TAX_CONFIG.rrsp.dollarMax);
 }
 
 export function fhsaDeadline(yearOpened, age = 0) {
@@ -390,8 +390,10 @@ export function recommendOrder(goal, buyHome, marginal) {
 }
 
 export function simulateStrategy(order, ctx, mode) {
-  const { years, r, income, marginal, retMarginal, startTfsa, startRrsp, startFhsa, annualInvest, homeIdx, eligFhsa, buyingHome, fhsaCloseIdx } = ctx;
-  let bal = { tfsa: startTfsa, rrsp: startRrsp, fhsa: startFhsa, taxable: 0 };
+  const { years, r, income, marginal, retMarginal, startTfsa, startRrsp, startFhsa, startNonreg, annualInvest, homeIdx, eligFhsa, buyingHome, fhsaCloseIdx } = ctx;
+  const nonregStart = startNonreg || 0;
+  let bal = { tfsa: startTfsa, rrsp: startRrsp, fhsa: startFhsa, taxable: nonregStart };
+  let taxableContributed = nonregStart;
   let fhsaContrib = 0, refundYr1 = 0, downAtHome = null, lastRefund = 0, yr1 = null, fhsaClosed = false;
   const rrspAnnual = Math.min(TAX_CONFIG.rrsp.dollarMax, Math.max(3000, income * 0.18));
   const closeIdx = buyingHome
@@ -407,6 +409,7 @@ export function simulateStrategy(order, ctx, mode) {
     const alloc = mode === "balanced" ? balancedAlloc(pool, caps) : allocate(pool, order, caps);
     if (y === 0) yr1 = alloc;
     bal.tfsa += alloc.tfsa; bal.rrsp += alloc.rrsp; bal.fhsa += alloc.fhsa; bal.taxable += alloc.taxable;
+    taxableContributed += alloc.taxable;
     fhsaContrib += alloc.fhsa;
     const refund = (alloc.rrsp + alloc.fhsa) * marginal;
     if (y === 0) refundYr1 = refund;
@@ -419,8 +422,14 @@ export function simulateStrategy(order, ctx, mode) {
       fhsaClosed = true;
     }
   }
-  const gross    = bal.tfsa + bal.rrsp + bal.fhsa + bal.taxable;
-  const afterTax = bal.tfsa + bal.fhsa + bal.taxable + bal.rrsp * (1 - retMarginal);
+  const gross = bal.tfsa + bal.rrsp + bal.fhsa + bal.taxable;
+  // Non-registered growth isn't tax-free like a TFSA — assume it's realized as capital gains
+  // (50% inclusion) taxed at the retirement marginal rate; only the GROWTH is taxed, not the
+  // principal contributed. A real mix of interest/eligible dividends would tax differently,
+  // but we don't ask for that composition, so this is the disclosed simplifying assumption.
+  const taxableGrowth = Math.max(0, bal.taxable - taxableContributed);
+  const taxableAfterTax = bal.taxable - taxableGrowth * TAX_CONFIG.capGainsInclusion * retMarginal;
+  const afterTax = bal.tfsa + bal.fhsa + taxableAfterTax + bal.rrsp * (1 - retMarginal);
   return { gross, afterTax, refundYr1, downAtHome, bal, yr1 };
 }
 
@@ -520,10 +529,15 @@ export function projectRespToAge18(balance, beneficiaryAge, monthlyContrib, rate
   let bal = n(balance);
   const mo = n(monthlyContrib);
   const annContrib = mo * 12;
+  const R = TAX_CONFIG.resp;
+  let cesgPaid = 0;
   for (let y = 0; y < yearsLeft; y++) {
     for (let m = 0; m < 12; m++) bal = bal * (1 + mr) + mo;
     const age = n(beneficiaryAge) + y;
-    if (age < 17) bal += Math.min(500, annContrib * 0.20);
+    if (age < 17) {
+      const grant = Math.min(R.cesgAnnualMax, annContrib * R.cesgRate, R.cesgLifetimeMax - cesgPaid);
+      bal += grant; cesgPaid += grant;
+    }
   }
   return Math.round(bal);
 }
@@ -536,6 +550,7 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
   const sm = startMonth ? Math.max(0, Math.min(11, startMonth)) : 0;
   const custom = monthsArr && monthsArr.length === 12;
   const income = n(plan.income);
+  const age0 = n(plan.age);
 
   let bTfsa    = n(plan.bTfsa);
   let bRrsp    = n(plan.bRrsp) + n(plan.bLocked) + n(plan.bRrif);
@@ -560,8 +575,13 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
   const fhsaClose  = homeIdx != null ? homeIdx : (fhsaCloseIdx != null ? fhsaCloseIdx : years + 1);
 
   const out = { tfsa: [bTfsa], rrsp: [bRrsp], fhsa: [bFhsa], pension: [bPension], resp: [bResp], rdsp: [bRdsp], nonreg: [bNonreg], fhsaAtClose: 0 };
+  const cesgPaidByChild = respList.map(() => 0);
 
   for (let y = 0; y < years; y++) {
+    // RRSP contributions must legally stop the year you turn 71 (mandatory RRIF conversion) —
+    // the balance keeps growing, it just stops receiving new money, which falls through to
+    // non-registered instead.
+    const rrspCapNow = (age0 > 0 && (age0 + y) > TAX_CONFIG.rrsp.rrifConvertAge) ? 0 : rrspMoCap;
     for (let mo = 0; mo < 12; mo++) {
       if (y === 0 && mo < sm) continue;
       const mc = (custom && y === 0) ? n(monthsArr[mo]) : monthly;
@@ -570,7 +590,7 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
       const fhsaCap = y === 0 ? fhsaY0Cap : fhsaAnnCap;
       if (hasFhsa && y < fhsaClose) { fhsaC = Math.min(fhsaCap, rem); rem -= fhsaC; }
       tfsaC = Math.min(tfsaMoCap, rem); rem -= tfsaC;
-      rrspC = Math.min(rrspMoCap, rem); rem -= rrspC;
+      rrspC = Math.min(rrspCapNow, rem); rem -= rrspC;
       nonregC = rem;
       bTfsa    = bTfsa * (1 + mr) + tfsaC;
       bRrsp    = bRrsp * (1 + mr) + rrspC;
@@ -580,10 +600,14 @@ export function projectByAccount(plan, rate, years, monthly, monthsArr, startMon
       bRdsp    = bRdsp * (1 + mr);
       bNonreg  = bNonreg * (1 + mr) + nonregC;
     }
-    // CESG: government adds 20% on first $2,500/yr per child, until age 17
-    const annCesg = respList.reduce((s, r) => {
+    // CESG: government adds 20% on contributions, up to $500/yr, capped at $7,200 lifetime per child
+    const R = TAX_CONFIG.resp;
+    const annCesg = respList.reduce((s, r, idx) => {
       const age = n(r.beneficiaryAge) + y;
-      return age < 17 ? s + Math.min(500, n(r.monthlyContrib) * 12 * 0.20) : s;
+      if (age >= 17) return s;
+      const grant = Math.min(R.cesgAnnualMax, n(r.monthlyContrib) * 12 * R.cesgRate, R.cesgLifetimeMax - cesgPaidByChild[idx]);
+      cesgPaidByChild[idx] += grant;
+      return s + grant;
     }, 0);
     bResp += annCesg;
     if (homeIdx != null && (y + 1) === homeIdx) { out.fhsaAtClose = bFhsa; bFhsa = 0; }

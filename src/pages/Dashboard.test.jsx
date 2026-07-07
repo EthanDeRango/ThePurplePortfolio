@@ -70,6 +70,26 @@ describe('Dashboard — incorporated pay (#4)', () => {
   });
 });
 
+describe('Dashboard — household mode with an incorporated partner (#4 follow-up)', () => {
+  it('gives an all-dividends partner $0 RRSP room, since dividends create no earned income', () => {
+    renderDash({
+      ...FUNDED, hasPartner: true,
+      partner: { ...PLAN_DEFAULTS.partner, income: '90000', age: '38', employmentType: 'incorporated', payMix: 'dividends', dividendType: 'noneligible' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Contribution limits/i }));
+    expect(screen.getByText(/dividends don't create RRSP room/i)).toBeInTheDocument();
+  });
+
+  it('renders a partner on salary+dividends mix without crashing, side by side with the primary filer', () => {
+    renderDash({
+      ...FUNDED, hasPartner: true,
+      partner: { ...PLAN_DEFAULTS.partner, income: '150000', age: '42', employmentType: 'incorporated', payMix: 'mix', salaryShare: '40', dividendType: 'eligible' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Paycheque & tax/i }));
+    expect(screen.getAllByText(/no CPP\/EI/i).length).toBeGreaterThan(0);
+  });
+});
+
 describe('Dashboard — life events timeline (#2)', () => {
   it('renders the "what changes over time" timeline when savings events exist', () => {
     renderDash({ ...FUNDED, lifeEvents: [{ id: '1', type: 'invest-more', amount: '1200', age: '50', label: 'Mortgage paid off' }] });

@@ -22,9 +22,8 @@ export default function Home() {
             <span className="pp-eyebrow"><Sparkles size={14} /> Tax-aware planning, built for Canadians</span>
             <h1 style={{ marginTop: 16 }}>Know where you stand.<br /><em>Chart</em> your next step.</h1>
             <p className="pp-hero-sub">
-              The Purple Portfolio is a free planner and learning club. Enter your income and province
-              and see exactly where your money goes (taxes, CPP, EI), then your contribution room,
-              RRSP/FHSA tax savings, and a projection of your future.
+              <b>Understand your money. Build your future.</b> See exactly where your income goes,
+              maximize your TFSA, RRSP, and FHSA, and project your wealth—all for free.
             </p>
             <div className="pp-hero-cta">
               <button className="pp-btn pp-btn-primary" onClick={start}>Build my plan <ArrowRight size={18} /></button>

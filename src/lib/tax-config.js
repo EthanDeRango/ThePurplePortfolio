@@ -48,8 +48,10 @@ export const TAX_CONFIG = {
     annual: 7000, cumulative2026: 109000,
     history: { 2009:5000,2010:5000,2011:5000,2012:5000,2013:5500,2014:5500,2015:10000,2016:5500,2017:5500,2018:5500,2019:6000,2020:6000,2021:6000,2022:6000,2023:6500,2024:7000,2025:7000,2026:7000 },
   },
-  rrsp: { pct: 0.18, dollarMax: 33810, overBuffer: 2000 },
+  rrsp: { pct: 0.18, dollarMax: 33810, overBuffer: 2000, rrifConvertAge: 71 },
   fhsa: { annual: 8000, lifetime: 40000, carryMax: 8000, maxYear: 16000, participationYears: 15, closeAge: 71 },
+  // SOURCE: CRA — Canada Education Savings Grant (CESG), 20% of contributions, $500/yr, $7,200 lifetime per beneficiary
+  resp: { cesgRate: 0.20, cesgAnnualMax: 500, cesgLifetimeMax: 7200 },
   capGainsInclusion: 0.50, // SOURCE: 66.67% proposal CANCELLED Mar 2025 — flat 50% for individuals
   // Dividend gross-up + federal dividend tax credit (as a fraction of the grossed-up taxable dividend).
   // SOURCE: CRA — eligible: 38% gross-up, 15.0198% fed DTC; non-eligible: 15% gross-up, 9.0301% fed DTC.
