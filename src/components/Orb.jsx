@@ -2,11 +2,13 @@ import { taxEngine } from "../lib/tax-engine.js";
 import { fmtMoney, pct1 } from "../lib/calculations.js";
 import { TAX_YEAR } from "../lib/tax-config.js";
 
-// A real preview, not decoration: runs the same taxEngine() the rest of the app uses, on a
-// representative $85,000 Ontario income, so the hero shows an actually-accurate result instead
-// of an abstract shape or invented numbers.
+// A real preview, not decoration: runs the same taxEngine() the rest of the app uses, on an
+// incorporated owner splitting pay between salary and dividends — a deliberately less "basic
+// paycheque calculator" example, so the hero itself proves the tool handles real complexity
+// instead of just claiming to.
 export default function Orb() {
-  const tax = taxEngine(85000, "ON", "employed");
+  const salary = 110000, dividends = 110000;
+  const tax = taxEngine(salary, "ON", "incorporated", 0, { nonEligible: dividends });
   const g = Math.max(1, tax.gross);
   const rows = [
     { key: "net",  label: "Take-home",      val: tax.net,      color: "var(--violet)" },
@@ -29,7 +31,7 @@ export default function Orb() {
       </svg>
 
       <div className="pp-hero-preview" aria-hidden="true">
-        <div className="pp-hero-preview-tag">A real {TAX_YEAR} example · $85,000 in Ontario</div>
+        <div className="pp-hero-preview-tag">A real {TAX_YEAR} example · $220,000, incorporated, Ontario</div>
         <div className="pp-hero-preview-bar">
           {rows.map((r) => r.val > 0 && (
             <div key={r.key} title={`${r.label}: ${fmtMoney(r.val)}`} style={{ width: (r.val / g) * 100 + "%", background: r.color }} />
@@ -40,6 +42,9 @@ export default function Orb() {
             <span key={r.key}><i style={{ background: r.color }} />{r.label}</span>
           ))}
         </div>
+        <p className="pp-hero-preview-note">
+          Pays themselves <b>{fmtMoney(salary)}</b> salary + <b>{fmtMoney(dividends)}</b> in dividends — taxed differently (no CPP/EI on dividends), tracked correctly.
+        </p>
         <div className="pp-hero-preview-stats">
           <div>
             <div className="l">Take-home</div>
