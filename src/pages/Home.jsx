@@ -46,9 +46,9 @@ export default function Home() {
           <h2 style={{ fontSize: 34, margin: "12px 0 30px", maxWidth: "16em" }}>From a few numbers to a clear picture.</h2>
           <div className="pp-grid-3">
             {[
-              { ic: <MapPin size={20} />,     t: "1 · Your income & province", d: "We decode your real take-home: federal + provincial tax, CPP/CPP2, and EI, all for your province." },
-              { ic: <Calculator size={20} />, t: "2 · Tax savings & room",      d: "See your RRSP/FHSA tax savings, what contribution room you've got left, and your FHSA deadline." },
-              { ic: <TrendingUp size={20} />, t: "3 · Your projection",          d: "Watch your portfolio grow to retirement, with after-tax, inflation, and fee views you control." },
+              { ic: <MapPin size={20} />,     t: "1 · Your income & province", d: "We decode your real take-home: federal + provincial tax, CPP/CPP2, and EI — plus salary/dividend splits for incorporated owners, all for your province." },
+              { ic: <Calculator size={20} />, t: "2 · Tax savings & room",      d: "See your RRSP/FHSA tax savings, contribution room, and FHSA deadline — solo, or side-by-side with a partner in household mode." },
+              { ic: <TrendingUp size={20} />, t: "3 · Your projection",          d: "Watch your portfolio grow to retirement, with pension-income splitting, RESP planning, and after-tax, inflation, and fee views you control." },
             ].map((f) => (
               <div className="pp-card pp-featcard" key={f.t}>
                 <div className="pp-feat-ic" style={{ marginBottom: 14 }}>{f.ic}</div>
@@ -83,7 +83,7 @@ export default function Home() {
                 { ic: <Receipt size={18} />,       t: "Tax-aware",       d: "Real CPP, EI, and bracket math for every province." },
                 { ic: <Shield size={18} />,         t: "Private by design", d: "Runs in your browser. Accounts are optional. No tracking, no selling." },
                 { ic: <Percent size={18} />,        t: "Honest on fees",  d: "We show the costs others gloss over." },
-                { ic: <GraduationCap size={18} />,  t: "Beginner-friendly", d: "Plain language, with depth when you want it." },
+                { ic: <GraduationCap size={18} />,  t: "Beginner-friendly", d: "Handles a first job or an incorporated business, solo or with a partner — as much depth as your situation needs." },
               ].map((c) => (
                 <div key={c.t} style={{ display: "flex", gap: 12, padding: "6px 2px" }}>
                   <div style={{ color: "var(--gold-2)", flex: "none", marginTop: 2 }}>{c.ic}</div>
