@@ -890,6 +890,12 @@ export default function Dashboard({ plan, setPlan }) {
           ))}
         </div>
         <div className="pp-secnav pp-secnav-deeper">
+          {/* A hidden twin of the "Expand all" button, same width, pinned to the opposite
+              side — the classic trick for truly centering the middle group even though the
+              real button on the right isn't centered itself (it's pinned via margin-left:auto). */}
+          <button type="button" tabIndex={-1} aria-hidden="true" className="pp-secnav-all pp-secnav-all-ghost">
+            {allOpen ? "Collapse all" : "Expand all"}
+          </button>
           <span className="pp-secnav-label">Go deeper</span>
           {[
             ...(income > 0 ? [["sec-pay", "Paycheque & tax"]] : []),

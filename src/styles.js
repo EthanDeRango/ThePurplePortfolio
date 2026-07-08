@@ -940,7 +940,14 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   color: var(--violet); text-decoration: underline; padding: 6px 8px;
 }
 .pp-secnav button.pp-secnav-all:hover { background: none; border: none; box-shadow: none; color: var(--plum); }
-@media (max-width: 760px) { .pp-secnav button.pp-secnav-all { margin-left: 0; } }
+/* Hidden twin, pinned to the opposite (left) side with a matching auto margin — the two
+   equal-width auto margins share the row's free space evenly, which is what actually
+   centers the visible label + tabs in between. */
+.pp-secnav button.pp-secnav-all.pp-secnav-all-ghost { visibility: hidden; margin-left: 0; margin-right: auto; pointer-events: none; order: -1; }
+@media (max-width: 760px) {
+  .pp-secnav button.pp-secnav-all { margin-left: 0; }
+  .pp-secnav-all-ghost { display: none; }
+}
 
 /* ── Goal selector ────────────────────────────────────────────────────────── */
 .pp-goalgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 6px 0 14px; }
