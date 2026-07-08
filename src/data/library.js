@@ -1,4 +1,4 @@
-import { Landmark, Receipt, LineChart, GraduationCap, Percent } from "lucide-react";
+import { Landmark, Receipt, LineChart, GraduationCap, Percent, Shield, Home, CreditCard, ScrollText } from "lucide-react";
 import { TAX_CONFIG } from "../lib/tax-config.js";
 import { fmtMoney } from "../lib/calculations.js";
 
@@ -163,6 +163,14 @@ export const LIBRARY = [
       { key: "allocation", name: "Asset Allocation", lead: "Your stock/bond/cash mix drives most of your results.",
         prose: ["Asset allocation is how you split money between growth assets (stocks) and defensive ones (bonds, cash). Research consistently finds this mix explains most of a portfolio's behaviour — far more than which specific funds you pick.", "Matching your allocation to your time horizon and risk tolerance is the single most important decision you'll make."],
         facts: [["Drives","Most of your risk & return"],["Set by","Time horizon + risk tolerance"]] },
+      { key: "ratios", name: "Know Your Numbers: Financial Ratios", lead: "Four simple ratios that turn 'I think I'm doing okay' into an actual answer.",
+        prose: [
+          "You don't need a finance degree to check your own financial health — a handful of simple ratios, using numbers you likely already know, give a quick honest read. Your savings ratio is what you save divided by your take-home pay; the site's own health score already leans on this exact idea when it looks at your savings rate.",
+          "Your liquidity ratio is your liquid savings (cash, HISA, easily-sold investments) divided by your monthly essential expenses — a target of 3 to 6 tells you roughly the same thing as an emergency fund target, just expressed as a ratio instead of a dollar figure. Your current ratio (liquid assets divided by upcoming short-term bills) is a tighter, near-term version of the same question — a target around 2 means you could cover what's due soon twice over.",
+          "Your debt-to-asset ratio — total debt divided by total assets — tells you how much of what you own is actually financed. It's normal for this to be high early in life (student loans, a small down payment against a big mortgage) and it should trend down as you age and pay things off; if it's rising steadily instead, that's worth a closer look.",
+        ],
+        facts: [["Savings ratio","Savings ÷ take-home pay"],["Liquidity ratio","Liquid assets ÷ monthly essentials — target 3-6"],["Current ratio","Liquid assets ÷ short-term bills due — target ~2"],["Debt-to-asset ratio","Total debt ÷ total assets — should trend down over time"]],
+        callout: "These aren't precise diagnoses — they're a 5-minute gut check using numbers you already have, worth revisiting once or twice a year." },
     ] },
 
   { key: "advanced", name: "Advanced Topics", icon: Percent,
@@ -184,5 +192,97 @@ export const LIBRARY = [
         ],
         facts: [["Key idea","Efficient frontier"],["Engine","Low correlation between assets"],["Practical lesson","Diversification is efficient"]],
         calc: "mpt" },
+    ] },
+
+  { key: "insurance", name: "Insurance", icon: Shield,
+    desc: "Protecting the plan you're building — the pillar of personal finance that's easy to skip.",
+    topics: [
+      { key: "life", name: "Life Insurance", lead: "Income protection for the people who depend on you — and one of the most commission-driven products in personal finance.",
+        prose: [
+          "Life insurance exists to replace your income if you die while people depend on it — a spouse, kids, aging parents, a business partner. If nobody relies on your income, you likely don't need it yet.",
+          "There are two broad types. Term life covers you for a set period (10, 20, 30 years) at a low premium and pays out only if you die during the term — no cash value, nothing back if you outlive it. Permanent life (whole, universal, term-to-100) never expires and builds a cash value, but costs many times more — a $1M policy at age 20 can run $350–$630/month, versus a small fraction of that for term. Permanent insurance is often something that's sold rather than bought, since it pays the agent a much larger commission.",
+          "Two sizing methods: the income method (a rough multiple of 10–12x your annual income) is quick but blunt; the budget/needs method (living expenses, debts, future costs like education, minus existing savings) is more precise. And don't skip a stay-at-home parent — their unpaid childcare and household work has a real replacement cost even with $0 income.",
+        ],
+        facts: [["Term life","Low cost, covers a set period, no payout if you outlive it"],["Permanent life","Never expires, builds cash value, far more expensive"],["Income method","~10-12x annual income, quick estimate"],["Budget method","Expenses + debts + future costs − savings, more precise"]],
+        callout: "Two legitimate reasons to consider permanent insurance: a family history of illness that could make you uninsurable later, or high-net-worth estate planning. Otherwise, term is usually the better fit." },
+      { key: "disability", name: "Disability & Critical Illness Insurance", lead: "The insurance most people skip — even though you're far more likely to need it than life insurance.",
+        prose: [
+          "A 30-year-old is roughly four times more likely to become disabled before 65 than to die before 65, yet disability insurance gets a fraction of the attention life insurance does. It replaces 40-70% of your income if you can't work due to illness or injury.",
+          "The fine print matters: 'own-occupation' coverage pays out if you can't do your specific job; 'any-occupation' only pays if you can't do any job at all. Many policies start as own-occupation and quietly convert to the stricter any-occupation definition after about two years. Also check who pays the premium — if you pay with after-tax dollars, the benefit is tax-free; if your employer pays and doesn't tax it as a benefit, the payout is taxable.",
+          "Critical illness insurance is a different product: a tax-free lump sum if you're diagnosed with (and survive 30 days past) a covered illness — typically cancer, heart disease, or stroke. It's not as strong a numbers case as disability insurance, but some value the flexibility and peace of mind.",
+        ],
+        facts: [["Odds","~4x more likely to be disabled than to die before 65"],["Income replacement","Typically 40-70%"],["Own-occupation","Pays if you can't do your specific job"],["Any-occupation","Pays only if you can't do any job — often kicks in after ~2 years"],["Critical illness","Tax-free lump sum, 30-day survival period"]],
+        callout: "Check who pays the premium before assuming your disability benefit is tax-free — that one detail decides whether you actually need to insure for 100% of your income or less." },
+      { key: "autohome", name: "Auto & Home Insurance", lead: "The coverage almost everyone already has — and almost nobody has checked the details on.",
+        prose: [
+          "Auto insurance liability limits vary by province, and provincial legal minimums are usually far lower than what's actually sensible — in Ontario, for example, the legal minimum is $200,000, but $1 million or more is a common recommendation, since a serious at-fault accident can easily exceed a low limit and expose your other assets.",
+          "For home or tenant insurance, the key distinction is replacement-cost vs. actual-cash-value coverage. Actual cash value pays what your damaged belongings are worth today (after depreciation); replacement cost pays what it actually costs to replace them new. Replacement cost is worth the extra premium for most people.",
+          "An umbrella liability policy — extra liability coverage that sits on top of your auto and home policies — is often inexpensive and can be one of the highest value-per-dollar additions available, especially once you have real assets worth protecting.",
+        ],
+        facts: [["Auto liability","Provincial legal minimums are usually low — check your own"],["Actual cash value","Pays depreciated value of what's lost"],["Replacement cost","Pays to replace it new — usually worth the extra premium"],["Umbrella policy","Extra liability layer, often cheap for the coverage it adds"]],
+        callout: "Insurance minimums are set by law; insurance that actually protects you is usually well above that minimum — check your own policy rather than assuming the legal minimum is enough." },
+    ] },
+
+  { key: "mortgages", name: "Mortgages & Home Buying", icon: Home,
+    desc: "The math behind the biggest purchase most people ever make.",
+    topics: [
+      { key: "mortgagebasics", name: "Mortgage Basics & Affordability", lead: "The math lenders use to decide what you can borrow — worth understanding before you fall in love with a listing.",
+        prose: [
+          "Lenders qualify you using two ratios: your Gross Debt Service (GDS) ratio — housing costs (mortgage, property tax, heat) divided by gross income, which must stay under 39% — and your Total Debt Service (TDS) ratio, which adds in your other debts and must stay under 44%. Every insured mortgage also has to pass a stress test: you must qualify at whichever is higher, your contract rate plus 2%, or a set benchmark rate — not the rate you'll actually pay.",
+          "You'll also choose between a fixed rate (locked for the term, the bank bears the rate risk) and a variable rate (moves with the market, you bear the risk — but has historically saved homeowners money over time), and between the term (how long your current rate/contract lasts, often 1-5 years) and the amortization (the total years to pay it off, typically 25, up to 30 for first-time buyers or new builds).",
+          "Paying more often can meaningfully cut your total interest: accelerated bi-weekly or weekly payments effectively squeeze in an extra payment or two per year compared to monthly, without feeling like a bigger bite out of any single paycheque.",
+        ],
+        facts: [["GDS ratio ceiling","39% of gross income"],["TDS ratio ceiling","44% of gross income"],["Stress test","Qualify at contract rate + 2%, or the benchmark rate, whichever is higher"],["Standard amortization","25 years (up to 30 for first-time buyers/new builds)"]],
+        callout: "The rate you're approved at and the rate you actually pay aren't the same number — the stress test exists specifically so a future rate increase doesn't leave you unable to afford your own mortgage." },
+      { key: "downpayment", name: "Down Payment, CMHC & FHSA vs. HBP", lead: "How much you need down, what it costs to put down less, and which account should fund it.",
+        prose: [
+          "Minimum down payments scale with price: 5% on the portion up to $500,000, 10% on the portion between $500,000 and $1.5 million, and 20% on anything above $1.5 million — put down less than 20% overall and you'll also pay for mortgage default insurance (CMHC or a private equivalent), a one-time premium that can be rolled into the mortgage.",
+          "Two accounts can fund a first home: the FHSA, and the RRSP Home Buyers' Plan (HBP), which lets you borrow up to $60,000 from your own RRSP (repaid over 15 years, starting the second year). The FHSA is usually the better choice — its withdrawal is a true tax-free gift, while HBP funds are a loan from your future self that pulls that money out of the market for years and must be repaid on schedule or it becomes taxable income. Where both are available, most people are better off maxing the FHSA first and treating the HBP as a supplement, not the main plan.",
+          "This site's own down-payment calculator already uses these exact tiers, so the number you see in your Planner and Dashboard reflects the real minimum for your target price — this page is here to explain where that number comes from.",
+        ],
+        facts: [["Under $500,000","5% minimum down payment"],["$500,000-$1.5M","5% on the first $500k + 10% on the rest"],["Over $1.5M","20% minimum"],["Under 20% down","CMHC (or equivalent) default insurance required"],["HBP borrowing limit","$60,000, repaid over 15 years starting year 2"]],
+        callout: "About one in three people who use the Home Buyers' Plan miss a required repayment year — when that happens, the missed amount becomes taxable income and the RRSP room is gone for good." },
+      { key: "payoffearly", name: "Should You Pay Off Your Mortgage Early?", lead: "A genuinely debated question — here's the case on both sides, not just the comforting one.",
+        prose: [
+          "It feels obviously good to be debt-free, but a mortgage is usually the cheapest borrowing you'll ever have access to, and paying it off early means locking money into an illiquid asset instead of leaving it invested. The case against prioritizing early payoff: your home appreciates regardless of how much mortgage is left on it, so the mortgage balance is really just a financing choice, not a drag on your home's growth — and historically, long-run market returns have outpaced typical mortgage rates.",
+          "The case for paying it down faster is real too: it's a guaranteed, risk-free return equal to your interest rate, it reduces required monthly cash flow (useful if your income is variable), and there's a genuine psychological value to being debt-free that a spreadsheet doesn't capture. Neither side is universally right — it depends on your rate, your risk tolerance, and what actually lets you sleep at night.",
+          "It's also worth remembering a home isn't meant to be your whole portfolio. A house is very likely your largest purchase, but concentrating most of your net worth in one illiquid, undiversified asset carries real risk — the same diversification logic that applies to stocks applies here too.",
+        ],
+        facts: [["For paying down faster","Guaranteed risk-free return = your interest rate; lower required cash flow"],["For investing instead","Mortgage is usually cheap debt; market returns have historically outpaced it"],["Either way","Your home's value doesn't depend on your mortgage balance"],["Worth remembering","A house is likely your biggest purchase, but shouldn't be your only asset"]],
+        callout: "This is a real debate with reasonable people on both sides — the honest answer is 'it depends on your rate and your risk tolerance,' not a universal rule." },
+    ] },
+
+  { key: "credit", name: "Credit & Debt", icon: CreditCard,
+    desc: "Borrowing well, and getting out of debt with a plan instead of just good intentions.",
+    topics: [
+      { key: "creditscore", name: "Credit Scores & Building Credit", lead: "A three-digit number that quietly affects your mortgage rate, your rent applications, and sometimes your job offers.",
+        prose: [
+          "Canadian credit scores run from 300 to 900. Above roughly 660 is generally considered good, and above 725 tends to unlock the best rates and easiest approvals. The score is built from five weighted factors: payment history (35%), amounts owed (30%), length of credit history (15%), types of credit used (10%), and new credit inquiries (10%).",
+          "The single biggest lever is simple: pay every bill on time, every time — that's over a third of your score on its own. Keeping balances low relative to your limits matters almost as much. A longer history helps, which is why closing your oldest credit card can quietly hurt your score even if you don't use it.",
+          "A few things to avoid outright: overdraft protection and creditor/balance insurance are expensive products usually sold at the point of least resistance, and co-signing someone else's loan makes their missed payments your problem, on your credit file, with no ability to walk away.",
+        ],
+        facts: [["Score range","300-900"],["\"Good\" territory","~660+"],["Payment history","35% of your score"],["Amounts owed","30% of your score"],["Length of history","15% of your score"]],
+        callout: "Payment history and amounts owed make up nearly two-thirds of your score — the two things most in your control matter the most." },
+      { key: "snowballavalanche", name: "Debt Snowball vs. Avalanche", lead: "Two competing strategies for which debt to attack first when you're juggling more than one.",
+        prose: [
+          "If you have several debts and extra money to throw at them, you have to pick an order. The avalanche method pays minimums on everything and puts every spare dollar toward the highest-interest debt first — mathematically, this saves the most money and clears your debt fastest overall.",
+          "The snowball method instead attacks the smallest balance first, regardless of interest rate, then rolls that payment into the next-smallest once it's gone. It's not the optimal path on paper, but clearing a whole debt fast creates a real motivational win that keeps people going — and a plan you actually stick with beats a theoretically optimal one you abandon.",
+          "Neither is 'wrong.' If the interest-rate gap between your debts is small, or you know you need the quick wins to stay motivated, snowball is a perfectly reasonable choice. If the rate gap is large — a 22% credit card next to a 6% car loan — the money saved by going avalanche is usually worth it. This complements the site's own Order of Operations guide, which already tells you when to prioritize debt over investing; this is about ordering the debts once you're in that step.",
+        ],
+        facts: [["Avalanche","Highest interest rate first — mathematically optimal"],["Snowball","Smallest balance first — built for motivation"],["Best for avalanche","A large gap between your debts' interest rates"],["Best for snowball","You need visible wins to stay consistent"]],
+        callout: "The 'best' method is the one you'll actually stick with — a slightly-less-optimal plan you follow beats a perfect plan you abandon in month three." },
+    ] },
+
+  { key: "estate", name: "Estate Planning", icon: ScrollText,
+    desc: "The paperwork that makes sure your plan actually reaches the people it's for.",
+    topics: [
+      { key: "wills", name: "Wills & Estate Basics", lead: "The paperwork nobody wants to think about — and the reason it matters more than it feels like it does.",
+        prose: [
+          "Dying without a will (called dying 'intestate') means a provincial formula decides who gets what — not you, and not necessarily who you'd have chosen. A will lets you name an executor (the person who carries out your wishes and settles your affairs), name guardians for any children, and decide exactly who gets what, including a specific share set aside for a spouse before anyone else is paid.",
+          "One of the most overlooked moves in estate planning has nothing to do with your will: your RRSP, RRIF, TFSA, and life insurance policies each have their own beneficiary designation, filled out separately with the account provider. Assets with a named beneficiary can pass directly to that person, bypassing your estate — and probate — entirely. A will that hasn't been paired with up-to-date beneficiary forms can leave real money moving slower, and more publicly, than it needs to.",
+          "A will isn't a one-and-done document. A sensible rule of thumb is to revisit it every 2-3 years, and immediately after any major life event — marriage, divorce, a new child, a significant move. For decisions while you're alive but unable to make them yourself, a power of attorney names someone to handle your finances or health decisions on your behalf; without one, your family may need court approval to act for you.",
+        ],
+        facts: [["Dying without a will","Called \"intestate\" — a provincial formula decides who inherits"],["Beneficiary designations","Set separately on RRSP/RRIF/TFSA/insurance — can bypass probate"],["Update your will","Every 2-3 years, and after major life events"],["Power of attorney","Names someone to act for you if you're unable to"]],
+        callout: "A will and your account beneficiary designations are two different documents — updating one without the other is one of the most common estate-planning gaps." },
     ] },
 ];
