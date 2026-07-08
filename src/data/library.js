@@ -2,8 +2,15 @@ import { Landmark, Receipt, LineChart, GraduationCap, Percent, Shield, Home, Cre
 import { TAX_CONFIG } from "../lib/tax-config.js";
 import { fmtMoney } from "../lib/calculations.js";
 
+// Groups categories into sections on the Library index — order here is the display order.
+export const LIBRARY_GROUPS = [
+  { name: "Foundations", desc: "The basics everyone needs, whatever stage you're at." },
+  { name: "Investing", desc: "Building and growing the portfolio itself." },
+  { name: "Big Life Decisions", desc: "The major financial events most people eventually face." },
+];
+
 export const LIBRARY = [
-  { key: "accounts", name: "Registered Accounts", icon: Landmark,
+  { key: "accounts", name: "Registered Accounts", icon: Landmark, group: "Foundations",
     desc: "The Canadian accounts that let your money grow with major tax advantages.",
     topics: [
       { key: "tfsa", name: "TFSA", lead: "The Tax-Free Savings Account — flexible, tax-free, and the right starting point for most Canadians.",
@@ -53,7 +60,7 @@ export const LIBRARY = [
         good: "Investing beyond your registered room, or goals that don't fit a registered account." },
     ] },
 
-  { key: "tax", name: "Tax & Your Money", icon: Receipt,
+  { key: "tax", name: "Tax & Your Money", icon: Receipt, group: "Foundations",
     desc: "How Canadian taxes actually work — paycheques, brackets, and the taxation of investment income.",
     topics: [
       { key: "marginalavg", name: "Marginal vs Average Tax", lead: "Two different rates that people constantly mix up — and the confusion costs real decisions.",
@@ -90,7 +97,7 @@ export const LIBRARY = [
         callout: "TFSA withdrawals are invisible to the OAS and GIS income tests — a powerful, often-overlooked reason to hold TFSA room into retirement." },
     ] },
 
-  { key: "types", name: "Investment Types", icon: LineChart,
+  { key: "types", name: "Investment Types", icon: LineChart, group: "Investing",
     desc: "The building blocks you can hold inside any account, from simple to advanced.",
     topics: [
       { key: "etf", name: "Index ETFs", lead: "One fund that holds an entire market, traded like a stock.",
@@ -113,7 +120,7 @@ export const LIBRARY = [
         facts: [["Income","Typically high"],["Diversification","Single sector"],["Sensitive to","Interest rates"]] },
     ] },
 
-  { key: "concepts", name: "Core Concepts", icon: GraduationCap,
+  { key: "concepts", name: "Core Concepts", icon: GraduationCap, group: "Foundations",
     desc: "The handful of ideas that explain most of investing success.",
     topics: [
       { key: "riskreturn", name: "Risk & Return", lead: "Higher potential returns come with bigger ups and downs.",
@@ -173,7 +180,7 @@ export const LIBRARY = [
         callout: "These aren't precise diagnoses — they're a 5-minute gut check using numbers you already have, worth revisiting once or twice a year." },
     ] },
 
-  { key: "advanced", name: "Advanced Topics", icon: Percent,
+  { key: "advanced", name: "Advanced Topics", icon: Percent, group: "Investing",
     desc: "Going deeper, for when the fundamentals feel comfortable.",
     topics: [
       { key: "capm", name: "CAPM", lead: "The Capital Asset Pricing Model — linking expected return to market risk.",
@@ -194,7 +201,7 @@ export const LIBRARY = [
         calc: "mpt" },
     ] },
 
-  { key: "insurance", name: "Insurance", icon: Shield,
+  { key: "insurance", name: "Insurance", icon: Shield, group: "Big Life Decisions",
     desc: "Protecting the plan you're building — the pillar of personal finance that's easy to skip.",
     topics: [
       { key: "life", name: "Life Insurance", lead: "Income protection for the people who depend on you — and one of the most commission-driven products in personal finance.",
@@ -223,7 +230,7 @@ export const LIBRARY = [
         callout: "Insurance minimums are set by law; insurance that actually protects you is usually well above that minimum — check your own policy rather than assuming the legal minimum is enough." },
     ] },
 
-  { key: "mortgages", name: "Mortgages & Home Buying", icon: Home,
+  { key: "mortgages", name: "Mortgages & Home Buying", icon: Home, group: "Big Life Decisions",
     desc: "The math behind the biggest purchase most people ever make.",
     topics: [
       { key: "mortgagebasics", name: "Mortgage Basics & Affordability", lead: "The math lenders use to decide what you can borrow — worth understanding before you fall in love with a listing.",
@@ -252,7 +259,7 @@ export const LIBRARY = [
         callout: "This is a real debate with reasonable people on both sides — the honest answer is 'it depends on your rate and your risk tolerance,' not a universal rule." },
     ] },
 
-  { key: "credit", name: "Credit & Debt", icon: CreditCard,
+  { key: "credit", name: "Credit & Debt", icon: CreditCard, group: "Foundations",
     desc: "Borrowing well, and getting out of debt with a plan instead of just good intentions.",
     topics: [
       { key: "creditscore", name: "Credit Scores & Building Credit", lead: "A three-digit number that quietly affects your mortgage rate, your rent applications, and sometimes your job offers.",
@@ -273,7 +280,7 @@ export const LIBRARY = [
         callout: "The 'best' method is the one you'll actually stick with — a slightly-less-optimal plan you follow beats a perfect plan you abandon in month three." },
     ] },
 
-  { key: "estate", name: "Estate Planning", icon: ScrollText,
+  { key: "estate", name: "Estate Planning", icon: ScrollText, group: "Big Life Decisions",
     desc: "The paperwork that makes sure your plan actually reaches the people it's for.",
     topics: [
       { key: "wills", name: "Wills & Estate Basics", lead: "The paperwork nobody wants to think about — and the reason it matters more than it feels like it does.",
