@@ -869,16 +869,22 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
   border-radius: 12px; padding: 11px 16px; margin: 14px 0 10px;
 }
 .pp-secnav-guide b { color: var(--plum); }
-.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin: 8px 0 6px; }
+.pp-secnav-wrap { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 6px; }
+.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.pp-secnav-core {
+  background: linear-gradient(155deg, var(--violet-soft) 0%, #fff 100%);
+  border: 1px solid var(--violet-mid);
+  border-radius: 16px;
+  padding: 14px 18px;
+}
+.pp-secnav-deeper { opacity: .92; }
 .pp-secnav-label {
   font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
   color: var(--muted); margin-right: 2px;
 }
-.pp-secnav-divider { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
 @media (max-width: 640px) {
   .pp-secnav { gap: 8px 7px; }
   .pp-secnav-label { width: 100%; flex-basis: 100%; margin: 4px 0 0; }
-  .pp-secnav-divider { display: none; }
 }
 .pp-next-link {
   display: inline-flex; align-items: center; gap: 7px; margin-top: 16px;
@@ -891,8 +897,16 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-secnav button.core {
   background: #fff; border-color: var(--violet); color: var(--plum);
   font-size: 15px; font-weight: 800; padding: 10px 20px;
+  display: inline-flex; align-items: center; gap: 8px;
+  box-shadow: 0 2px 8px rgba(112,68,190,.14);
 }
-.pp-secnav button.core.active { background: var(--plum); color: #fff; border-color: var(--plum); }
+.pp-secnav button.core:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(112,68,190,.22); }
+.pp-secnav button.core.active {
+  background: linear-gradient(135deg, var(--plum) 0%, var(--plum-2) 100%);
+  color: #fff; border-color: var(--plum);
+  box-shadow: 0 4px 14px rgba(46,20,82,.28), 0 2px 6px rgba(46,20,82,.2);
+}
+.pp-secnav button.core.active:hover { transform: none; }
 @media (max-width: 640px) { .pp-secnav button.core { font-size: 13.5px; padding: 8px 15px; } }
 .pp-secnav a, .pp-secnav button {
   font-size: 12.5px;

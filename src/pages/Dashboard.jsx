@@ -874,38 +874,41 @@ export default function Dashboard({ plan, setPlan }) {
       <div className="pp-secnav-guide pp-noprint">
         <b>Start with your Action plan below</b> — it tells you exactly what to do next. There's more underneath: your accounts, paycheque, contribution room, goals, and growth. Tap any tab above to open a section, or <b>Expand all</b> to see everything at once.
       </div>
-      <nav className="pp-secnav pp-noprint" aria-label="Dashboard sections">
-        <span className="pp-secnav-label">Start here</span>
-        {[
-          ["sec-plan", "1 · Action plan"], ["sec-compare", "2 · Accounts"], ["sec-goal", "3 · Goals & score"],
-        ].map(([id, label]) => (
-          <button key={id} type="button"
-            className={"core" + (activeTabs.has(id) ? " active" : "")}
-            aria-pressed={activeTabs.has(id)}
-            onClick={() => switchTab(id)}
-          >
-            {label}
+      <nav className="pp-secnav-wrap pp-noprint" aria-label="Dashboard sections">
+        <div className="pp-secnav pp-secnav-core">
+          <span className="pp-secnav-label">Start here</span>
+          {[
+            ["sec-plan", "1 · Action plan", ListOrdered], ["sec-compare", "2 · Accounts", Scale], ["sec-goal", "3 · Goals & score", Sparkles],
+          ].map(([id, label, Icon]) => (
+            <button key={id} type="button"
+              className={"core" + (activeTabs.has(id) ? " active" : "")}
+              aria-pressed={activeTabs.has(id)}
+              onClick={() => switchTab(id)}
+            >
+              <Icon size={16} /> {label}
+            </button>
+          ))}
+        </div>
+        <div className="pp-secnav pp-secnav-deeper">
+          <span className="pp-secnav-label">Go deeper</span>
+          {[
+            ...(income > 0 ? [["sec-pay", "Paycheque & tax"]] : []),
+            ["sec-room", "Contribution limits"],
+            ...(hasData ? [["sec-grow", "Growth"]] : []),
+            ...(hasPartner ? [["sec-household", "Household"]] : []),
+          ].map(([id, label]) => (
+            <button key={id} type="button"
+              className={activeTabs.has(id) ? "active" : ""}
+              aria-pressed={activeTabs.has(id)}
+              onClick={() => switchTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className="pp-secnav-all" onClick={toggleAll}>
+            {allOpen ? "Collapse all" : "Expand all"}
           </button>
-        ))}
-        <span className="pp-secnav-divider" aria-hidden="true" />
-        <span className="pp-secnav-label">Go deeper</span>
-        {[
-          ...(income > 0 ? [["sec-pay", "Paycheque & tax"]] : []),
-          ["sec-room", "Contribution limits"],
-          ...(hasData ? [["sec-grow", "Growth"]] : []),
-          ...(hasPartner ? [["sec-household", "Household"]] : []),
-        ].map(([id, label]) => (
-          <button key={id} type="button"
-            className={activeTabs.has(id) ? "active" : ""}
-            aria-pressed={activeTabs.has(id)}
-            onClick={() => switchTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-        <button type="button" className="pp-secnav-all" onClick={toggleAll}>
-          {allOpen ? "Collapse all" : "Expand all"}
-        </button>
+        </div>
       </nav>
 
       <div style={{ height: 14 }} />
