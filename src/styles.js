@@ -1818,11 +1818,10 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-push-confirm .pp-btn { padding: 7px 14px; font-size: 13px; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────── */
-/* Each section (Income/Expenses/Investments/NCF) is its own scrollable table now, so every
-   section has a reachable horizontal scrollbar instead of one sitting far down the page. */
-.pp-bud-gridwrap { display: flex; flex-direction: column; }
-.pp-bud-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 16px; }
-.pp-bud-ncfscroll { margin-bottom: 0; }
+/* One continuous table, in a properly bounded (max-height + overflow-y) scroll viewport — that
+   boundedness is what makes position:sticky reliable and keeps the horizontal scrollbar within
+   easy reach, instead of an unbounded page-scrolled table pushing it far down the page. */
+.pp-bud-scroll { overflow: auto; max-height: 560px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .pp-bud-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; table-layout: fixed; font-size: 13px; }
 .pp-bud-table th, .pp-bud-table td { border-bottom: 1px solid #ECEAF2; }
 
@@ -1834,10 +1833,8 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-table thead th.pp-bud-cat { text-align: left; color: #C9B6EE; }
 .pp-bud-table thead th.pp-bud-annual-h { color: #E7C969; }
 
-/* Category column — a distinct label panel, clearly set apart from the data grid.
-   Fixed (not min-) widths, needed so the four independent tables size their columns
-   identically regardless of each one's own row content — otherwise synced horizontal
-   scrolling would drift out of alignment between sections. */
+/* Category column — a distinct label panel, clearly set apart from the data grid. Fixed (not
+   min-) widths under table-layout:fixed, so columns render identically at any scroll position. */
 .pp-bud-cat {
   text-align: left; width: 196px; position: sticky; left: 0; z-index: 1;
   background: #F6F4FA; border-right: 2px solid #DDD5EC;
@@ -1859,6 +1856,32 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 /* Vertical stickiness only here (not left) — combining both sticky axes on a colspan cell is
    unreliable across browsers, and the reported issue was specifically about vertical scroll. */
 .pp-bud-sechead td.pp-bud-cat { border-right-color: transparent; left: auto; }
+
+/* Pop-out */
+.pp-bud-gridhead { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.pp-bud-popout {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--plum-2);
+  background: rgba(255,255,255,.75); border: 1px solid rgba(30,17,40,.12); border-radius: 999px;
+  padding: 6px 14px; cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.pp-bud-popout:hover { background: #fff; color: var(--plum); border-color: var(--violet); box-shadow: 0 2px 8px rgba(112,68,190,.14); }
+.pp-bud-modal {
+  background: var(--paper-card);
+  border-radius: 22px;
+  box-shadow: 0 24px 72px rgba(18,9,30,.45), 0 4px 18px rgba(18,9,30,.2);
+  width: min(1400px, 96vw);
+  max-height: 92vh;
+  padding: 26px 28px 28px;
+  position: relative;
+  overflow: hidden;
+  animation: ppSlideUp .22s cubic-bezier(.34,1.2,.64,1);
+}
+.pp-bud-modal-head { font-family: var(--display); font-size: 22px; color: var(--plum); margin-bottom: 16px; }
+/* .pp-auth-x is styled white-on-transparent for AuthModal's dark header — this modal has a
+   light background, so it needs dark colours to actually be visible. */
+.pp-bud-modal .pp-auth-x { background: rgba(30,17,40,.06); color: var(--plum-2); }
+.pp-bud-modal .pp-auth-x:hover { background: rgba(30,17,40,.12); color: var(--plum); }
 
 /* Data rows — neutral cells so labels and numbers read cleanly; section shown by a left accent on the label column */
 .pp-bud-row td { background: #fff; }

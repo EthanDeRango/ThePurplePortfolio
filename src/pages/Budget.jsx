@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Wallet, Download, RefreshCw, Plus, X, Check, Info, Sparkles, Lock, Send, ChevronsRight,
+  Wallet, Download, RefreshCw, Plus, X, Check, Info, Sparkles, Lock, Send, ChevronsRight, Maximize2,
 } from "lucide-react";
 import { fmtMoney } from "../lib/calculations.js";
 import { Disclaimer } from "../components/Disclaimer.jsx";
@@ -30,24 +30,18 @@ export default function Budget({ plan, setPlan }) {
   const [pushState, setPushState] = useState("idle"); // idle | confirm | done
   const [showGuide, setShowGuide] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const firstLoad = useRef(true);
 
-  // Income / Expenses / Investments / Net-cash-flow are now separate scrollable tables (so each
-  // has its own reachable horizontal scrollbar and reliable sticky headers, instead of one giant
-  // shared table whose scrollbar sits far down the page). Keep their horizontal scroll positions
-  // in lockstep so the month columns still line up across all four.
-  const scrollRefs = useRef({});
-  const syncingScroll = useRef(false);
-  const registerGridScroll = (key) => (el) => { scrollRefs.current[key] = el; };
-  const handleGridScroll = (key) => (e) => {
-    if (syncingScroll.current) return;
-    syncingScroll.current = true;
-    const left = e.currentTarget.scrollLeft;
-    Object.entries(scrollRefs.current).forEach(([k, el]) => {
-      if (k !== key && el) el.scrollLeft = left;
-    });
-    syncingScroll.current = false;
-  };
+  // Pop-out view: Escape closes it, and lock body scroll while it's open.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e) => { if (e.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
+  }, [expanded]);
 
   const budget = activeBudget(store);
   const isPlannerYear = num(store.activeYear) === PLANNER_YEAR;
@@ -80,6 +74,45 @@ export default function Budget({ plan, setPlan }) {
   const stageName = (STAGE_BY_KEY[budget.lifeStage] || {}).name || budget.lifeStage;
 
   const upd = (fn) => setBudget((b) => fn(b));
+
+  // Shared grid markup — rendered inline (compact) and inside the pop-out modal (tall), so both
+  // views stay in sync with a single implementation.
+  const gridTable = (tall) => (
+    <div className="pp-bud-scroll" style={tall ? { maxHeight: "72vh" } : undefined}>
+      <table className="pp-bud-table">
+        <thead>
+          <tr>
+            <th className="pp-bud-cat">Category</th>
+            {MONTHS.map((m) => <th key={m} className="pp-bud-num">{m}</th>)}
+            <th className="pp-bud-num pp-bud-annual-h">Annual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {SECTIONS.map((sec) => {
+            const rows = budget[sec.key];
+            const monthTotals = sectionMonthTotals(rows);
+            const annual = sectionAnnual(rows);
+            return (
+              <SectionBlock
+                key={sec.key}
+                sec={sec} rows={rows} monthTotals={monthTotals} annual={annual}
+                onCell={(id, mi, v) => upd((b) => setCell(b, sec.key, id, mi, v))}
+                onLabel={(id, v) => upd((b) => setRowLabel(b, sec.key, id, v))}
+                onAdd={() => upd((b) => addRow(b, sec.key))}
+                onRemove={(id) => upd((b) => removeRow(b, sec.key, id))}
+                onFill={(id, mi) => upd((b) => fillAcross(b, sec.key, id, mi))}
+              />
+            );
+          })}
+          <tr className={"pp-bud-ncf" + (totals.net < 0 ? " neg" : "")}>
+            <td className="pp-bud-cat">Net cash flow</td>
+            {ncf.map((v, i) => <td key={i} className="pp-bud-num">{v ? fmtMoney(v) : "—"}</td>)}
+            <td className="pp-bud-num pp-bud-annual">{fmtMoney(totals.net)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
 
   const onStageSelect = (key) => { if (key !== budget.lifeStage) setPendingStage(key); };
   const confirmSwap = (applyTemplate) => { upd((b) => swapStage(b, pendingStage, applyTemplate)); setPendingStage(null); };
@@ -257,55 +290,31 @@ export default function Budget({ plan, setPlan }) {
         </div>
       </div>
 
-      {/* The grid — each section is its own scrollable table, synced horizontally, so every
-          section has a reachable scrollbar and a header that actually stays visible. */}
-      <div className="pp-bud-gridwrap">
-        {SECTIONS.map((sec) => {
-          const rows = budget[sec.key];
-          const monthTotals = sectionMonthTotals(rows);
-          const annual = sectionAnnual(rows);
-          return (
-            <div className="pp-bud-scroll" key={sec.key}
-              ref={registerGridScroll(sec.key)} onScroll={handleGridScroll(sec.key)}>
-              <table className="pp-bud-table">
-                <thead>
-                  <tr>
-                    <th className="pp-bud-cat">Category</th>
-                    {MONTHS.map((m) => <th key={m} className="pp-bud-num">{m}</th>)}
-                    <th className="pp-bud-num pp-bud-annual-h">Annual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <SectionBlock
-                    sec={sec} rows={rows} monthTotals={monthTotals} annual={annual}
-                    onCell={(id, mi, v) => upd((b) => setCell(b, sec.key, id, mi, v))}
-                    onLabel={(id, v) => upd((b) => setRowLabel(b, sec.key, id, v))}
-                    onAdd={() => upd((b) => addRow(b, sec.key))}
-                    onRemove={(id) => upd((b) => removeRow(b, sec.key, id))}
-                    onFill={(id, mi) => upd((b) => fillAcross(b, sec.key, id, mi))}
-                  />
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
-        {/* Net cash flow — a single always-visible row, no header needed, still scroll-synced */}
-        <div className="pp-bud-scroll pp-bud-ncfscroll" ref={registerGridScroll("ncf")} onScroll={handleGridScroll("ncf")}>
-          <table className="pp-bud-table">
-            <tbody>
-              <tr className={"pp-bud-ncf" + (totals.net < 0 ? " neg" : "")}>
-                <td className="pp-bud-cat">Net cash flow</td>
-                {ncf.map((v, i) => <td key={i} className="pp-bud-num">{v ? fmtMoney(v) : "—"}</td>)}
-                <td className="pp-bud-num pp-bud-annual">{fmtMoney(totals.net)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      {/* The grid — one continuous table. Category column stays put on horizontal scroll (as
+          before); the column header and the current section name now both stay put on vertical
+          scroll too, since .pp-bud-scroll is a properly bounded scroll viewport. */}
+      <div className="pp-bud-gridhead">
+        <button className="pp-bud-popout" onClick={() => setExpanded(true)}>
+          <Maximize2 size={14} /> Pop out
+        </button>
       </div>
+      {gridTable(false)}
       <p className="pp-help" style={{ marginTop: 10 }}>
         Tip: enter an amount, then click the <b>»</b> that appears to copy it across the rest of the year.
         Click any row label to rename it, add your own rows, or scroll sideways for later months — the <b>Annual</b> column and totals update as you type.
       </p>
+
+      {expanded && (
+        <div className="pp-auth-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setExpanded(false); }}>
+          <div className="pp-bud-modal" role="dialog" aria-modal="true" aria-labelledby="bud-modal-title">
+            <button className="pp-auth-x" onClick={() => setExpanded(false)} aria-label="Close">
+              <X size={17} />
+            </button>
+            <div className="pp-bud-modal-head" id="bud-modal-title">Your {store.activeYear} budget</div>
+            {gridTable(true)}
+          </div>
+        </div>
+      )}
 
       {/* Life stage reference */}
       <div className="pp-bud-guidewrap">
