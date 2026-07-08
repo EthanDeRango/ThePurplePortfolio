@@ -342,7 +342,8 @@ function SectionBlock({ sec, rows, monthTotals, annual, onCell, onLabel, onAdd, 
   return (
     <>
       <tr className={"pp-bud-sechead " + sec.tone}>
-        <td className="pp-bud-cat" colSpan={14}>{sec.title}</td>
+        <td className="pp-bud-cat pp-bud-sechead-label">{sec.title}</td>
+        <td className="pp-bud-sechead-fill" colSpan={13} />
       </tr>
       {rows.map((row) => {
         const tip = ACCOUNT_TIPS[row.label];

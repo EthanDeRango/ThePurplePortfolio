@@ -1844,18 +1844,22 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-num { padding: 8px 10px; color: var(--ink); }
 .pp-bud-annual { font-weight: 800; color: var(--plum); background: #F3EFFA; }
 
-/* Section header rows — the main colour cue between sections. Sticky, stacked just below the
-   (also sticky) column header, so the section name stays visible while scrolling its rows. */
-.pp-bud-sechead td {
-  font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; padding: 8px 14px; color: #fff;
-  position: sticky; top: 38px; z-index: 2;
+/* Section header rows — the main colour cue between sections. Two cells instead of one colspan
+   cell: the label cell reuses .pp-bud-cat's already-proven top+left sticky (same as every data
+   row's category cell); the fill cell only needs to pin vertically (it's just colour, no text).
+   A single cell trying to pin on both axes at once while also spanning all 14 columns turned out
+   to be unreliable — nesting a second sticky element inside it didn't fix that either — so this
+   avoids the combination entirely instead of fighting it. */
+.pp-bud-sechead-label {
+  position: sticky; top: 38px; left: 0; z-index: 3;
+  font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
+  padding: 8px 14px; white-space: nowrap; color: #fff;
+  border-right-color: transparent;
 }
+.pp-bud-sechead-fill { position: sticky; top: 38px; z-index: 2; padding: 0; }
 .pp-bud-sechead.inc td { background: #3A2168; }
 .pp-bud-sechead.exp td { background: #7A2E3E; }
 .pp-bud-sechead.inv td { background: #1F5A3F; }
-/* Vertical stickiness only here (not left) — combining both sticky axes on a colspan cell is
-   unreliable across browsers, and the reported issue was specifically about vertical scroll. */
-.pp-bud-sechead td.pp-bud-cat { border-right-color: transparent; left: auto; }
 
 /* Pop-out */
 .pp-bud-gridhead { display: flex; justify-content: flex-end; margin-bottom: 8px; }
