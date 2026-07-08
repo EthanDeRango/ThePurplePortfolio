@@ -55,6 +55,7 @@ html { scroll-padding-top: 90px; }
 .pp a { color: inherit; }
 
 .pp-wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+.pp-wrap-wide { max-width: 1400px; }
 .pp-section { padding: 64px 0; }
 .pp-eyebrow {
   font-size: 11px;
@@ -1741,7 +1742,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 }
 
 /* ─── Budget tab ─────────────────────────────────────────────────────────── */
-.pp-bud-head { margin-bottom: 4px; }
+.pp-bud-head { margin-bottom: 14px; }
 .pp-btn-gold {
   background: linear-gradient(135deg, #C99A42 0%, #B8972E 100%);
   color: #2A1A05; border: none; font-weight: 800;
@@ -1754,7 +1755,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-sync {
   display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
   background: linear-gradient(135deg, #2D6A4F 0%, #245741 100%); color: #EAF7F0;
-  border-radius: 14px; padding: 13px 16px; margin: 0 0 16px;
+  border-radius: 14px; padding: 16px 20px; margin: 18px 0 20px;
 }
 .pp-bud-sync-main { display: flex; align-items: flex-start; gap: 11px; }
 .pp-bud-sync-tick { flex: none; margin-top: 2px; color: #BFF0D6; }
@@ -1766,7 +1767,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-sync-x:hover { background: rgba(255,255,255,.18); color: #fff; }
 
 /* Toolbar — fields on the left, Refresh + Export on the right */
-.pp-bud-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 6px 0 18px; }
+.pp-bud-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 10px 0 24px; }
 .pp-bud-toolbar-fields { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
 .pp-bud-toolbar-fields .pp-select { min-width: 190px; }
 .pp-bud-toolbar-actions { display: flex; gap: 10px; align-items: center; }
@@ -1802,13 +1803,13 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 
 /* Summary bar */
 .pp-bud-summary {
-  display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center;
-  background: var(--paper-card); border: 1px solid var(--line); border-radius: 14px;
-  padding: 15px 20px; margin: 0 0 18px;
+  display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: center;
+  background: var(--paper-card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 20px 24px; margin: 0 0 24px;
 }
-.pp-bud-stat { display: flex; flex-direction: column; gap: 1px; }
+.pp-bud-stat { display: flex; flex-direction: column; gap: 2px; }
 .pp-bud-stat span { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-.pp-bud-stat b { font-size: 19px; color: var(--plum); font-variant-numeric: tabular-nums; }
+.pp-bud-stat b { font-size: 21px; color: var(--plum); font-variant-numeric: tabular-nums; }
 .pp-bud-stat-sub { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--gold); margin-top: 1px; }
 .pp-bud-stat.net b { color: #2D6A4F; }
 .pp-bud-stat.net.neg b { color: #B33; }
@@ -1821,14 +1822,14 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 /* One continuous table, in a properly bounded (max-height + overflow-y) scroll viewport — that
    boundedness is what makes position:sticky reliable and keeps the horizontal scrollbar within
    easy reach, instead of an unbounded page-scrolled table pushing it far down the page. */
-.pp-bud-scroll { overflow: auto; max-height: 560px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.pp-bud-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; table-layout: fixed; font-size: 13px; }
+.pp-bud-scroll { overflow: auto; max-height: 640px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.pp-bud-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1160px; table-layout: fixed; font-size: 13.5px; }
 .pp-bud-table th, .pp-bud-table td { border-bottom: 1px solid #ECEAF2; }
 
 /* Header */
 .pp-bud-table thead th {
-  background: #2E1452; color: #EDE6F7; font-weight: 700; font-size: 11px; letter-spacing: .04em;
-  text-transform: uppercase; text-align: right; padding: 11px 10px; position: sticky; top: 0; z-index: 2;
+  background: #2E1452; color: #EDE6F7; font-weight: 700; font-size: 11.5px; letter-spacing: .04em;
+  text-transform: uppercase; text-align: right; padding: 13px 12px; position: sticky; top: 0; z-index: 2;
 }
 .pp-bud-table thead th.pp-bud-cat { text-align: left; color: #C9B6EE; }
 .pp-bud-table thead th.pp-bud-annual-h { color: #E7C969; }
@@ -1836,12 +1837,12 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 /* Category column — a distinct label panel, clearly set apart from the data grid. Fixed (not
    min-) widths under table-layout:fixed, so columns render identically at any scroll position. */
 .pp-bud-cat {
-  text-align: left; width: 196px; position: sticky; left: 0; z-index: 1;
+  text-align: left; width: 212px; position: sticky; left: 0; z-index: 1;
   background: #F6F4FA; border-right: 2px solid #DDD5EC;
 }
 .pp-bud-table thead th.pp-bud-cat { z-index: 3; }
-.pp-bud-num, .pp-bud-numcell { text-align: right; width: 78px; font-variant-numeric: tabular-nums; }
-.pp-bud-num { padding: 8px 10px; color: var(--ink); }
+.pp-bud-num, .pp-bud-numcell { text-align: right; width: 84px; font-variant-numeric: tabular-nums; }
+.pp-bud-num { padding: 10px 12px; color: var(--ink); }
 .pp-bud-annual { font-weight: 800; color: var(--plum); background: #F3EFFA; }
 
 /* Section header rows — the main colour cue between sections. Two cells instead of one colspan
@@ -1851,12 +1852,12 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
    to be unreliable — nesting a second sticky element inside it didn't fix that either — so this
    avoids the combination entirely instead of fighting it. */
 .pp-bud-sechead-label {
-  position: sticky; top: 38px; left: 0; z-index: 3;
-  font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
-  padding: 8px 14px; white-space: nowrap; color: #fff;
+  position: sticky; top: 44px; left: 0; z-index: 3;
+  font-weight: 800; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase;
+  padding: 10px 14px; white-space: nowrap; color: #fff;
   border-right-color: transparent;
 }
-.pp-bud-sechead-fill { position: sticky; top: 38px; z-index: 2; padding: 0; }
+.pp-bud-sechead-fill { position: sticky; top: 44px; z-index: 2; padding: 0; }
 .pp-bud-sechead.inc td { background: #3A2168; }
 .pp-bud-sechead.exp td { background: #7A2E3E; }
 .pp-bud-sechead.inv td { background: #1F5A3F; }
@@ -1898,10 +1899,10 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-row:hover td { background: #F8F4FD; }
 .pp-bud-row:hover .pp-bud-cat { background: #EBE5F6; }
 
-.pp-bud-labelwrap { display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 11px; }
+.pp-bud-labelwrap { display: flex; align-items: center; gap: 4px; padding: 5px 10px 5px 13px; }
 .pp-bud-label {
   flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 6px;
-  font-size: 13px; font-weight: 700; color: var(--ink); padding: 5px 6px; font-family: inherit;
+  font-size: 13.5px; font-weight: 700; color: var(--ink); padding: 6px 7px; font-family: inherit;
 }
 .pp-bud-label:hover { border-color: #D8D0E8; background: #fff; }
 .pp-bud-label:focus { outline: none; border-color: var(--plum); background: #fff; }
@@ -1917,7 +1918,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-cellwrap { position: relative; display: flex; }
 .pp-bud-cell {
   width: 100%; border: 1.5px solid transparent; background: transparent; text-align: right;
-  font-size: 13px; padding: 8px 10px; color: var(--ink); font-family: inherit; font-variant-numeric: tabular-nums;
+  font-size: 13.5px; padding: 10px 12px; color: var(--ink); font-family: inherit; font-variant-numeric: tabular-nums;
 }
 .pp-bud-cell::placeholder { color: #CFC8DE; }
 .pp-bud-cell:focus { outline: none; border-color: #B8972E; background: #fff; border-radius: 6px; box-shadow: 0 0 0 2px rgba(184,151,46,.18); }
@@ -1933,7 +1934,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-cellwrap:focus-within .pp-bud-cell { padding-right: 26px; }
 
 /* Section total rows — bold, light, with a clear top rule */
-.pp-bud-total td { background: #EEE9F7; color: var(--plum); padding: 9px 10px; font-weight: 800; border-top: 2px solid #C9B6EE; }
+.pp-bud-total td { background: #EEE9F7; color: var(--plum); padding: 11px 12px; font-weight: 800; border-top: 2px solid #C9B6EE; }
 .pp-bud-total .pp-bud-cat { background: #EEE9F7; border-left: 4px solid transparent; }
 .pp-bud-total .pp-bud-annual { color: var(--plum); background: #E6DDF5; }
 .pp-bud-addrow {

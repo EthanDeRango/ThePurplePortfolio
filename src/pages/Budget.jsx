@@ -145,11 +145,11 @@ export default function Budget({ plan, setPlan }) {
   const hasPlannerData = derived.monthlyIncome > 0 || derived.monthlyExpenses > 0 || derived.monthlySavings > 0 || !!derived.lifeStage;
 
   return (
-    <div className="pp-wrap pp-section">
+    <div className="pp-wrap pp-wrap-wide pp-section">
       <span className="pp-eyebrow"><Wallet size={14} /> Budget Workbook</span>
       <div className="pp-bud-head">
-        <h1 style={{ fontSize: 40, margin: "12px 0 8px" }}>Your month-by-month budget.</h1>
-        <p style={{ color: "var(--muted)", fontSize: 16, maxWidth: "42em" }}>
+        <h1 style={{ fontSize: 42, margin: "14px 0 10px" }}>Your month-by-month budget.</h1>
+        <p style={{ color: "var(--muted)", fontSize: 16.5, maxWidth: "42em" }}>
           Optional, and built for the detail-minded. Fill in a real year, watch your net cash flow,
           and (if you like) push the numbers back to sharpen your Planner. Download it as an Excel
           workbook any time.
@@ -160,7 +160,7 @@ export default function Budget({ plan, setPlan }) {
         <Lock size={15} />
         <span><b>Private by default.</b> Everything here stays in your browser. Nothing is sent anywhere, and completing it is entirely optional.</span>
       </div>
-      <div style={{ height: 10 }} />
+      <div style={{ height: 16 }} />
       <Disclaimer />
       {exportErr && (
         <div className="pp-bud-alert err"><Info size={15} /> Couldn't build the Excel file. Please try again.</div>
