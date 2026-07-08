@@ -889,8 +889,10 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-next-link:hover { background: #EDE3FA; }
 .pp-secnav button.core {
   background: #fff; border-color: var(--violet); color: var(--plum);
+  font-size: 15px; font-weight: 800; padding: 10px 20px;
 }
 .pp-secnav button.core.active { background: var(--plum); color: #fff; border-color: var(--plum); }
+@media (max-width: 640px) { .pp-secnav button.core { font-size: 13.5px; padding: 8px 15px; } }
 .pp-secnav a, .pp-secnav button {
   font-size: 12.5px;
   font-weight: 700;
@@ -1816,8 +1818,12 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-push-confirm .pp-btn { padding: 7px 14px; font-size: 13px; }
 
 /* ── Grid ─────────────────────────────────────────────────────────────── */
-.pp-bud-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.pp-bud-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; font-size: 13px; }
+/* Each section (Income/Expenses/Investments/NCF) is its own scrollable table now, so every
+   section has a reachable horizontal scrollbar instead of one sitting far down the page. */
+.pp-bud-gridwrap { display: flex; flex-direction: column; }
+.pp-bud-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 16px; }
+.pp-bud-ncfscroll { margin-bottom: 0; }
+.pp-bud-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; table-layout: fixed; font-size: 13px; }
 .pp-bud-table th, .pp-bud-table td { border-bottom: 1px solid #ECEAF2; }
 
 /* Header */
@@ -1828,22 +1834,31 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 .pp-bud-table thead th.pp-bud-cat { text-align: left; color: #C9B6EE; }
 .pp-bud-table thead th.pp-bud-annual-h { color: #E7C969; }
 
-/* Category column — a distinct label panel, clearly set apart from the data grid */
+/* Category column — a distinct label panel, clearly set apart from the data grid.
+   Fixed (not min-) widths, needed so the four independent tables size their columns
+   identically regardless of each one's own row content — otherwise synced horizontal
+   scrolling would drift out of alignment between sections. */
 .pp-bud-cat {
-  text-align: left; min-width: 196px; position: sticky; left: 0; z-index: 1;
+  text-align: left; width: 196px; position: sticky; left: 0; z-index: 1;
   background: #F6F4FA; border-right: 2px solid #DDD5EC;
 }
 .pp-bud-table thead th.pp-bud-cat { z-index: 3; }
-.pp-bud-num, .pp-bud-numcell { text-align: right; min-width: 78px; font-variant-numeric: tabular-nums; }
+.pp-bud-num, .pp-bud-numcell { text-align: right; width: 78px; font-variant-numeric: tabular-nums; }
 .pp-bud-num { padding: 8px 10px; color: var(--ink); }
 .pp-bud-annual { font-weight: 800; color: var(--plum); background: #F3EFFA; }
 
-/* Section header rows — the main colour cue between sections */
-.pp-bud-sechead td { font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; padding: 8px 14px; color: #fff; }
+/* Section header rows — the main colour cue between sections. Sticky, stacked just below the
+   (also sticky) column header, so the section name stays visible while scrolling its rows. */
+.pp-bud-sechead td {
+  font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; padding: 8px 14px; color: #fff;
+  position: sticky; top: 38px; z-index: 2;
+}
 .pp-bud-sechead.inc td { background: #3A2168; }
 .pp-bud-sechead.exp td { background: #7A2E3E; }
 .pp-bud-sechead.inv td { background: #1F5A3F; }
-.pp-bud-sechead td.pp-bud-cat { border-right-color: transparent; }
+/* Vertical stickiness only here (not left) — combining both sticky axes on a colspan cell is
+   unreliable across browsers, and the reported issue was specifically about vertical scroll. */
+.pp-bud-sechead td.pp-bud-cat { border-right-color: transparent; left: auto; }
 
 /* Data rows — neutral cells so labels and numbers read cleanly; section shown by a left accent on the label column */
 .pp-bud-row td { background: #fff; }

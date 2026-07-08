@@ -20,7 +20,9 @@ describe('Budget — render', () => {
   it('mounts and shows the grid, all 12 months, and the export button', () => {
     renderBudget(PLAN);
     expect(screen.getByRole('heading', { name: /month-by-month budget/i })).toBeInTheDocument();
-    for (const m of ['Jan', 'Jun', 'Dec']) expect(screen.getByText(m)).toBeInTheDocument();
+    // Each section (Income/Expenses/Investments) is now its own scrollable table with its own
+    // column header, so month labels legitimately appear more than once.
+    for (const m of ['Jan', 'Jun', 'Dec']) expect(screen.getAllByText(m).length).toBeGreaterThanOrEqual(1);
     // "Net cash flow" appears in both the summary bar and the grid's final row
     expect(screen.getAllByText('Net cash flow').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('button', { name: /Export to Excel/i })).toBeInTheDocument();

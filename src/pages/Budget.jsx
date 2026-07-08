@@ -32,6 +32,23 @@ export default function Budget({ plan, setPlan }) {
   const [refreshed, setRefreshed] = useState(false);
   const firstLoad = useRef(true);
 
+  // Income / Expenses / Investments / Net-cash-flow are now separate scrollable tables (so each
+  // has its own reachable horizontal scrollbar and reliable sticky headers, instead of one giant
+  // shared table whose scrollbar sits far down the page). Keep their horizontal scroll positions
+  // in lockstep so the month columns still line up across all four.
+  const scrollRefs = useRef({});
+  const syncingScroll = useRef(false);
+  const registerGridScroll = (key) => (el) => { scrollRefs.current[key] = el; };
+  const handleGridScroll = (key) => (e) => {
+    if (syncingScroll.current) return;
+    syncingScroll.current = true;
+    const left = e.currentTarget.scrollLeft;
+    Object.entries(scrollRefs.current).forEach(([k, el]) => {
+      if (k !== key && el) el.scrollLeft = left;
+    });
+    syncingScroll.current = false;
+  };
+
   const budget = activeBudget(store);
   const isPlannerYear = num(store.activeYear) === PLANNER_YEAR;
   const setBudget = (updater) =>
@@ -240,41 +257,50 @@ export default function Budget({ plan, setPlan }) {
         </div>
       </div>
 
-      {/* The grid */}
-      <div className="pp-bud-scroll">
-        <table className="pp-bud-table">
-          <thead>
-            <tr>
-              <th className="pp-bud-cat">Category</th>
-              {MONTHS.map((m) => <th key={m}>{m}</th>)}
-              <th className="pp-bud-annual-h">Annual</th>
-            </tr>
-          </thead>
-          <tbody>
-            {SECTIONS.map((sec) => {
-              const rows = budget[sec.key];
-              const monthTotals = sectionMonthTotals(rows);
-              const annual = sectionAnnual(rows);
-              return (
-                <SectionBlock
-                  key={sec.key}
-                  sec={sec} rows={rows} monthTotals={monthTotals} annual={annual}
-                  onCell={(id, mi, v) => upd((b) => setCell(b, sec.key, id, mi, v))}
-                  onLabel={(id, v) => upd((b) => setRowLabel(b, sec.key, id, v))}
-                  onAdd={() => upd((b) => addRow(b, sec.key))}
-                  onRemove={(id) => upd((b) => removeRow(b, sec.key, id))}
-                  onFill={(id, mi) => upd((b) => fillAcross(b, sec.key, id, mi))}
-                />
-              );
-            })}
-            {/* Net cash flow */}
-            <tr className={"pp-bud-ncf" + (totals.net < 0 ? " neg" : "")}>
-              <td className="pp-bud-cat">Net cash flow</td>
-              {ncf.map((v, i) => <td key={i} className="pp-bud-num">{v ? fmtMoney(v) : "—"}</td>)}
-              <td className="pp-bud-num pp-bud-annual">{fmtMoney(totals.net)}</td>
-            </tr>
-          </tbody>
-        </table>
+      {/* The grid — each section is its own scrollable table, synced horizontally, so every
+          section has a reachable scrollbar and a header that actually stays visible. */}
+      <div className="pp-bud-gridwrap">
+        {SECTIONS.map((sec) => {
+          const rows = budget[sec.key];
+          const monthTotals = sectionMonthTotals(rows);
+          const annual = sectionAnnual(rows);
+          return (
+            <div className="pp-bud-scroll" key={sec.key}
+              ref={registerGridScroll(sec.key)} onScroll={handleGridScroll(sec.key)}>
+              <table className="pp-bud-table">
+                <thead>
+                  <tr>
+                    <th className="pp-bud-cat">Category</th>
+                    {MONTHS.map((m) => <th key={m} className="pp-bud-num">{m}</th>)}
+                    <th className="pp-bud-num pp-bud-annual-h">Annual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <SectionBlock
+                    sec={sec} rows={rows} monthTotals={monthTotals} annual={annual}
+                    onCell={(id, mi, v) => upd((b) => setCell(b, sec.key, id, mi, v))}
+                    onLabel={(id, v) => upd((b) => setRowLabel(b, sec.key, id, v))}
+                    onAdd={() => upd((b) => addRow(b, sec.key))}
+                    onRemove={(id) => upd((b) => removeRow(b, sec.key, id))}
+                    onFill={(id, mi) => upd((b) => fillAcross(b, sec.key, id, mi))}
+                  />
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+        {/* Net cash flow — a single always-visible row, no header needed, still scroll-synced */}
+        <div className="pp-bud-scroll pp-bud-ncfscroll" ref={registerGridScroll("ncf")} onScroll={handleGridScroll("ncf")}>
+          <table className="pp-bud-table">
+            <tbody>
+              <tr className={"pp-bud-ncf" + (totals.net < 0 ? " neg" : "")}>
+                <td className="pp-bud-cat">Net cash flow</td>
+                {ncf.map((v, i) => <td key={i} className="pp-bud-num">{v ? fmtMoney(v) : "—"}</td>)}
+                <td className="pp-bud-num pp-bud-annual">{fmtMoney(totals.net)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       <p className="pp-help" style={{ marginTop: 10 }}>
         Tip: enter an amount, then click the <b>»</b> that appears to copy it across the rest of the year.
