@@ -870,7 +870,7 @@ input[type="date"].pp-input { font-family: var(--sans); color: var(--ink); }
 }
 .pp-secnav-guide b { color: var(--plum); }
 .pp-secnav-wrap { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 6px; }
-.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.pp-secnav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; justify-content: center; }
 .pp-secnav-core {
   background: linear-gradient(155deg, var(--violet-soft) 0%, #fff 100%);
   border: 1px solid var(--violet-mid);
