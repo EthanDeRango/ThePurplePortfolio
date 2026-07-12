@@ -1058,10 +1058,14 @@ export default function Dashboard({ plan, setPlan }) {
         )}
         {(() => {
           const gaps = [
-            plan.hasWill && plan.hasWill !== "yes" && { label: "Will", to: "/library/estate/wills" },
-            plan.hasPOA && plan.hasPOA !== "yes" && { label: "Powers of attorney", to: "/library/estate/wills" },
-            plan.hasLifeInsurance && plan.hasLifeInsurance !== "yes" && { label: "Life insurance", to: "/library/insurance/life" },
-            plan.hasDisabilityInsurance && plan.hasDisabilityInsurance !== "yes" && { label: "Disability insurance", to: "/library/insurance/disability" },
+            plan.hasWill && plan.hasWill !== "yes" && { label: "Will", to: "/library/estate/wills",
+              benefit: <>One of the first things a financial planner reviews — <b>recommended for virtually every adult</b>, regardless of net worth.</> },
+            plan.hasPOA && plan.hasPOA !== "yes" && { label: "Powers of attorney", to: "/library/estate/wills",
+              benefit: <>Pairs with a will as a basic estate planning step — <b>recommended for virtually every adult</b>. Protects you if you're ever unable to make decisions yourself, not just after death.</> },
+            plan.hasLifeInsurance && plan.hasLifeInsurance !== "yes" && { label: "Life insurance", to: "/library/insurance/life",
+              benefit: "Worth reviewing if a partner, kids, or debt would be left behind — not a universal need, but a common gap when it does apply." },
+            plan.hasDisabilityInsurance && plan.hasDisabilityInsurance !== "yes" && { label: "Disability insurance", to: "/library/insurance/disability",
+              benefit: "You're statistically more likely to become unable to work than to die before retirement — often skipped because employer coverage feels like enough." },
           ].filter(Boolean);
           if (!gaps.length) return null;
           return (
@@ -1071,7 +1075,7 @@ export default function Dashboard({ plan, setPlan }) {
                 {gaps.map((g) => (
                   <div key={g.label} className="pp-opt-open-row">
                     <div className="pp-opt-open-name">{g.label}</div>
-                    <div className="pp-opt-open-benefit">You told us this isn't in place yet (or you're not sure).</div>
+                    <div className="pp-opt-open-benefit">{g.benefit}</div>
                     <button type="button" className="pp-next-link" style={{ marginTop: 2 }} onClick={() => navigate(g.to)}>Learn the basics →</button>
                   </div>
                 ))}
