@@ -28,11 +28,27 @@ export const yearsUntil = (iso) => {
   return (t.getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
 };
 
+// ── Debts & real estate (itemized) ──────────────────────────────────────────────
+// Sums the itemized liabilities array; falls back to the legacy single-figure field for any
+// plan object that bypassed normalizePlan()'s migration (e.g. a raw object built in a test).
+export const totalLiabilities = (plan) => {
+  const items = plan?.liabilities;
+  if (items?.length) return items.reduce((sum, l) => sum + n(l.balance), 0);
+  return n(plan?.highInterestDebt);
+};
+
+// Sums current equity (value − mortgage balance) across all owned properties.
+export const totalPropertyEquity = (plan) => {
+  const items = plan?.properties;
+  if (!items?.length) return 0;
+  return items.reduce((sum, p) => sum + n(p.value) - n(p.mortgageBalance), 0);
+};
+
 // ── Risk / return ─────────────────────────────────────────────────────────────
 export const riskBy   = (k) => RISK.find((r) => r.key === k) || RISK[1];
 export const planRate = (plan) => {
   if (plan && plan.risk === "custom") { const r = Number(plan.customRate); return isNaN(r) ? 0.08 : r / 100; }
-  return riskBy(plan ? plan.risk : "moderate").ret;
+  return riskBy(plan ? plan.risk : "balanced").ret;
 };
 
 // ── Projection maths ──────────────────────────────────────────────────────────
@@ -185,17 +201,23 @@ export function splitIncome(income, empType, payMix, salaryShare) {
   return { salaryIncome: inc, dividendIncome: 0 };
 }
 
-// Rough CPP + OAS estimate. OAS starts at 65 and is clawed back at higher retirement
-// incomes — we apply the clawback against planned spend PLUS any defined-benefit pension
-// (a DB pension pays out — and is taxed — whether or not it's actually spent, so it can't
-// be netted out of the income proxy the way discretionary spending can) so a pension-heavy,
-// low-spend retiree isn't shown a false $0 clawback.
-export function govBenefitsEstimate(income, retAge, retSpend, pensionIncome = 0) {
+// Rough CPP + OAS estimate. cppStartAge (60-70) is when benefits actually START — separate
+// from retAge (when you stop working), since you can retire at one age and delay CPP/OAS to
+// another. Defaults to retAge, so anyone who doesn't set it gets the old retAge-only behaviour.
+// Starting before 65 permanently reduces CPP (7.2%/yr early); starting after 65 permanently
+// increases it (8.4%/yr late, capped at 70). OAS is only payable from age 65 onward regardless.
+// We apply the clawback against planned spend PLUS any defined-benefit pension (a DB pension
+// pays out — and is taxed — whether or not it's actually spent, so it can't be netted out of
+// the income proxy the way discretionary spending can) so a pension-heavy, low-spend retiree
+// isn't shown a false $0 clawback.
+export function govBenefitsEstimate(income, retAge, retSpend, pensionIncome = 0, cppStartAge = retAge) {
   if (retAge < 60) return { govBenefits: 0, oasClawApplied: 0 };
-  const oasGross = retAge >= 65 ? 8800 : 0;
+  const startAge = Math.min(70, Math.max(60, n(cppStartAge) || retAge));
+  const oasGross = startAge >= 65 ? 8800 : 0;
   const cppFull = n(income) > 0 ? Math.min(17400, Math.max(4000, n(income) * 0.18)) : 8500;
-  const yearsEarly = Math.max(0, 65 - retAge);
-  const cpp = Math.round(cppFull * Math.pow(1 - 0.072, yearsEarly));
+  const yearsFromSixtyFive = 65 - startAge; // positive = early (reduces), negative = late (increases)
+  const cppAdj = yearsFromSixtyFive > 0 ? Math.pow(1 - 0.072, yearsFromSixtyFive) : Math.pow(1.084, -yearsFromSixtyFive);
+  const cpp = Math.round(cppFull * cppAdj);
   // A DB pension (plus CPP/OAS) is taxable whether or not it's actually spent, so the
   // clawback income test can't drop below guaranteed income even at low planned spend.
   const clawIncomeProxy = Math.max(n(retSpend), n(pensionIncome) + cpp + oasGross);

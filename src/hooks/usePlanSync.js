@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase.js";
+import { normalizePlan } from "../data/constants.js";
 
 // Keeps the plan in sync with Supabase when a user is signed in.
 // On login  → loads cloud plan (overrides localStorage if a cloud plan exists).
 // On change → debounced upsert to Supabase (800 ms).
 // On logout → stops syncing; localStorage plan remains intact.
-export function usePlanSync(user, plan, setPlan, PLAN_DEFAULTS) {
+export function usePlanSync(user, plan, setPlan) {
   const initialized = useRef(false);
 
   // Load from cloud on login
@@ -21,7 +22,7 @@ export function usePlanSync(user, plan, setPlan, PLAN_DEFAULTS) {
       .maybeSingle()
       .then(({ data }) => {
         if (data?.plan_data) {
-          setPlan((cur) => ({ ...PLAN_DEFAULTS, ...data.plan_data }));
+          setPlan(() => normalizePlan(data.plan_data));
         }
         initialized.current = true;
       });

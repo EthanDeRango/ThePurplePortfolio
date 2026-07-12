@@ -10,14 +10,24 @@ export const LADDER = [
 ];
 
 export const PLAN_DEFAULTS = {
-  risk: "moderate", customRate: 8, includeMER: false, customFee: 0.5, retAge: 65,
+  risk: "balanced", customRate: 8, includeMER: false, customFee: 0.5, retAge: 65,
+  cppStartAge: "", // blank = starts CPP/OAS the same year as retAge
   buyHome: false, province: "ON", employmentType: "employed", lumpSum: "", contribMode: "flat",
   months: ["","","","","","","","","","","",""], asOf: null, homePrice: "", livingExpenses: "",
   incomeStability: "variable", goals: ["retirement"], employerMatch: "", highInterestDebt: "",
+  // Itemized debts — [{ id, type, balance, rate }]. highInterestDebt (above) is the legacy
+  // single-figure field, kept only so normalizePlan() can migrate old saved plans losslessly.
+  liabilities: [],
+  // Real estate already owned — [{ id, label, value, mortgageBalance }]. Supports multiple
+  // properties (primary residence + rentals/investment properties). Current net worth only —
+  // does not feed future appreciation/rental-income projections (see buyHome for that).
+  properties: [],
   employerMatchMode: "amount", employerMatchPct: "", // RRSP match as $/yr or % of pay
   bNonreg: "", bLocked: "", emergencyStatus: "none", emergencySaved: "", retTaxRate: "",
   holdco: "", // incorporated owners: current value of corporate (holdco) investments — counted in net worth, not projected
-  retSpend: "", inflationRate: 2, customGoals: [],
+  retSpend: "", inflationRate: 2.1, customGoals: [],
+  // Protection check-in — "yes" | "no" | "unsure" | "" (unanswered)
+  hasWill: "", hasPOA: "", hasLifeInsurance: "", hasDisabilityInsurance: "",
   // Account selection (null = not yet set; infer from existing balances for backward compat)
   openAccounts: null,
   // New account balances
@@ -67,3 +77,15 @@ export const PLAN_DEFAULTS = {
 };
 
 export const PLAN_STORAGE_KEY = "pp-plan-v1";
+
+// Merges saved plan data over the current defaults, migrating older shapes losslessly.
+// This is the ONE place that should ever read a raw saved/loaded plan object — every
+// load path (local storage, cloud sync) must go through this before use.
+export function normalizePlan(raw) {
+  const plan = { ...PLAN_DEFAULTS, ...(raw || {}) };
+  if (!plan.liabilities?.length && raw?.highInterestDebt) {
+    plan.liabilities = [{ id: "legacy-debt", type: "Other debt", balance: raw.highInterestDebt, rate: "" }];
+  }
+  if (plan.risk === "moderate") plan.risk = "balanced"; // old 3-tier key, retired in favour of 4 tiers
+  return plan;
+}

@@ -147,6 +147,10 @@ export function runSelfTest() {
     // A big DB pension is taxable whether or not it's spent — low planned spend shouldn't hide the clawback.
     ["low spend, big pension still claws back", govBenefitsEstimate(80000, 65, 40000, 100000).oasClawApplied > 0],
     ["no pension falls back to spend-based proxy", govBenefitsEstimate(80000, 65, 40000).oasClawApplied === 0],
+    // cppStartAge is separate from retAge — you can retire at one age and start CPP/OAS at another.
+    ["blank cppStartAge defaults to retAge",       govBenefitsEstimate(80000, 60, 50000).govBenefits === govBenefitsEstimate(80000, 60, 50000, 0, 60).govBenefits],
+    ["starting CPP early (60) reduces it vs. 65",  govBenefitsEstimate(80000, 65, 50000, 0, 60).govBenefits < govBenefitsEstimate(80000, 65, 50000, 0, 65).govBenefits],
+    ["starting CPP late (70) increases it vs. 65", govBenefitsEstimate(80000, 65, 50000, 0, 70).govBenefits > govBenefitsEstimate(80000, 65, 50000, 0, 65).govBenefits],
 
     // ── savingsSchedule / savingsEventsFor (life events) ──────────────────────
     ["flat schedule when no events",     savingsSchedule(1000, 40, 5, []).every((m) => m === 1000)],

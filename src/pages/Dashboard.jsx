@@ -9,7 +9,7 @@ import {
 import {
   n, fmtMoney, fmtShort, pct1, projectSeriesWithWithdrawals, projectFinal, contributedSeries,
   projectSeriesSchedule, contributedSeriesSchedule,
-  totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv,
+  totalContributed, monthIndexOf, yearsUntil, riskBy, planRate, fv, totalLiabilities, totalPropertyEquity,
   splitIncome, govBenefitsEstimate, retirementWithdrawal, savingsEventsFor, savingsSchedule,
   tfsaCumulativeRoom, rrspEstimatedLimit, fhsaRoomInfo, fhsaDeadline,
   oasClawback, emergencyFundTarget, yourHomeDownPayment, bracketInfo,
@@ -54,12 +54,13 @@ export default function Dashboard({ plan, setPlan }) {
     + n(plan.bLocked) + n(plan.bRrif) + n(plan.bPensionDC) + n(plan.bDpsp);
   const start = startBal + lumpSum;
   // What you're worth today, from the balances entered: investments + RESP/RDSP + any
-  // emergency cash, minus high-interest debt. Grounds the big projected number in reality.
-  const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp) + n(plan.holdco)
+  // emergency cash + real estate equity, minus liabilities. Grounds the big projected number in reality.
+  const propertyEquity = totalPropertyEquity(plan);
+  const netWorthToday = startBal + n(plan.bResp) + n(plan.bRdsp) + n(plan.holdco) + propertyEquity
     + (plan.emergencyStatus === "partial" ? n(plan.emergencySaved) : 0)
-    - n(plan.highInterestDebt)
+    - totalLiabilities(plan)
     + (plan.hasPartner ? n(plan.partner?.bTfsa) + n(plan.partner?.bRrsp) + n(plan.partner?.bFhsa) + n(plan.partner?.bNonreg) : 0);
-  const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0 || n(plan.holdco) > 0;
+  const hasNetWorth = startBal > 0 || n(plan.bResp) > 0 || n(plan.bRdsp) > 0 || n(plan.holdco) > 0 || propertyEquity !== 0;
   const monthsArr = plan.contribMode === "custom" ? (plan.months || null) : null;
   const emergencyFull = plan.emergencyStatus === "full";
   const emergencySaved = n(plan.emergencySaved);
@@ -317,7 +318,7 @@ export default function Dashboard({ plan, setPlan }) {
   const fhsaForceCloseYear = Math.min(fhsaOpenYr + TAX_CONFIG.fhsa.participationYears, age71Year != null ? age71Year : fhsaOpenYr + TAX_CONFIG.fhsa.participationYears);
   const fhsaCloseAge = age > 0 ? age + Math.max(0, fhsaForceCloseYear - TAX_YEAR) : null;
 
-  const inflRate = n(plan.inflationRate) > 0 ? Math.min(0.1, n(plan.inflationRate) / 100) : 0.02;
+  const inflRate = n(plan.inflationRate) > 0 ? Math.min(0.1, n(plan.inflationRate) / 100) : 0.021;
 
   const retSpendDefault = income > 0 ? Math.round(income * 0.7) : 50000;
   const retSpend = n(plan.retSpend) > 0 ? n(plan.retSpend) : retSpendDefault;
@@ -328,7 +329,7 @@ export default function Dashboard({ plan, setPlan }) {
     return startAge <= retAge ? mo * 12 : 0;
   })();
   // Rough CPP + OAS estimate (with OAS clawback applied) — see govBenefitsEstimate.
-  const { govBenefits, oasClawApplied } = govBenefitsEstimate(income, retAge, retSpend, pensionDBIncome);
+  const { govBenefits, oasClawApplied } = govBenefitsEstimate(income, retAge, retSpend, pensionDBIncome, n(plan.cppStartAge) || retAge);
   // Safe-withdrawal rate scales down as retirement lengthens (sequence-of-returns risk).
   const { rate: safeWithdrawalRate, multiple: nestEggMultiple, lengthYears: retLengthYears } = retirementWithdrawal(retAge);
   const retNeedToday = Math.max(0, retSpend - pensionDBIncome - govBenefits) / safeWithdrawalRate;
@@ -381,7 +382,7 @@ export default function Dashboard({ plan, setPlan }) {
   const annInv = investedFromMonth(plan, monthly, 0);
   const restOfYearInvestable = investedFromMonth(plan, monthly, startMonth);
   const matchAmt = employerMatchAmount(plan);
-  const debt = n(plan.highInterestDebt);
+  const debt = totalLiabilities(plan);
 
   // "This year only" projection — what does just this year's new money grow to?
   // Step 1: what's the balance at end of year 1 from new contributions (no starting balance)
@@ -423,7 +424,7 @@ export default function Dashboard({ plan, setPlan }) {
 
   // ── Per-account stacked series ────────────────────────────────────────────────
   const mortgageRateDecimal = n(plan.mortgageRate)     > 0 ? n(plan.mortgageRate) / 100     : 0.05;
-  const homeApprecDecimal   = n(plan.homeAppreciation) > 0 ? n(plan.homeAppreciation) / 100 : 0.025;
+  const homeApprecDecimal   = n(plan.homeAppreciation) > 0 ? n(plan.homeAppreciation) / 100 : 0.031;
   const planAcctKey = JSON.stringify({
     bTfsa: plan.bTfsa, bRrsp: plan.bRrsp, bLocked: plan.bLocked, bRrif: plan.bRrif,
     bFhsa: plan.bFhsa, bPensionDC: plan.bPensionDC, bDpsp: plan.bDpsp,
@@ -757,14 +758,14 @@ export default function Dashboard({ plan, setPlan }) {
               In plain terms: that could pay you ~<b style={{ color: "#fff" }}>{fmtMoney(dispVal(selFinal) * safeWithdrawalRate)}/yr</b> throughout retirement without running out.
             </div>
             <div style={{ marginTop: 12, fontSize: 13.5, color: "rgba(220,205,240,.92)", lineHeight: 1.55 }}>
-              The three figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at {pct1(RISK.find((r) => r.key === "conservative").ret)}/yr to {fmtMoney(dispVal(finals.aggressive))} at {pct1(RISK.find((r) => r.key === "aggressive").ret)}/yr). They are not a downturn simulation.
+              The figures below assume different <b style={{ color: "#fff" }}>average</b> returns ({fmtMoney(dispVal(finals.conservative))} at {pct1(RISK.find((r) => r.key === "conservative").ret)}/yr to {fmtMoney(dispVal(finals.aggressive))} at {pct1(RISK.find((r) => r.key === "aggressive").ret)}/yr). They are not a downturn simulation — and the two higher tiers assume long-run historical averages, not a guarantee.
               {stressFinal > 0 && hasData && <> If markets fall hard in your last {Math.min(5, years)} years before {retAge} (sequence-of-returns risk, the worst timing), you could land nearer <b style={{ color: "#fff" }}>{fmtMoney(dispVal(stressFinal))}</b> even at a {pct1(ret)} long-run average.</>} Plan for a range, not one number.
               {glidePathOn && <> <b style={{ color: "#fff" }}>Glide path on:</b> your assumed return steps down the closer you get to {retAge} — full rate with 10+ years left, capped near 2%/yr (cash/HISA-like) in the final year — instead of one flat rate the whole way.</>}
             </div>
             <div className="pp-scn">
               {RISK.map((r) => (
                 <div className="pp-scnc" key={r.key}>
-                  <div className="lab" style={{ color: r.key === plan.risk ? "var(--gold-2)" : undefined }}>{r.name} <span style={{ fontWeight: 600, opacity: 0.7 }}>· {Math.round(r.ret * 100)}%/yr</span></div>
+                  <div className="lab" style={{ color: r.key === plan.risk ? "var(--gold-2)" : undefined }}>{r.name} <span style={{ fontWeight: 600, opacity: 0.7 }}>· {r.ret * 100 % 1 === 0 ? Math.round(r.ret * 100) : (r.ret * 100).toFixed(2)}%/yr</span></div>
                   <div className="val">{fmtMoney(dispVal(finals[r.key]))}</div>
                 </div>
               ))}
@@ -824,7 +825,7 @@ export default function Dashboard({ plan, setPlan }) {
           <div className="pp-snapc" style={{ borderColor: "var(--violet-mid)" }}>
             <div className="l">Net worth today</div>
             <div className="v">{fmtMoney(netWorthToday)}</div>
-            <div className="h">{n(plan.highInterestDebt) > 0 ? "your account balances, minus debt" : "across the accounts you entered"}</div>
+            <div className="h">{totalLiabilities(plan) > 0 ? "your account balances, minus debt" : "across the accounts you entered"}</div>
           </div>
         )}
         {hasData && <div className="pp-snapc"><div className="l">Projected total{hasPartner && householdFinal ? " (combined)" : ""}</div><div className="v">{fmtMoney(dispVal(hasPartner && householdFinal ? householdFinal : selFinal))}</div><div className="h">by age {retAge}</div></div>}
@@ -1055,6 +1056,30 @@ export default function Dashboard({ plan, setPlan }) {
             <p className="pp-opt-open-note">These accounts are available to you based on your age, income, and goals. Your plan would be stronger with them in it.</p>
           </div>
         )}
+        {(() => {
+          const gaps = [
+            plan.hasWill && plan.hasWill !== "yes" && { label: "Will", to: "/library/estate/wills" },
+            plan.hasPOA && plan.hasPOA !== "yes" && { label: "Powers of attorney", to: "/library/estate/wills" },
+            plan.hasLifeInsurance && plan.hasLifeInsurance !== "yes" && { label: "Life insurance", to: "/library/insurance/life" },
+            plan.hasDisabilityInsurance && plan.hasDisabilityInsurance !== "yes" && { label: "Disability insurance", to: "/library/insurance/disability" },
+          ].filter(Boolean);
+          if (!gaps.length) return null;
+          return (
+            <div className="pp-opt-open">
+              <div className="pp-opt-open-hd"><Shield size={13} /> Protect your plan</div>
+              <div className="pp-opt-open-list">
+                {gaps.map((g) => (
+                  <div key={g.label} className="pp-opt-open-row">
+                    <div className="pp-opt-open-name">{g.label}</div>
+                    <div className="pp-opt-open-benefit">You told us this isn't in place yet (or you're not sure).</div>
+                    <button type="button" className="pp-next-link" style={{ marginTop: 2 }} onClick={() => navigate(g.to)}>Learn the basics →</button>
+                  </div>
+                ))}
+              </div>
+              <p className="pp-opt-open-note">Growing your investments doesn't protect the people who depend on you if something happens to you first — this is the other half of a real plan.</p>
+            </div>
+          );
+        })()}
 
         <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 12 }}>All steps above draw from the same {monthly > 0 ? fmtMoney(monthly) + "/month" : "monthly savings"} pool — it's one budget, in priority order. This is a widely used Canadian priority framework applied to your situation — sensible defaults, not personal advice. Your circumstances may justify a different order.</p>
         {!activeTabs.has("sec-compare") && (

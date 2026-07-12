@@ -14,7 +14,7 @@ function niceCeil(v) {
 // areas instead of a single line. Each layer stacks on top of the previous one.
 export default function GrowthChart({
   series, optSeries, contribSeries, years, startAge,
-  homeIdx, homeAge, fhsaIdx, color, inflation, inflRate = 0.02,
+  homeIdx, homeAge, fhsaIdx, color, inflation, inflRate = 0.021,
   afterTax, retMarginal, rrspShare,
   milestones,
   stackedSeries,

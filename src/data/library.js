@@ -14,6 +14,7 @@ export const LIBRARY = [
     desc: "The Canadian accounts that let your money grow with major tax advantages.",
     topics: [
       { key: "tfsa", name: "TFSA", lead: "The Tax-Free Savings Account — flexible, tax-free, and the right starting point for most Canadians.",
+        calc: "compound",
         prose: [
           "A TFSA is a registered account where your investments grow completely tax-free. You pay no tax on interest, dividends, or capital gains earned inside it, and — unlike most accounts — no tax when you take money out.",
           "The trade-off: contributions are not tax-deductible, so you fund it with after-tax money. In return, everything afterward is tax-free. It's also very flexible — withdraw anytime, and the room you used returns the following calendar year.",
@@ -271,6 +272,7 @@ export const LIBRARY = [
         facts: [["Score range","300-900"],["\"Good\" territory","~660+"],["Payment history","35% of your score"],["Amounts owed","30% of your score"],["Length of history","15% of your score"]],
         callout: "Payment history and amounts owed make up nearly two-thirds of your score — the two things most in your control matter the most." },
       { key: "snowballavalanche", name: "Debt Snowball vs. Avalanche", lead: "Two competing strategies for which debt to attack first when you're juggling more than one.",
+        calc: "cctrap",
         prose: [
           "If you have several debts and extra money to throw at them, you have to pick an order. The avalanche method pays minimums on everything and puts every spare dollar toward the highest-interest debt first — mathematically, this saves the most money and clears your debt fastest overall.",
           "The snowball method instead attacks the smallest balance first, regardless of interest rate, then rolls that payment into the next-smallest once it's gone. It's not the optimal path on paper, but clearing a whole debt fast creates a real motivational win that keeps people going — and a plan you actually stick with beats a theoretically optimal one you abandon.",

@@ -313,15 +313,17 @@ export default function Planner({ plan, setPlan }) {
             <div className="pp-field">
               <label className="pp-label2">Employment type</label>
               <div className="pp-toggle">
-                <button className={plan.employmentType === "employed" ? "on" : ""} aria-pressed={plan.employmentType === "employed"} onClick={() => set("employmentType", "employed")}>Employed</button>
+                <button className={plan.employmentType !== "self" && plan.employmentType !== "incorporated" ? "on" : ""} aria-pressed={plan.employmentType !== "self" && plan.employmentType !== "incorporated"} onClick={() => set("employmentType", "employed")}>Employed</button>
                 <button className={plan.employmentType === "self" ? "on" : ""} aria-pressed={plan.employmentType === "self"} onClick={() => set("employmentType", "self")}>Self-employed</button>
-                <button className={plan.employmentType === "incorporated" ? "on" : ""} aria-pressed={plan.employmentType === "incorporated"} onClick={() => set("employmentType", "incorporated")}>Incorporated</button>
               </div>
               <div className="pp-help">{plan.employmentType === "self"
                 ? <>Self-employed people pay <b>both</b> the employee and employer halves of CPP (Canada Pension Plan), roughly double the normal deduction. No EI (Employment Insurance) typically applies.</>
                 : plan.employmentType === "incorporated"
                   ? <>We model how you pay <i>yourself</i> personally: salary (with CPP) and/or dividends (no CPP/EI, taxed with the dividend tax credit). We do <b>not</b> model corporate tax, retained earnings, or salary-vs-dividend optimization inside the company. Your accountant handles those.</>
                   : <>Standard CPP pension contributions and EI (Employment Insurance) premiums are deducted from your pay.</>}</div>
+              <button type="button" className="pp-next-link" style={{ marginTop: 6 }} onClick={() => set("employmentType", "incorporated")}>
+                {plan.employmentType === "incorporated" ? "✓ Paying yourself through a corporation" : "+ I run this through a corporation"}
+              </button>
             </div>
           </div>
 
@@ -358,6 +360,49 @@ export default function Planner({ plan, setPlan }) {
               </div>
             </div>
           )}
+
+          <div className="pp-field" style={{ marginTop: 18 }}>
+            <label className="pp-label2">Do you already own real estate?</label>
+            <div className="pp-toggle">
+              <button className={plan.properties?.length ? "on" : ""} aria-pressed={!!plan.properties?.length}
+                onClick={() => set("properties", plan.properties?.length ? plan.properties : [{ id: String(Date.now()), label: "Primary residence", value: "", mortgageBalance: "" }])}>Yes</button>
+              <button className={!plan.properties?.length ? "on" : ""} aria-pressed={!plan.properties?.length}
+                onClick={() => set("properties", [])}>No</button>
+            </div>
+          </div>
+
+          {!!plan.properties?.length && (() => {
+            const props = plan.properties;
+            const upd = (id, key, val) => set("properties", props.map((p) => p.id === id ? { ...p, [key]: val } : p));
+            const add = () => set("properties", [...props, { id: String(Date.now()), label: "Rental property", value: "", mortgageBalance: "" }]);
+            const rm = (id) => set("properties", props.filter((p) => p.id !== id));
+            return (
+              <div className="pp-subcard" style={{ marginTop: 8 }}>
+                <p className="pp-sub-h">Your properties</p>
+                <div className="pp-help" style={{ marginTop: 0 }}>
+                  A primary residence, a rental, an investment property — add each one. This is counted in your net worth today; it doesn't add future appreciation projections.
+                </div>
+                {props.map((p) => (
+                  <div key={p.id} className="pp-lifeevent">
+                    <input className="pp-input" placeholder="e.g. Primary residence"
+                      value={p.label || ""} onChange={(ev) => upd(p.id, "label", ev.target.value)} />
+                    <div className="pp-lifeevent-row">
+                      <div className="pp-input-wrap" style={{ maxWidth: 160 }}><span className="pp-adorn">$</span>
+                        <input className="pp-input" inputMode="numeric" placeholder="current value"
+                          value={p.value || ""} onChange={(ev) => upd(p.id, "value", ev.target.value.replace(/[^0-9]/g, ""))} /></div>
+                      <div className="pp-input-wrap" style={{ maxWidth: 160 }}><span className="pp-adorn">$</span>
+                        <input className="pp-input" inputMode="numeric" placeholder="mortgage owed"
+                          value={p.mortgageBalance || ""} onChange={(ev) => upd(p.id, "mortgageBalance", ev.target.value.replace(/[^0-9]/g, ""))} /></div>
+                      <button type="button" className="pp-lifeevent-rm" onClick={() => rm(p.id)} aria-label="Remove">✕</button>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }} onClick={add}>
+                  + Add another property
+                </button>
+              </div>
+            );
+          })()}
 
           <div className="pp-field" style={{ marginTop: 18 }}>
             <label className="pp-label2">Planning with a partner?</label>
@@ -434,15 +479,15 @@ export default function Planner({ plan, setPlan }) {
             <div className="pp-seg">
               {RISK.map((r) => (
                 <button key={r.key} className={"pp-segc" + (plan.risk === r.key ? " on" : "")} aria-pressed={plan.risk === r.key} onClick={() => set("risk", r.key)}>
-                  <div className="nm">{r.name} <span className="rt">~{Math.round(r.ret * 100)}%/yr</span></div>
+                  <div className="nm">{r.name} <span className="rt">~{r.ret * 100 % 1 === 0 ? Math.round(r.ret * 100) : (r.ret * 100).toFixed(2)}%/yr</span></div>
                   <div className="ds">{r.desc}</div>
+                  <div className="pp-risk-basis">{r.basis}</div>
                   <div className="who">Is this you? <i>{r.who}</i></div>
                 </button>
               ))}
             </div>
-            <button className={"pp-segc" + (plan.risk === "custom" ? " on" : "")} aria-pressed={plan.risk === "custom"} style={{ marginTop: 10, display: "block", width: "100%" }} onClick={() => set("risk", "custom")}>
-              <div className="nm">Set my own rate <span className="rt">{plan.risk === "custom" ? `~${Number(plan.customRate || 0)}%/yr` : "custom"}</span></div>
-              <div className="ds">Prefer your own assumption? Use any annual return you like.</div>
+            <button type="button" className="pp-next-link" style={{ marginTop: 10 }} onClick={() => set("risk", "custom")}>
+              {plan.risk === "custom" ? `+ Using your own rate (~${Number(plan.customRate || 0)}%/yr) — change` : "+ Prefer to set your own return assumption?"}
             </button>
             {plan.risk === "custom" && (
               <div className="pp-field" style={{ marginTop: 12, marginBottom: 0 }}>
@@ -472,7 +517,7 @@ export default function Planner({ plan, setPlan }) {
                 <div className="pp-help">MER (Management Expense Ratio) is the annual fee your fund charges, usually 0.1–2.5%. Low-cost index ETFs are typically under 0.25%. The preset rates above already include fees.</div>
               </div>
             )}
-            <div className="pp-help">Those percentages are illustrative long-run averages. Real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
+            <div className="pp-help">Conservative and Balanced use FP Canada's 2026 Projection Assumption Guidelines; Growth and Aggressive use long-run historical market averages instead — a different, more optimistic basis. Real returns vary year to year and aren't guaranteed. You can change this anytime on your dashboard.</div>
           </div>
         </div>
 
@@ -617,8 +662,13 @@ export default function Planner({ plan, setPlan }) {
               help={<>In <b>today's</b> dollars, what would a comfortable year cost? We size the nest egg you'd need, about 25× that amount. Leave blank to assume ~70% of your income.</>} />
           </div>
 
+          <div className="pp-field" style={{ maxWidth: 260 }}>
+            <NumberField id="f-cppstart" label="CPP/OAS start age (optional)" placeholder={plan.retAge || "65"} value={plan.cppStartAge} onChange={(v) => set("cppStartAge", v)} suffix="years old"
+              help="Leave blank to start CPP/OAS the same year you retire. Starting early (as young as 60) permanently reduces it; starting later (up to 70) permanently increases it." />
+          </div>
+
           <div className="pp-field">
-            <label className="pp-label2">Are you saving for a first home?</label>
+            <label className="pp-label2">{plan.properties?.length ? "Are you saving for another home?" : "Are you saving for a first home?"}</label>
             <div className="pp-toggle">
               <button className={plan.buyHome ? "on" : ""} aria-pressed={!!plan.buyHome} onClick={() => set("buyHome", true)}>Yes</button>
               <button className={!plan.buyHome ? "on" : ""} aria-pressed={!plan.buyHome} onClick={() => set("buyHome", false)}>Not right now</button>
@@ -675,14 +725,15 @@ export default function Planner({ plan, setPlan }) {
             open={showAssumptions}
             onToggle={() => setShowAssumptions((v) => !v)}
           >
+            <div className="pp-help" style={{ marginBottom: 14 }}>Based on FP Canada's 2026 Projection Assumption Guidelines, the standard forward-looking figures CFPs are expected to use in client projections.</div>
             <div className="pp-field" style={{ marginBottom: 14 }}>
               <label className="pp-label2" htmlFor="f-infl">Inflation rate</label>
               <div className="pp-input-wrap" style={{ maxWidth: 200 }}>
-                <input id="f-infl" className="pp-input" inputMode="decimal" value={plan.inflationRate != null ? plan.inflationRate : ""} placeholder="2"
+                <input id="f-infl" className="pp-input" inputMode="decimal" value={plan.inflationRate != null ? plan.inflationRate : ""} placeholder="2.1"
                   onChange={(e) => set("inflationRate", e.target.value.replace(/[^0-9.]/g, ""))} />
                 <span className="pp-adorn r">%/yr</span>
               </div>
-              <div className="pp-help">Prices rise a little each year, so a dollar buys less over time. Canada has averaged about <b>2%</b>. We use this to show your retirement target in today's dollars. Defaults to 2%.</div>
+              <div className="pp-help">Prices rise a little each year, so a dollar buys less over time. FP Canada's 2026 guideline uses <b>2.1%</b>. We use this to show your retirement target in today's dollars. Defaults to 2.1%.</div>
             </div>
 
             <div className="pp-field" style={{ marginBottom: plan.buyHome ? 14 : 0 }}>
@@ -712,11 +763,11 @@ export default function Planner({ plan, setPlan }) {
                   <label className="pp-label2" htmlFor="f-homeapprec">Home appreciation</label>
                   <div className="pp-input-wrap">
                     <input id="f-homeapprec" className="pp-input" inputMode="decimal"
-                      value={plan.homeAppreciation ?? ""} placeholder="2.5"
+                      value={plan.homeAppreciation ?? ""} placeholder="3.1"
                       onChange={(e) => set("homeAppreciation", e.target.value.replace(/[^0-9.]/g, ""))} />
                     <span className="pp-adorn r">%/yr</span>
                   </div>
-                  <div className="pp-help">How fast the home's value grows. Defaults to 2.5%.</div>
+                  <div className="pp-help">How fast the home's value grows. FP Canada's 2026 guideline uses <b>3.1%</b> for shelter. Defaults to 3.1%.</div>
                 </div>
               </div>
             )}
@@ -905,9 +956,43 @@ export default function Planner({ plan, setPlan }) {
                 </div>
               );
             })()}
-            <CurrencyField id="f-debt" label="High-interest debt (optional)" placeholder="e.g. 5,000" value={plan.highInterestDebt} onChange={(v) => set("highInterestDebt", v)}
-              help={<>Credit cards or other debt above ~10%. Paying it off is a guaranteed, tax-free return.</>} />
           </div>
+
+          {/* Debts (optional) */}
+          {(() => {
+            const debts = Array.isArray(plan.liabilities) ? plan.liabilities : [];
+            const upd = (id, key, val) => set("liabilities", debts.map((d) => d.id === id ? { ...d, [key]: val } : d));
+            const add = () => set("liabilities", [...debts, { id: String(Date.now()), type: "Credit card", balance: "", rate: "" }]);
+            const rm = (id) => set("liabilities", debts.filter((d) => d.id !== id));
+            const DEBT_TYPES = ["Credit card", "Line of credit", "Car loan", "Mortgage", "Other"];
+            return (
+              <div className="pp-subcard" style={{ marginTop: 16 }}>
+                <p className="pp-sub-h">Debts <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></p>
+                <div className="pp-help" style={{ marginTop: 0 }}>
+                  Credit cards, a line of credit, a car loan — anything you're carrying a balance on. Paying off high-interest debt is a guaranteed, tax-free return.
+                </div>
+                {debts.map((d) => (
+                  <div key={d.id} className="pp-lifeevent">
+                    <div className="pp-lifeevent-row">
+                      <select className="pp-input" value={d.type} onChange={(ev) => upd(d.id, "type", ev.target.value)} aria-label="Debt type">
+                        {DEBT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <div className="pp-input-wrap" style={{ maxWidth: 140 }}><span className="pp-adorn">$</span>
+                        <input className="pp-input" inputMode="numeric" placeholder="balance"
+                          value={d.balance || ""} onChange={(ev) => upd(d.id, "balance", ev.target.value.replace(/[^0-9]/g, ""))} /></div>
+                      <div className="pp-input-wrap" style={{ maxWidth: 110 }}>
+                        <input className="pp-input" inputMode="decimal" placeholder="rate" value={d.rate || ""} onChange={(ev) => upd(d.id, "rate", ev.target.value.replace(/[^0-9.]/g, ""))} />
+                        <span className="pp-adorn r">%</span></div>
+                      <button type="button" className="pp-lifeevent-rm" onClick={() => rm(d.id)} aria-label="Remove">✕</button>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="pp-btn pp-btn-ghost" style={{ marginTop: 12 }} onClick={add}>
+                  + Add a debt
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Life changes over time (optional) */}
           {(() => {
@@ -986,12 +1071,18 @@ export default function Planner({ plan, setPlan }) {
 
           {(() => {
             const rareAccounts = CANADIAN_ACCOUNTS.filter((a) => !COMMON_ACCT_KEYS.includes(a.key));
-            const expanded = showMoreAccts || rareAccounts.some((a) => hasAcct(a.key));
+            const hasRareChecked = rareAccounts.some((a) => hasAcct(a.key));
+            const expanded = showMoreAccts || hasRareChecked;
             return (
               <>
                 {!expanded && (
                   <button type="button" className="pp-next-link" style={{ marginTop: 10 }} onClick={() => setShowMoreAccts(true)}>
                     + Show less common accounts (pensions, LIRA, RDSP...)
+                  </button>
+                )}
+                {expanded && !hasRareChecked && (
+                  <button type="button" className="pp-next-link" style={{ marginTop: 10 }} onClick={() => setShowMoreAccts(false)}>
+                    − Hide less common accounts
                   </button>
                 )}
                 {expanded && (
@@ -1063,6 +1154,28 @@ export default function Planner({ plan, setPlan }) {
               </div>
             </div>
           )}
+
+          <div className="pp-subcard" style={{ marginTop: 16 }}>
+            <p className="pp-sub-h">Protecting what you've built <span style={{ fontWeight: 600, color: "var(--muted)" }}>· optional</span></p>
+            <div className="pp-help" style={{ marginTop: 0 }}>
+              None of this affects your projection — it just helps us flag anything worth a closer look on your dashboard.
+            </div>
+            {[
+              ["hasWill", "Do you have a will?"],
+              ["hasPOA", "Do you have powers of attorney (property & health)?"],
+              ["hasLifeInsurance", "Do you have life insurance?"],
+              ["hasDisabilityInsurance", "Do you have disability insurance?"],
+            ].map(([key, label]) => (
+              <div className="pp-field" key={key} style={{ marginTop: 12, marginBottom: 0 }}>
+                <label className="pp-label2">{label}</label>
+                <div className="pp-toggle">
+                  <button type="button" className={plan[key] === "yes" ? "on" : ""} aria-pressed={plan[key] === "yes"} onClick={() => set(key, "yes")}>Yes</button>
+                  <button type="button" className={plan[key] === "no" ? "on" : ""} aria-pressed={plan[key] === "no"} onClick={() => set(key, "no")}>No</button>
+                  <button type="button" className={plan[key] === "unsure" ? "on" : ""} aria-pressed={plan[key] === "unsure"} onClick={() => set(key, "unsure")}>Not sure</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="pp-wizard-nav">

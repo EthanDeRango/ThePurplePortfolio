@@ -88,12 +88,21 @@ export const PROV_LIST = [
 
 // `who` is a loss-tolerance gut-check, not a feature list — the point is to help someone
 // self-identify by how a bad year would actually feel, not by staring at a bare percentage.
+// `basis` is shown next to the return so nobody mistakes a number for a promise — the first
+// two tiers are FP Canada's forward-looking planning guideline (deliberately conservative);
+// the top two are long-run *historical* market averages, a different and more optimistic thing.
 export const RISK = [
   { key: "conservative", name: "Conservative", ret: 0.04, color: "#5B8C5A", desc: "Steadier, smaller swings. Leans on bonds and cash.",
+    basis: "FP Canada 2026 guideline — fixed-income-heavy mix",
     who: "A 5% dip in a month would bother you. You want this to feel more like a savings account than an investment." },
-  { key: "moderate",     name: "Moderate",     ret: 0.08, color: "#7C4DC4", desc: "A balanced mix of growth and stability.",
+  { key: "balanced", name: "Balanced", ret: 0.0579, color: "#7C4DC4", desc: "A 60/40 mix of stocks and bonds — the classic balanced portfolio.",
+    basis: "FP Canada 2026 guideline — 60/40 balanced portfolio",
     who: "A bad year of -10 to -15% wouldn't make you sell, but you'd be checking your balance more than usual." },
-  { key: "aggressive",   name: "Aggressive",   ret: 0.12, color: "#34185A", desc: "Maximizes long-term growth; bigger ups and downs.",
+  { key: "growth", name: "Growth", ret: 0.08, color: "#B0793A", desc: "Mostly stocks, a little ballast. More upside, more bumps along the way.",
+    basis: "Growth-tilted mix (~85–90% equities), between FP Canada's guideline and long-run historical averages",
+    who: "A bad year of -15 to -20% wouldn't rattle you, and you're comfortable being mostly in stocks." },
+  { key: "aggressive", name: "Aggressive", ret: 0.10, color: "#34185A", desc: "All-in on stocks, aiming for the market's long-run historical average.",
+    basis: "Long-run historical average, ~100% equities (S&P 500 since 1926) — not a forward-looking guideline",
     who: "You could sit through a 2008- or 2022-style 25-30% drop without touching it — you're not spending this money for 15+ years." },
 ];
 

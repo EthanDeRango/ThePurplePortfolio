@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Sparkles, Calculator, Scale } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles, Calculator, Scale, TrendingUp, CreditCard } from "lucide-react";
 import { LIBRARY } from "../data/library.js";
 import { Disclaimer, TaxDisclaimer } from "../components/Disclaimer.jsx";
+import { fv, fmtMoney } from "../lib/calculations.js";
 
 function CapmCalc() {
   const [rf, setRf] = useState(3);
@@ -53,6 +54,89 @@ function MptCalc() {
   );
 }
 
+function CompoundCalc() {
+  const [monthly, setMonthly] = useState(300);
+  const [years, setYears] = useState(20);
+  const [rate, setRate] = useState(5.79);
+  const bal = fv(rate / 100, years * 12, 0, monthly);
+  const contributed = monthly * years * 12;
+  const growth = bal - contributed;
+  return (
+    <div className="pp-card" style={{ margin: "8px 0 24px" }}>
+      <span className="pp-eyebrow"><TrendingUp size={14} /> Try it: the power of compounding</span>
+      <h4 style={{ fontSize: 18, margin: "8px 0 14px" }}>TFSA / RRSP growth calculator</h4>
+      <div className="pp-sliders">
+        <div className="pp-slider"><div className="top"><span className="l">Monthly contribution</span><span className="v">{fmtMoney(monthly)}</span></div><input className="pp-range" type="range" min="50" max="2000" step="25" value={monthly} onChange={(e) => setMonthly(Number(e.target.value))} aria-label="Monthly contribution" /></div>
+        <div className="pp-slider"><div className="top"><span className="l">Years invested</span><span className="v">{years}</span></div><input className="pp-range" type="range" min="1" max="40" step="1" value={years} onChange={(e) => setYears(Number(e.target.value))} aria-label="Years invested" /></div>
+        <div className="pp-slider"><div className="top"><span className="l">Assumed return</span><span className="v">{rate.toFixed(2)}%</span></div><input className="pp-range" type="range" min="2" max="10" step="0.01" value={rate} onChange={(e) => setRate(Number(e.target.value))} aria-label="Assumed annual return" /></div>
+      </div>
+      <div className="pp-grid-2" style={{ gap: 14, marginTop: 16 }}>
+        <div className="pp-rate-chip"><div className="l">You contributed</div><div className="v">{fmtMoney(contributed)}</div></div>
+        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">Growth on top</div><div className="v">{fmtMoney(growth)}</div></div>
+      </div>
+      <div className="pp-rate-chip" style={{ marginTop: 14 }}>
+        <div className="l">Total balance after {years} years</div>
+        <div className="v">{fmtMoney(bal)}</div>
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>The starting rate is this site's "Balanced" assumption (FP Canada's 2026 guideline for a 60/40 portfolio) — drag it to see how the mix of contributions vs. growth shifts. The longer the horizon, the more of the total comes from growth rather than what you actually put in. Illustrative only.</p>
+    </div>
+  );
+}
+
+function CcTrapCalc() {
+  const [balance, setBalance] = useState(5000);
+  const [apr, setApr] = useState(22);
+  const [minPct, setMinPct] = useState(2);
+  const [fixedPayment, setFixedPayment] = useState(200);
+
+  const simulate = (paymentFn) => {
+    let bal = balance;
+    let totalInterest = 0;
+    let months = 0;
+    const maxMonths = 600; // 50 years
+    let stuck = false;
+    while (bal > 0 && months < maxMonths) {
+      const interest = bal * (apr / 100) / 12;
+      const payment = paymentFn(bal);
+      if (payment <= interest) { stuck = true; totalInterest += interest; break; }
+      totalInterest += interest;
+      bal = bal + interest - payment;
+      months++;
+    }
+    const neverPaysOff = stuck || bal > 0;
+    return { months, totalInterest, neverPaysOff, stuck };
+  };
+
+  const fmtMonths = (r) => {
+    if (r.stuck) return "never — the payment doesn't even cover the interest";
+    if (r.neverPaysOff) return "still not paid off after 50 years";
+    return `${Math.floor(r.months / 12)}y ${r.months % 12}mo`;
+  };
+
+  const minResult = simulate((b) => Math.max(25, b * minPct / 100));
+  const fixedResult = simulate(() => fixedPayment);
+  const interestSaved = minResult.neverPaysOff ? null : Math.max(0, minResult.totalInterest - fixedResult.totalInterest);
+
+  return (
+    <div className="pp-card" style={{ margin: "8px 0 24px" }}>
+      <span className="pp-eyebrow"><CreditCard size={14} /> Try it: the minimum-payment trap</span>
+      <h4 style={{ fontSize: 18, margin: "8px 0 6px" }}>Credit card payoff calculator</h4>
+      <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>Minimum payments are usually a floor amount or a small percentage of your balance — whichever is higher.</p>
+      <div className="pp-sliders">
+        <div className="pp-slider"><div className="top"><span className="l">Balance</span><span className="v">{fmtMoney(balance)}</span></div><input className="pp-range" type="range" min="500" max="15000" step="100" value={balance} onChange={(e) => setBalance(Number(e.target.value))} aria-label="Balance" /></div>
+        <div className="pp-slider"><div className="top"><span className="l">Interest rate (APR)</span><span className="v">{apr}%</span></div><input className="pp-range" type="range" min="15" max="30" step="0.5" value={apr} onChange={(e) => setApr(Number(e.target.value))} aria-label="APR" /></div>
+        <div className="pp-slider"><div className="top"><span className="l">Minimum payment</span><span className="v">{minPct}% of balance</span></div><input className="pp-range" type="range" min="1" max="5" step="0.5" value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} aria-label="Minimum payment percent" /></div>
+        <div className="pp-slider"><div className="top"><span className="l">A fixed payment you choose</span><span className="v">{fmtMoney(fixedPayment)}/mo</span></div><input className="pp-range" type="range" min="50" max="500" step="10" value={fixedPayment} onChange={(e) => setFixedPayment(Number(e.target.value))} aria-label="Fixed payment" /></div>
+      </div>
+      <div className="pp-grid-2" style={{ gap: 14, marginTop: 16 }}>
+        <div className="pp-rate-chip"><div className="l">Minimum payments only</div><div className="v">{fmtMonths(minResult)}</div><div className="h">{minResult.neverPaysOff ? "" : `${fmtMoney(minResult.totalInterest)} in interest`}</div></div>
+        <div className="pp-rate-chip" style={{ background: "#F3ECDB" }}><div className="l">At your fixed payment</div><div className="v">{fmtMonths(fixedResult)}</div><div className="h">{fixedResult.neverPaysOff ? "" : `${fmtMoney(fixedResult.totalInterest)} in interest`}</div></div>
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>{interestSaved != null ? <>Paying a fixed {fmtMoney(fixedPayment)}/mo instead of the shrinking minimum saves about <b>{fmtMoney(interestSaved)}</b> in interest here.</> : "At only the minimum, the balance barely moves — most of the payment is covering interest, not the debt itself."} Illustrative only; real cards vary in how minimums are calculated.</p>
+    </div>
+  );
+}
+
 export default function Topic() {
   const { cat: catKey, topic: topicKey } = useParams();
   const navigate = useNavigate();
@@ -72,6 +156,8 @@ export default function Topic() {
         <div className="pp-prose">{t.prose.map((p, i) => <p key={i}>{p}</p>)}</div>
         {t.calc === "capm" && <CapmCalc />}
         {t.calc === "mpt" && <MptCalc />}
+        {t.calc === "compound" && <CompoundCalc />}
+        {t.calc === "cctrap" && <CcTrapCalc />}
         {t.facts && (
           <div className="pp-facts">
             <h4>Key facts</h4>

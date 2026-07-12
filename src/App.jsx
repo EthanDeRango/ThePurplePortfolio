@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
 import STYLES from "./styles.js";
-import { PLAN_DEFAULTS, PLAN_STORAGE_KEY } from "./data/constants.js";
+import { PLAN_DEFAULTS, PLAN_STORAGE_KEY, normalizePlan } from "./data/constants.js";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import AuthModal from "./components/AuthModal.jsx";
 import NewsletterPrompt from "./components/NewsletterPrompt.jsx";
@@ -21,7 +21,7 @@ import Terms from "./pages/Terms.jsx";
 function loadSavedPlan() {
   try {
     const raw = localStorage.getItem(PLAN_STORAGE_KEY);
-    if (raw) return { ...PLAN_DEFAULTS, ...JSON.parse(raw) };
+    if (raw) return normalizePlan(JSON.parse(raw));
   } catch { /* ignore */ }
   return PLAN_DEFAULTS;
 }
@@ -176,7 +176,7 @@ function AppShell({ plan, setPlan, onReset, hasSaved }) {
   const { user, showNewsletterPrompt, recoveryMode, clearRecovery } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
 
-  usePlanSync(user, plan, setPlan, PLAN_DEFAULTS);
+  usePlanSync(user, plan, setPlan);
 
   return (
     <>

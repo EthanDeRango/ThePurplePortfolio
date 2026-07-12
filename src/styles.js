@@ -492,7 +492,7 @@ html { scroll-padding-top: 90px; }
 .pp-select:focus { outline: 0; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(112,68,190,.13); }
 .pp-grid-money { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 .pp-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.pp-seg { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.pp-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pp-segc {
   text-align: left;
   background: #fff;
@@ -507,6 +507,7 @@ html { scroll-padding-top: 90px; }
 .pp-segc .nm { font-weight: 700; font-size: 15.5px; display: flex; justify-content: space-between; align-items: center; }
 .pp-segc .rt { font-size: 12px; color: var(--gold); font-weight: 800; }
 .pp-segc .ds { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+.pp-risk-basis { font-size: 11px; color: var(--gold); font-weight: 600; margin-top: 6px; }
 .pp-segc .who { font-size: 11.5px; color: var(--plum-2); margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(30,17,40,.12); line-height: 1.5; }
 .pp-segc .who i { font-style: normal; color: var(--ink); }
 .pp-toggle { display: flex; gap: 10px; }
